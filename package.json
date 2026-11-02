@@ -1,0 +1,16 @@
+{
+  "name": "pokedraftchamps",
+  "private": true,
+  "version": "0.1.0",
+  "description": "PokeDraftChamps - a solo roguelike Pokemon draft league",
+  "license": "MIT",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev": "npm run dev -w @pdc/app",
+    "build": "npm run build -w @pdc/engine && npm run build -w @pdc/app",
+    "test": "npm run test -w @pdc/engine",
+    "typecheck": "npm run typecheck --workspaces",
+    "balance": "npm run balance -w @pdc/engine --"
+  },
+  "engines": { "node": ">=20" }
+}

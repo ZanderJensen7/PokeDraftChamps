@@ -1,0 +1,335 @@
+@import "tailwindcss";
+
+/* UI_STYLE.md tokens. `static` so every token is emitted as a CSS variable (type/crest colors are picked at runtime). */
+@theme static {
+  --font-display: "Fredoka", "Nunito", system-ui, sans-serif;
+  --font-body: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-pixel: "Press Start 2P", ui-monospace, monospace;
+
+  --color-bg: #0f1a2e;
+  --color-bg-deep: #0a1322;
+  --color-panel: #1b2a47;
+  --color-panel-hi: #243759;
+  --color-panel-inset: #142039;
+  --color-edge: #3a4f7a;
+  --color-edge-dark: #0b1426;
+  --color-ink: #eef2ff;
+  --color-muted: #a5b4d6;
+  --color-faint: #6c7ea8;
+
+  --color-cream: #f6f1e4;
+  --color-cream-ink: #22252e;
+  --color-cream-edge: #3b3f4c;
+  --color-cream-mid: #d9cfb5;
+
+  --color-poke-red: #e3350d;
+  --color-poke-red-dark: #9e2207;
+  --color-poke-yellow: #ffcb05;
+  --color-poke-yellow-dark: #c49a00;
+  --color-poke-blue: #3b4cca;
+  --color-poke-blue-dark: #26318c;
+
+  --color-you: #5d75ff;
+  --color-you-soft: #22306a;
+  --color-opp: #ff5d3d;
+  --color-opp-soft: #5a2420;
+  --color-win: #3fd06a;
+  --color-loss: #ff5d3d;
+
+  --color-hp-green: #3fd06a;
+  --color-hp-yellow: #f8c820;
+  --color-hp-red: #e8442c;
+  --color-hp-track: #1c2433;
+
+  --color-type-normal: #a8a77a;
+  --color-type-fire: #ee8130;
+  --color-type-water: #6390f0;
+  --color-type-electric: #f7d02c;
+  --color-type-grass: #7ac74c;
+  --color-type-ice: #96d9d6;
+  --color-type-fighting: #c22e28;
+  --color-type-poison: #a33ea1;
+  --color-type-ground: #e2bf65;
+  --color-type-flying: #a98ff3;
+  --color-type-psychic: #f95587;
+  --color-type-bug: #a6b91a;
+  --color-type-rock: #b6a136;
+  --color-type-ghost: #735797;
+  --color-type-dragon: #6f35fc;
+  --color-type-dark: #705746;
+  --color-type-steel: #b7b7ce;
+  --color-type-fairy: #d685ad;
+  --color-type-stellar: #40b5a5;
+
+  /* Type chart cells: 0 / 1/4 / 1/2 / 1 / 2 / 4 */
+  --color-mult-0: #0b0f18;
+  --color-mult-q: #1f8f4e;
+  --color-mult-h: #2f6f4a;
+  --color-mult-1: #1b2a47;
+  --color-mult-2: #b4472a;
+  --color-mult-4: #e3350d;
+
+  /* Team crests */
+  --color-crest-0: #3b4cca;
+  --color-crest-1: #e3350d;
+  --color-crest-2: #2a9d5c;
+  --color-crest-3: #8e44ad;
+  --color-crest-4: #d68910;
+  --color-crest-5: #17a2b8;
+  --color-crest-6: #c0392b;
+  --color-crest-7: #5d6d7e;
+  --color-crest-8: #b03a8e;
+  --color-crest-9: #6b8e23;
+
+  --radius-game: 12px;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--color-bg);
+  overflow-x: clip;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  background-image: radial-gradient(circle at 50% -20%, var(--color-panel-hi) 0%, var(--color-bg) 55%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+}
+
+@layer components {
+  .game-panel {
+    background: var(--color-panel);
+    border: 2px solid var(--color-edge);
+    border-bottom-width: 5px;
+    border-bottom-color: var(--color-edge-dark);
+    border-radius: var(--radius-game);
+  }
+  .game-inset {
+    background: var(--color-panel-inset);
+    border: 2px solid var(--color-edge-dark);
+    border-radius: 10px;
+  }
+  .title-band {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-poke-yellow);
+    text-shadow: 0 2px 0 var(--color-edge-dark);
+  }
+  .dialogue {
+    background: var(--color-cream);
+    color: var(--color-cream-ink);
+    border: 3px solid var(--color-cream-edge);
+    border-radius: 10px;
+    box-shadow: inset 0 0 0 3px var(--color-cream), inset 0 0 0 5px var(--color-cream-mid), 0 4px 0 var(--color-edge-dark);
+  }
+  .game-btn {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border: 2px solid var(--btn-edge);
+    border-bottom-width: 5px;
+    border-radius: 10px;
+    background: var(--btn-bg);
+    color: var(--btn-ink);
+    transition: transform 120ms ease, border-bottom-width 120ms ease, filter 120ms ease;
+    cursor: pointer;
+  }
+  .game-btn:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+  .game-btn:active:not(:disabled) {
+    transform: translateY(2px);
+    border-bottom-width: 3px;
+  }
+  .game-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+  .game-btn:focus-visible,
+  .focus-ring:focus-visible {
+    outline: 3px solid var(--color-poke-yellow);
+    outline-offset: 2px;
+  }
+  .btn-primary { --btn-bg: var(--color-poke-yellow); --btn-edge: var(--color-poke-yellow-dark); --btn-ink: var(--color-cream-ink); }
+  .btn-secondary { --btn-bg: var(--color-poke-blue); --btn-edge: var(--color-poke-blue-dark); --btn-ink: var(--color-ink); }
+  .btn-danger { --btn-bg: var(--color-poke-red); --btn-edge: var(--color-poke-red-dark); --btn-ink: var(--color-ink); }
+  .btn-ghost { --btn-bg: var(--color-panel-hi); --btn-edge: var(--color-edge-dark); --btn-ink: var(--color-ink); }
+
+  .type-pill {
+    font-family: var(--font-display);
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #fff;
+    text-shadow: 0 1px 1px rgb(0 0 0 / 0.7), 0 0 2px rgb(0 0 0 / 0.5);
+    border-radius: 999px;
+    border: 1px solid rgb(0 0 0 / 0.25);
+    letter-spacing: 0.03em;
+    line-height: 1;
+  }
+  .pixel {
+    font-family: var(--font-pixel);
+  }
+  .field {
+    background: var(--color-panel-inset);
+    border: 2px solid var(--color-edge);
+    border-radius: 8px;
+    color: var(--color-ink);
+    padding: 0.45rem 0.65rem;
+    min-height: 2.5rem;
+  }
+  .field:focus-visible {
+    outline: 3px solid var(--color-poke-yellow);
+    outline-offset: 1px;
+  }
+}
+
+@keyframes pick-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+.anim-pick-in { animation: pick-in 220ms ease-out; }
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-poke-yellow) 60%, transparent); }
+  50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-poke-yellow) 0%, transparent); }
+}
+.anim-clock { animation: pulse-glow 1.4s ease-in-out 3; }
+
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+input[type="range"] {
+  accent-color: var(--color-poke-yellow);
+}
+
+/* Live battle field: sky over grass, oval platforms under each sprite. */
+.battle-field {
+  position: relative;
+  overflow: hidden;
+  height: clamp(300px, 52vw, 440px);
+  border: 3px solid var(--color-edge-dark);
+  border-radius: 14px;
+  background:
+    radial-gradient(120% 60% at 75% 0%, rgb(255 255 255 / 0.45), transparent 60%),
+    linear-gradient(180deg, #7cc4f2 0%, #bfe7fb 46%, #a6dc86 47%, #79c35c 100%);
+  box-shadow: inset 0 -12px 30px rgb(0 0 0 / 0.18);
+}
+.battle-platform {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, #d9f0b8 0%, #9ccf73 55%, #6aa84c 70%, transparent 72%);
+  box-shadow: inset 0 -4px 0 rgb(0 0 0 / 0.12);
+}
+.battle-hpbox {
+  background: var(--color-cream);
+  color: var(--color-cream-ink);
+  border: 3px solid var(--color-cream-edge);
+  border-radius: 10px 10px 10px 2px;
+  box-shadow: 0 3px 0 rgb(0 0 0 / 0.25);
+}
+.battle-sprite { transition: opacity 500ms ease-out, transform 500ms ease-out; }
+.battle-sprite.is-fainted { opacity: 0; transform: translateY(24px); }
+
+/* ---------- Touch + phone layer ---------- */
+
+/* No 300ms tap delay, no text selection or grey tap flash on game controls. */
+button,
+[role="tab"],
+[role="radio"],
+.game-btn,
+label,
+summary {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+button,
+.game-btn,
+[role="tab"],
+[role="radio"],
+summary {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Safe-area padding for the notch / home indicator (viewport-fit=cover). */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility pb-safe-3 {
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+}
+/* Room under the page for the fixed bottom nav. */
+@utility pb-nav {
+  padding-bottom: calc(5.25rem + env(safe-area-inset-bottom));
+}
+/* Hide a scrollbar on swipe rows (tabs, tickers) while keeping them scrollable. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.anim-sheet-in { animation: sheet-in 200ms ease-out; }
+
+@media (max-width: 767px) {
+  /* iOS zooms into any focused input under 16px. */
+  input,
+  select,
+  textarea,
+  .field {
+    font-size: 16px;
+  }
+  /* Phones: the field fills what the team strips and the move grid leave free. */
+  .battle-field {
+    height: clamp(240px, calc(100dvh - var(--topbar-h, 3.75rem) - 22rem), 520px);
+    border-radius: 12px;
+  }
+}
+
+/* Landscape phones: the field sits beside the actions and fills the height. */
+@media (orientation: landscape) and (max-height: 540px) {
+  .battle-field {
+    height: calc(100dvh - var(--topbar-h, 3.75rem) - 8rem);
+    min-height: 160px;
+  }
+}

@@ -1,0 +1,22 @@
+/// <reference lib="webworker" />
+// League simulation off the main thread: one AI-vs-AI match per message, answered with its MatchResult.
+import { simulateMatch, type Coach } from '@pdc/engine';
+
+export interface SimRequest {
+  id: number;
+  home: Coach;
+  away: Coach;
+  seed: number;
+}
+
+const ctx = self as unknown as DedicatedWorkerGlobalScope;
+
+ctx.onmessage = async (e: MessageEvent<SimRequest>) => {
+  const { id, home, away, seed } = e.data;
+  try {
+    const result = await simulateMatch(home, away, seed);
+    ctx.postMessage({ id, result });
+  } catch (err) {
+    ctx.postMessage({ id, error: err instanceof Error ? err.message : String(err) });
+  }
+};
