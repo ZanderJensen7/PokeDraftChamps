@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { DraftMon, RunState, SpeciesId } from '@pdc/engine';
-import { ALL_TYPES, conflictsWithRoster, currentPicker, getDraftMon, humanCoach, legalPicks, runPool } from '@pdc/engine';
+import {
+  ALL_TYPES, conflictsWithRoster, currentPicker, getDraftMon, humanCoach, isDoneDrafting, legalPicks, runPool,
+} from '@pdc/engine';
 import { useGame } from '../store/useGame';
 import { useSettings } from '../store/settings';
 import {
@@ -80,6 +82,7 @@ export function DraftScreen() {
   const revealNextPick = useGame((s) => s.revealNextPick);
   const skip = useGame((s) => s.skipDraftAnimation);
   const humanPick = useGame((s) => s.humanPick);
+  const stopDrafting = useGame((s) => s.stopDrafting);
   const setCaptainsWith = useGame((s) => s.setCaptainsWith);
   const reducedMotion = useSettings((s) => s.reducedMotion);
 
@@ -110,7 +113,7 @@ export function DraftScreen() {
 
   // No captain roles in this league: the captain step is skipped and the draft ends straight away.
   useEffect(() => {
-    if (draftOver && noCaptains) setCaptainsWith({ tera: [], z: [] });
+    if (draftOver && noCaptains) void setCaptainsWith({ tera: [], z: [] });
   }, [draftOver, noCaptains, setCaptainsWith]);
 
   useEffect(() => {
@@ -139,7 +142,14 @@ export function DraftScreen() {
   const done = run.draft.complete && !animating;
   const spent = human.pointsSpent;
   const left = run.config.budget - spent;
-  const picksLeft = run.config.rosterSize - human.roster.length;
+  // Picks still REQUIRED (up to rosterMin) and still OPEN (up to rosterMax). At or above the minimum you may stop.
+  const required = Math.max(0, run.config.rosterMin - human.roster.length);
+  const picksLeft = run.config.rosterMax - human.roster.length;
+  const canStop = myTurn && required === 0;
+  const picksText = required > 0 ? `${required} more required` : picksLeft > 0 ? `up to ${picksLeft} more` : 'roster full';
+  const sizeText = run.config.rosterMin === run.config.rosterMax
+    ? `${human.roster.length}/${run.config.rosterMax}`
+    : `${human.roster.length}/${run.config.rosterMin}–${run.config.rosterMax}`;
   const owned = human.roster.map((r) => r.species);
 
   const q = search.trim().toLowerCase();
@@ -165,12 +175,12 @@ export function DraftScreen() {
       const otherName = other ? displayName(getDraftMon(other.species)?.name ?? other.species) : 'another form of it';
       return `You already own ${otherName}: a Pokemon and its Mega can't share a roster.`;
     }
-    if (!legal.has(m.id)) return `Too expensive: you need to keep points for ${picksLeft - 1} more picks.`;
+    if (!legal.has(m.id)) return `Too expensive: you need to keep points for ${Math.max(0, required - 1)} more required picks.`;
     return undefined;
   };
 
   const ticker = shownPicks.slice(-8).reverse();
-  const order = roundOrder(run, Math.min(round, run.config.rosterSize));
+  const order = roundOrder(run, Math.min(round, run.config.rosterMax));
   const filtersActive = (type ? 1 : 0) + (maxPrice < 20 ? 1 : 0) + (sort !== 'price' ? 1 : 0) + (onlyLegal ? 0 : 1) + (megasOnly ? 1 : 0);
   const selectedMon = myTurn && selected && legal.has(selected) ? pool.find((m) => m.id === selected) ?? null : null;
 
@@ -292,11 +302,15 @@ export function DraftScreen() {
   );
 
   const rosterPanel = (
-    <Panel title="Your roster" aside={<span className="font-display font-bold">{human.roster.length}/{run.config.rosterSize}</span>}>
+    <Panel title="Your roster" aside={<span className="font-display font-bold">{sizeText}</span>}>
       <div className="mb-3 grid grid-cols-3 gap-2 text-center">
         <div className="game-inset py-1.5"><div className="font-display text-xl font-bold tabular-nums">{spent}</div><div className="text-xs font-bold uppercase text-muted">Spent</div></div>
         <div className="game-inset py-1.5"><div className="font-display text-xl font-bold text-poke-yellow tabular-nums">{left}</div><div className="text-xs font-bold uppercase text-muted">Left</div></div>
-        <div className="game-inset py-1.5"><div className="font-display text-xl font-bold tabular-nums">{picksLeft}</div><div className="text-xs font-bold uppercase text-muted">Picks left</div></div>
+        {required > 0 ? (
+          <div className="game-inset py-1.5"><div className="font-display text-xl font-bold tabular-nums">{required}</div><div className="text-xs font-bold uppercase text-muted">More required</div></div>
+        ) : (
+          <div className="game-inset py-1.5"><div className="font-display text-xl font-bold tabular-nums">{picksLeft}</div><div className="text-xs font-bold uppercase text-muted">Optional left</div></div>
+        )}
       </div>
       {human.roster.length === 0 ? (
         <p className="text-sm text-muted">No picks yet.</p>
@@ -320,7 +334,7 @@ export function DraftScreen() {
   );
 
   const myTeamPanel = (
-    <MyTeamPanel rosterIds={ownedIds} rosterSize={run.config.rosterSize} needs={needs} loading={needsLoading} />
+    <MyTeamPanel rosterIds={ownedIds} sizeText={sizeText} needs={needs} loading={needsLoading} />
   );
   const needsLine = needsOneLiner(needs);
 
@@ -331,10 +345,13 @@ export function DraftScreen() {
         {order.map((id) => {
           const on = id === picker;
           const you = id === run.humanId;
+          // Stopped or full coaches are skipped by the snake (shown as of the live draft state, ahead of the reveal).
+          const out = !on && isDoneDrafting(run.draft, id, run.config);
           return (
             <span
               key={id}
-              className={`rounded-md border-2 px-1.5 py-0.5 font-display text-xs font-bold ${on ? 'border-poke-yellow bg-poke-yellow text-cream-ink' : you ? 'border-you bg-you-soft' : 'border-edge-dark bg-panel-inset text-muted'}`}
+              title={out ? 'Done drafting' : undefined}
+              className={`rounded-md border-2 px-1.5 py-0.5 font-display text-xs font-bold ${out ? 'border-edge-dark bg-panel-inset text-faint line-through opacity-60' : on ? 'border-poke-yellow bg-poke-yellow text-cream-ink' : you ? 'border-you bg-you-soft' : 'border-edge-dark bg-panel-inset text-muted'}`}
             >
               {abbrevOf(run, id)}
             </span>
@@ -434,7 +451,7 @@ export function DraftScreen() {
               </span>
             )}
             <span className={`ml-auto shrink-0 tabular-nums ${myTurn ? '' : 'text-muted'}`}>
-              <span className={myTurn ? '' : 'text-poke-yellow'}>{left}</span> pts · {picksLeft} picks · R{round}
+              <span className={myTurn ? '' : 'text-poke-yellow'}>{left}</span> pts · {required > 0 ? `${required} req` : `≤${picksLeft} more`} · R{round}
             </span>
             {animating && (
               <GameButton variant="secondary" size="sm" onClick={skip} className="min-h-9 shrink-0 !px-2 !py-1 text-xs">Skip</GameButton>
@@ -453,7 +470,7 @@ export function DraftScreen() {
                 onClick={() => setTab(t)}
                 className={`game-btn min-h-11 !px-1 text-sm whitespace-nowrap ${tab === t ? 'btn-primary' : 'btn-ghost'}`}
               >
-                {t === 'pool' ? `POOL · ${filtered.length}` : t === 'board' ? `BOARD · ${human.roster.length}/${run.config.rosterSize}` : 'MY TEAM'}
+                {t === 'pool' ? `POOL · ${filtered.length}` : t === 'board' ? `BOARD · ${human.roster.length}/${run.config.rosterMax}` : 'MY TEAM'}
               </button>
             ))}
           </div>
@@ -513,8 +530,12 @@ export function DraftScreen() {
                   DRAFT {displayName(selectedMon.name).toUpperCase()} · {selectedMon.points}
                 </GameButton>
               </>
+            ) : canStop ? (
+              <GameButton block size="lg" variant="secondary" className="min-h-12 !text-lg" onClick={() => { stopDrafting(); setSelected(null); }}>
+                DONE DRAFTING · {human.roster.length} MONS
+              </GameButton>
             ) : (
-              <GameButton block size="lg" disabled className="min-h-12 !text-lg" onClick={() => undefined}>TAP A POKEMON TO PICK</GameButton>
+              <GameButton block size="lg" disabled className="min-h-12 !text-lg" onClick={() => undefined}>TAP A POKEMON · {required} MORE REQUIRED</GameButton>
             )}
           </div>
         )}
@@ -553,10 +574,17 @@ export function DraftScreen() {
         <div className="anim-clock flex flex-col items-start justify-between gap-2 rounded-xl border-2 border-b-4 border-poke-yellow-dark bg-poke-yellow px-4 py-3 text-cream-ink sm:flex-row sm:items-center">
           <div>
             <div className="font-display text-2xl font-bold uppercase leading-none">You're on the clock!</div>
-            <div className="font-semibold">Round {round} · pick #{overall} · {left} points left for {picksLeft} picks</div>
+            <div className="font-semibold">Round {round} · pick #{overall} · {left} points left · {picksText}</div>
             {needsLine && <div className="mt-0.5 text-sm font-bold">{needsLine}</div>}
           </div>
-          <span className="font-display font-bold">Tap a Pokemon to draft</span>
+          {canStop ? (
+            <span className="flex flex-col items-start gap-1 sm:items-end">
+              <GameButton variant="secondary" onClick={stopDrafting}>Done drafting</GameButton>
+              <span className="text-xs font-bold">or tap a Pokemon to keep drafting</span>
+            </span>
+          ) : (
+            <span className="font-display font-bold">Tap a Pokemon to draft</span>
+          )}
         </div>
       ) : (
         <div className="flex flex-col items-start justify-between gap-2 rounded-xl border-2 border-b-4 border-edge bg-panel px-4 py-3 sm:flex-row sm:items-center">

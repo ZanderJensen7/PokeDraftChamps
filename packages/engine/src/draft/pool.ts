@@ -1,8 +1,8 @@
 // The draft pool: standard Gen 9 species with a gen9randombattle set, minus bans. Optionally the Mega forms
 // of those species (league option `megas`). Built once per option set, cached.
 import { Dex } from '@pkmn/dex';
-import { TeamGenerators } from '@pkmn/randoms';
 import type { DraftMon, SpeciesId, StatsTable } from '../types';
+import { randomsSpeciesKeys } from '../data/randoms';
 import { isBannedMega, isBannedSpecies, priceOf, pricingTier } from '../data/points';
 
 export interface DraftPoolOptions {
@@ -14,13 +14,6 @@ type Species = ReturnType<ReturnType<typeof Dex.forGen>['species']['get']>;
 
 const cachedPools = new Map<string, readonly DraftMon[]>();
 let fullById: ReadonlyMap<SpeciesId, DraftMon> | undefined;
-
-function randomSetIds(): Set<string> {
-  const gen = TeamGenerators.getTeamGenerator('gen9randombattle') as unknown as {
-    randomSets: Record<string, unknown>;
-  };
-  return new Set(Object.keys(gen.randomSets));
-}
 
 function toDraftMon(s: Species, tier: string, extra: Pick<DraftMon, 'isMega' | 'baseSpecies' | 'requiredItem'>): DraftMon {
   const abilities = [...new Set(Object.values(s.abilities).filter((a): a is string => !!a))];
@@ -44,7 +37,7 @@ function toDraftMon(s: Species, tier: string, extra: Pick<DraftMon, 'isMega' | '
  * National Dex tier to price them by and their stones are verified to work in gen9customgame. The 'Future'
  * (Legends Z-A) Megas have neither, so they are left out. Banned by isBannedMega (AG tier).
  */
-function megaForms(withSets: Set<string>): DraftMon[] {
+function megaForms(withSets: ReadonlySet<string>): DraftMon[] {
   const dex = Dex.forGen(9);
   const out: DraftMon[] = [];
   for (const s of dex.species.all()) {
@@ -66,10 +59,10 @@ export function buildDraftPool(opts: DraftPoolOptions = {}): readonly DraftMon[]
   if (hit) return hit;
   let pool: DraftMon[];
   if (megas) {
-    pool = [...buildDraftPool({ megas: false }), ...megaForms(randomSetIds())];
+    pool = [...buildDraftPool({ megas: false }), ...megaForms(randomsSpeciesKeys())];
   } else {
     const dex = Dex.forGen(9);
-    const withSets = randomSetIds();
+    const withSets = randomsSpeciesKeys();
     pool = [];
     for (const s of dex.species.all()) {
       if (!s.exists || s.isNonstandard || !withSets.has(s.id)) continue;

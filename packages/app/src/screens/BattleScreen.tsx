@@ -1,19 +1,24 @@
 // The live battle: the human (p1) against the league AI (p2), driven by the engine's interactive battle.
 // Protocol lines are narrated one sentence at a time; the action panel appears once narration catches up.
 import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
-import type { MatchResult, ParsedRequest, RequestPokemon } from '@pdc/engine';
+import type { MatchResult } from '@pdc/engine';
+import type { ParsedRequest, RequestPokemon } from '@pdc/engine/battle';
 import { useGame } from '../store/useGame';
 import { useSettings } from '../store/settings';
 import { GameButton, HpBar, ResponsiveDialog, PokeIcon, PokeSprite, RoleTag, Sheet, TypePill, typeColor } from '../components/ui';
+import { BoostChips, MonHoverLayer, StatusBadge, useMonHover, type MonHoverBind } from '../components/battle/MonHoverCard';
+import { buildMonInfo, type MonInfoContext, type MonTarget } from '../battle/monInfo';
+import { getBridge } from '../game/bridge';
 import { useIsLandscapePhone, useIsMobile } from '../hooks/useIsMobile';
 import { displayName } from '../game/names';
 import { dex9 } from '../game/sets';
 import type { LiveBattle } from '../battle/session';
 import {
-  activeMon, battleViewReducer, initialBattleView, parseCondition, parseDetails, STAT_SHORT,
-  type FieldView, type MonView, type SideView,
+  activeMon, battleViewReducer, initialBattleView, parseCondition, parseDetails,
+  type FieldView, type MonView, type Side, type SideView,
 } from '../battle/battleView';
-import { isHpLine, isLogWorthy, narrate, type Narration } from '../battle/narrate';
+import { isHpLine, narrate, parseLog, type Narration } from '../battle/narrate';
+import { BattleLog } from '../components/battle/BattleLog';
 
 export function BattleScreen() {
   const battle = useGame((s) => s.battle);
@@ -56,14 +61,22 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
   const linesRef = useRef<string[]>([]);
   const [received, setReceived] = useState(0);
   const [request, setRequest] = useState<ParsedRequest | null>(null);
+  // The latest request stays readable after a choice clears `request`: the hover card reads own HP, PP and speed from it.
+  const [lastRequest, setLastRequest] = useState<ParsedRequest | null>(null);
   const [result, setResult] = useState<MatchResult | null>(null);
   const [beatDone, setBeatDone] = useState(false);
   const [forfeitOpen, setForfeitOpen] = useState(false);
-  const [logOpen, setLogOpen] = useState(false);
   const lastDelay = useRef(0);
   const isMobile = useIsMobile();
   const landscape = useIsLandscapePhone();
   const phone = isMobile || landscape;
+  // The log is open by default and remembered, except on portrait phones where it is a sheet opened on demand.
+  const portrait = isMobile && !landscape;
+  const logPref = useSettings((s) => s.battleLogOpen);
+  const updateSettings = useSettings((s) => s.update);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const logOpen = portrait ? sheetOpen : logPref;
+  const toggleLog = () => (portrait ? setSheetOpen((o) => !o) : updateSettings({ battleLogOpen: !logPref }));
 
   // Subscribe to the battle. onLine/onRequest replay history, so StrictMode's double effect is harmless.
   useEffect(() => {
@@ -75,7 +88,7 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
       if (replayed && line.startsWith('|error|')) useGame.getState().setToast(errorText(line));
     });
     replayed = true;
-    const offReq = battle.onRequest((req) => setRequest(req));
+    const offReq = battle.onRequest((req) => { setRequest(req); setLastRequest(req); });
     let alive = true;
     live.result.then((r) => { if (alive) setResult(r); }, () => undefined);
     return () => { alive = false; offLine(); offReq(); };
@@ -138,12 +151,36 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
   };
 
   const view = state.view;
+
+  // Hover / tap info card. Scouting comes from the prep doc (already built for this opponent) or, failing
+  // that, one scout pass per battle; the field view tracks revealed moves/items/abilities as lines apply.
+  const prep = useGame((s) => s.prep);
+  const hover = useMonHover(phone);
+  const scouted = useMemo(() => {
+    const oppIds = new Set(live.opp.roster.map((r) => r.species));
+    if (prep && prep.opp.length > 0 && prep.opp.every((c) => oppIds.has(c.species))) return prep.scouted;
+    const run = useGame.getState().battle?.run;
+    return (run && getBridge().scout?.(run, live.opp.id)?.bySpecies) ?? {};
+  }, [prep, live.opp]);
+  const infoCtx = useMemo<Omit<MonInfoContext, 'request'>>(() => ({
+    lineups: { p1: live.humanLineup, p2: live.oppLineup },
+    teraCaptains: {
+      p1: live.human.roster.filter((r) => r.isTeraCaptain).map((r) => r.species),
+      p2: live.opp.roster.filter((r) => r.isTeraCaptain).map((r) => r.species),
+    },
+    scouted,
+  }), [live, scouted]);
+  const openCard = hover.open;
+  const cardInfo = useMemo(
+    () => (openCard ? buildMonInfo(view, openCard.target, { ...infoCtx, request: lastRequest }) : null),
+    [openCard, view, infoCtx, lastRequest],
+  );
   const showResult = !!result && caughtUp;
   const showActions = ready && beatDone && !showResult;
   const shown = state.shown;
-  const logLines = useMemo(() => linesRef.current.slice(0, shown).filter(isLogWorthy), [shown]);
+  const logEntries = useMemo(() => parseLog(linesRef.current.slice(0, shown), ctx), [shown, ctx]);
   const logToggle = (
-    <GameButton size="sm" variant="ghost" onClick={() => setLogOpen((o) => !o)} className={phone ? 'min-h-9 !px-2.5 !py-0.5' : ''}>
+    <GameButton size="sm" variant="ghost" onClick={toggleLog} aria-pressed={logOpen} className={phone ? 'min-h-9 !px-2.5 !py-0.5' : ''}>
       {logOpen ? 'HIDE LOG' : 'LOG'}
     </GameButton>
   );
@@ -165,9 +202,9 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
   );
   const fieldStack = (
     <>
-      <TeamStrip side={view.sides.p2} tone="opp" label={opp.name} />
-      <Field view={view} />
-      <TeamStrip side={view.sides.p1} tone="you" label={live.human.name} extra={phone ? logToggle : undefined} />
+      <TeamStrip side={view.sides.p2} sideId="p2" bind={hover.bind} tone="opp" label={opp.name} />
+      <Field view={view} bind={hover.bind} />
+      <TeamStrip side={view.sides.p1} sideId="p1" bind={hover.bind} tone="you" label={live.human.name} extra={phone ? logToggle : undefined} />
     </>
   );
 
@@ -180,7 +217,11 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
       {landscape ? (
         <>
           <div className="min-w-0 space-y-1">{fieldStack}</div>
-          <div className="min-w-0">{actionArea}</div>
+          {/* Landscape phones: the log fills the space above the action panel, which never scrolls away. */}
+          <div className={logOpen ? 'flex h-[calc(100dvh-var(--topbar-h,3.75rem)-1rem)] min-w-0 flex-col gap-2' : 'min-w-0'}>
+            {logOpen && <BattleLog entries={logEntries} className="min-h-[4.5rem] flex-1" />}
+            <div className="shrink-0">{actionArea}</div>
+          </div>
         </>
       ) : (
         <div className="min-w-0 space-y-2 max-md:flex max-md:min-h-[calc(100dvh-var(--topbar-h,3.75rem)-1.5rem-env(safe-area-inset-bottom))] max-md:flex-col max-md:gap-1.5 max-md:space-y-0">
@@ -188,18 +229,21 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
           {/* Phones: the action panel stays pinned to the bottom of the screen. */}
           <div className="max-md:pb-safe max-md:sticky max-md:bottom-0 max-md:z-20 max-md:mt-auto max-md:pt-1">{actionArea}</div>
           {!phone && <div className="flex justify-end lg:hidden">{logToggle}</div>}
-          {!phone && logOpen && <div className="lg:hidden"><LogPanel lines={logLines} /></div>}
+          {!phone && logOpen && <BattleLog entries={logEntries} className="h-72 lg:hidden" />}
         </div>
       )}
-      <div className="hidden lg:block">
-        <div className="mb-2 flex justify-end">{logToggle}</div>
-        {logOpen && <LogPanel lines={logLines} />}
-      </div>
-      {phone && logOpen && (
-        <Sheet title="Battle log" full onClose={() => setLogOpen(false)}>
-          <LogPanel lines={logLines} fill />
+      {!landscape && (
+        <div className="hidden lg:sticky lg:top-[calc(var(--topbar-h,3.75rem)+1rem)] lg:block lg:self-start">
+          <div className="mb-2 flex justify-end">{logToggle}</div>
+          {logOpen && <BattleLog entries={logEntries} className="h-[min(36rem,calc(100dvh-var(--topbar-h,3.75rem)-6rem))]" />}
+        </div>
+      )}
+      {portrait && sheetOpen && (
+        <Sheet title="Battle log" full onClose={() => setSheetOpen(false)}>
+          <BattleLog entries={logEntries} className="h-full" />
         </Sheet>
       )}
+      {openCard && cardInfo && <MonHoverLayer info={cardInfo} rect={openCard.rect} mobile={phone} onClose={hover.close} />}
       {forfeitOpen && (
         <ResponsiveDialog
           title="Forfeit this battle?"
@@ -220,31 +264,6 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
 
 // ---------------------------------------------------------------- field
 
-const STATUS_TYPE: Record<string, string> = { par: 'electric', brn: 'fire', psn: 'poison', tox: 'poison', frz: 'ice', slp: 'normal' };
-
-function StatusBadge({ status }: { status: string }) {
-  if (!status) return null;
-  return (
-    <span className="type-pill px-1.5 py-0.5 text-[10px] uppercase" style={{ background: typeColor(STATUS_TYPE[status] ?? 'normal') }}>
-      {status}
-    </span>
-  );
-}
-
-function Boosts({ mon }: { mon: MonView }) {
-  const entries = Object.entries(mon.boosts).filter(([, n]) => n !== 0);
-  if (!entries.length) return null;
-  return (
-    <div className="mt-1 flex flex-wrap gap-1">
-      {entries.map(([stat, n]) => (
-        <span key={stat} className={`rounded px-1 text-[10px] font-bold text-white ${n > 0 ? 'bg-win' : 'bg-loss'}`}>
-          {n > 0 ? '+' : ''}{n} {STAT_SHORT[stat] ?? stat}
-        </span>
-      ))}
-    </div>
-  );
-}
-
 function HpBox({ mon, mine }: { mon: MonView; mine: boolean }) {
   return (
     <div className="battle-hpbox w-full px-2 py-1.5 sm:px-3 sm:py-2">
@@ -259,7 +278,7 @@ function HpBox({ mon, mine }: { mon: MonView; mine: boolean }) {
       </div>
       <HpBar value={mon.hp} max={mon.maxhp} />
       {mine && <div className="mt-0.5 text-right font-display text-sm font-bold tabular-nums">{mon.hp}/{mon.maxhp}</div>}
-      <Boosts mon={mon} />
+      <BoostChips boosts={mon.boosts} className="mt-1" />
     </div>
   );
 }
@@ -274,7 +293,18 @@ function FieldSprite({ mon, side, size }: { mon: MonView; side: 'p1' | 'p2'; siz
   );
 }
 
-function Field({ view }: { view: FieldView }) {
+type BindFn = (target: MonTarget) => MonHoverBind;
+
+/** Wraps a sprite so hovering (desktop) or tapping (phones) opens its info card. */
+function SpriteHit({ mon, side, index, bind, children }: { mon: MonView; side: Side; index: number; bind: BindFn; children: ReactNode }) {
+  return (
+    <button type="button" {...bind({ side, index })} aria-label={`${displayName(mon.species)} info`} className="flex cursor-help justify-center rounded-lg focus-visible:outline-2 focus-visible:outline-poke-yellow">
+      {children}
+    </button>
+  );
+}
+
+function Field({ view, bind }: { view: FieldView; bind: BindFn }) {
   const foe = activeMon(view, 'p2');
   const me = activeMon(view, 'p1');
   const chips = [
@@ -299,19 +329,29 @@ function Field({ view }: { view: FieldView }) {
       {foe && <div className="absolute left-2 top-2 z-10 w-[46%] max-w-[15rem] sm:left-3 sm:top-3 sm:w-[42%]"><HpBox mon={foe} mine={false} /></div>}
       <div className="battle-platform right-[6%] top-[40%] h-[15%] w-[36%]" />
       <div className="absolute right-[12%] top-[8%] flex w-[24%] justify-center">
-        {foe && <FieldSprite key={`${foe.nick}|${foe.species}`} mon={foe} side="p2" size={190} />}
+        {foe && (
+          <SpriteHit mon={foe} side="p2" index={view.sides.p2.active} bind={bind}>
+            <FieldSprite key={`${foe.nick}|${foe.species}`} mon={foe} side="p2" size={190} />
+          </SpriteHit>
+        )}
       </div>
       {/* you: back sprite bottom-left, HP box bottom-right */}
       <div className="battle-platform -bottom-[6%] left-[2%] h-[20%] w-[44%]" />
       <div className="absolute bottom-0 left-[6%] flex w-[36%] justify-center">
-        {me && <FieldSprite key={`${me.nick}|${me.species}`} mon={me} side="p1" size={230} />}
+        {me && (
+          <SpriteHit mon={me} side="p1" index={view.sides.p1.active} bind={bind}>
+            <FieldSprite key={`${me.nick}|${me.species}`} mon={me} side="p1" size={230} />
+          </SpriteHit>
+        )}
       </div>
       {me && <div className="absolute bottom-2 right-2 z-10 w-[46%] max-w-[15rem] sm:bottom-3 sm:right-3 sm:w-[42%]"><HpBox mon={me} mine /></div>}
     </div>
   );
 }
 
-function TeamStrip({ side, tone, label, extra }: { side: SideView; tone: 'you' | 'opp'; label: string; extra?: ReactNode }) {
+function TeamStrip({ side, sideId, bind, tone, label, extra }: {
+  side: SideView; sideId: Side; bind: BindFn; tone: 'you' | 'opp'; label: string; extra?: ReactNode;
+}) {
   const slots: (MonView | null)[] = [...side.team];
   while (slots.length < 6) slots.push(null);
   return (
@@ -319,22 +359,31 @@ function TeamStrip({ side, tone, label, extra }: { side: SideView; tone: 'you' |
       <span className={`min-w-0 truncate font-display text-sm font-bold max-md:text-xs ${tone === 'you' ? 'text-you' : 'text-opp'}`}>{label}</span>
       <div className="flex shrink-0 gap-1 max-md:gap-0.5">
         {slots.slice(0, 6).map((m, i) => (
-          <span
+          <SlotTag
             key={i}
+            hit={m ? { ...bind({ side: sideId, index: i }), 'aria-label': `${displayName(m.species)} info` } : undefined}
             className={`flex h-9 w-10 items-center justify-center overflow-hidden rounded-md max-md:h-7 max-md:w-8 [&>[role=img]]:max-md:scale-75 ${
               m && side.active === i
                 ? `border-2 ${tone === 'you' ? 'border-you bg-you-soft' : 'border-opp bg-opp-soft'}`
                 : 'border border-edge bg-panel-inset'
             }`}
-            title={m ? displayName(m.species) : 'Unknown'}
+            title={m ? undefined : 'Unknown'}
           >
             {m ? <PokeIcon name={m.species} faded={m.fainted} /> : <span className="text-faint">?</span>}
-          </span>
+          </SlotTag>
         ))}
       </div>
       {extra && <div className="ml-auto shrink-0">{extra}</div>}
     </div>
   );
+}
+
+/** A team-strip slot: a button when a known mon sits in it (opens its card), a plain span otherwise. */
+function SlotTag({ hit, className, title, children }: {
+  hit?: MonHoverBind & { 'aria-label': string }; className: string; title?: string; children: ReactNode;
+}) {
+  if (!hit) return <span className={className} title={title}>{children}</span>;
+  return <button type="button" {...hit} className={`${className} cursor-help focus-visible:outline-2 focus-visible:outline-poke-yellow`}>{children}</button>;
 }
 
 // ---------------------------------------------------------------- actions
@@ -555,21 +604,6 @@ function ResultBanner({ result, live }: { result: MatchResult; live: LiveBattle 
       <GameButton className="ml-auto max-md:ml-0 max-md:w-full max-md:min-h-12" size="lg" disabled={sent} onClick={() => { setSent(true); live.finish(); }}>
         CONTINUE
       </GameButton>
-    </div>
-  );
-}
-
-function LogPanel({ lines, fill }: { lines: string[]; fill?: boolean }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [lines.length]);
-  return (
-    <div ref={ref} className={`${fill ? 'h-full text-xs' : 'max-h-[32rem] text-[11px]'} overflow-y-auto rounded-lg border-2 border-edge bg-bg-deep p-2 font-mono leading-snug text-muted`}>
-      {lines.map((l, i) => (
-        <div key={i} className={l.startsWith('|turn|') ? 'mt-1 border-t border-edge pt-1 font-bold text-poke-yellow' : 'break-all'}>{l}</div>
-      ))}
     </div>
   );
 }

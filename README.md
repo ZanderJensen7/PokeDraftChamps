@@ -10,6 +10,8 @@ make the playoff bracket, win the title. Lose too much and the run is over.
 Built on the open-source Pokemon Showdown simulator via the [pkmn](https://pkmn.cc) packages.
 Fan project, not affiliated with Nintendo, Game Freak or The Pokemon Company. Never monetized.
 
+**Play it:** https://zanderjensen7.github.io/PokeDraftChamps/ (GitHub Pages, redeployed by `.github/workflows/deploy-pages.yml` on every push to `main`).
+
 ## Develop
 
 ```bash

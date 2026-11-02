@@ -4,7 +4,7 @@ import type { CoachId, DraftMon, DraftState, LeagueConfig, SpeciesId, TypeName }
 import type { Rng } from '../league/rng';
 import { buildDraftPool } from './pool';
 
-type DraftConfig = Pick<LeagueConfig, 'budget' | 'rosterSize'>;
+type DraftConfig = Pick<LeagueConfig, 'budget' | 'rosterMin' | 'rosterMax'>;
 type Pool = readonly DraftMon[];
 
 const ATTACK_TYPES: readonly TypeName[] = [
@@ -19,6 +19,20 @@ export const AI_DRAFT_DIALS = {
   wantFast: 3,
   wantBulky: 3,
   noise: 2,             // max random score added per candidate
+} as const;
+
+/**
+ * How big an AI coach drafts its roster when the league allows a range (rosterMin..rosterMax). Read by
+ * aiRosterTarget (the seeded aim, rolled once per coach) and aiWantsToStop (checked on the coach's turn).
+ */
+export const AI_STOP_DIALS = {
+  /**
+   * Relative odds of aiming for the minimum, a size strictly between, and the maximum. The middle weight is
+   * shared evenly by every in-between size; with rosterMax = rosterMin + 1 only the two ends count.
+   */
+  aimWeights: { min: 3, between: 4, max: 3 },
+  /** At or above the minimum, stop before the aim when the points left per slot still to fill fall under this. */
+  minPointsPerOpenSlot: 3,
 } as const;
 
 /**
@@ -48,20 +62,35 @@ export function createDraft(coachIds: readonly CoachId[], rng: Rng, pool: Pool =
     picks: [],
     available: pool.map((m) => m.id),
     complete: false,
+    turn: 0,
+    done: [],
   };
 }
 
-export function totalPicks(draft: DraftState, config: DraftConfig): number {
-  return draft.order.length * config.rosterSize;
+const ownedCount = (draft: DraftState, coach: CoachId): number => draft.picks.reduce((s, p) => (p.coach === coach ? s + 1 : s), 0);
+
+/** The coach in snake slot `turn` (round 1 forward, round 2 reversed, ...). */
+function coachAtTurn(draft: DraftState, turn: number): CoachId {
+  const n = draft.order.length;
+  const pos = turn % n;
+  return (Math.floor(turn / n) % 2 === 0 ? draft.order[pos] : draft.order[n - 1 - pos]) as CoachId;
+}
+
+/** True when `coach` takes no more picks: the draft is over, or they stopped, ran out of affordable mons, or are full. */
+export function isDoneDrafting(draft: DraftState, coach: CoachId, config: DraftConfig): boolean {
+  return draft.complete || draft.done.includes(coach) || ownedCount(draft, coach) >= config.rosterMax;
+}
+
+/** The most picks the draft can still make: every coach still drafting fills up to rosterMax. */
+export function maxPicksLeft(draft: DraftState, config: DraftConfig): number {
+  if (draft.complete) return 0;
+  return draft.order.reduce((s, c) => (draft.done.includes(c) ? s : s + Math.max(0, config.rosterMax - ownedCount(draft, c))), 0);
 }
 
 /** Whose pick it is, or undefined once the draft is complete. */
 export function currentPicker(draft: DraftState, config: DraftConfig): CoachId | undefined {
-  if (draft.complete || draft.pickIndex >= totalPicks(draft, config)) return undefined;
-  const n = draft.order.length;
-  const roundIdx = Math.floor(draft.pickIndex / n);
-  const pos = draft.pickIndex % n;
-  return roundIdx % 2 === 0 ? draft.order[pos] : draft.order[n - 1 - pos];
+  if (draft.complete || draft.turn >= draft.order.length * config.rosterMax) return undefined;
+  return coachAtTurn(draft, draft.turn);
 }
 
 export function coachPicks(draft: DraftState, coach: CoachId): SpeciesId[] {
@@ -76,26 +105,28 @@ export function coachPointsSpent(draft: DraftState, coach: CoachId): number {
  * Points a coach must keep back per roster slot still to fill after this pick. It is the price of
  * the (remaining-draft-picks)-th cheapest available mon: even if every later pick took the cheapest
  * mons, one at this price stays available, so a legal pick always exists (the draft can never strand
- * a coach). At the start of a 16x11 draft this is 5 (ZU); it falls toward the true floor late.
+ * a coach). "Remaining picks" counts every open slot up to rosterMax (maxPicksLeft), an upper bound, so the
+ * guarantee holds however many coaches stop early. At the start of a 16x11 draft this is 5 (ZU).
  */
 export function reservePerSlot(draft: DraftState, config: DraftConfig, pool: Pool): number {
   const byId = indexPool(pool);
   const prices = draft.available.map((id) => byId.get(id)?.points ?? Infinity).sort((a, b) => a - b);
   if (prices.length === 0) return 0;
-  const remaining = totalPicks(draft, config) - draft.pickIndex;
+  const remaining = maxPicksLeft(draft, config);
   return prices[Math.min(prices.length - 1, Math.max(0, remaining))] ?? 0;
 }
 
-/** The most a coach could spend on their next pick right now. */
+/**
+ * The most a coach could spend on their next pick right now. Points are held back only for the slots still
+ * REQUIRED (up to rosterMin): above the minimum a coach may spend everything on one more mon and stop there.
+ */
 export function maxAffordable(draft: DraftState, coach: CoachId, config: DraftConfig, pool: Pool): number {
-  const owned = draft.picks.filter((p) => p.coach === coach).length;
-  const slotsAfter = Math.max(0, config.rosterSize - owned - 1);
+  const slotsAfter = Math.max(0, config.rosterMin - ownedCount(draft, coach) - 1);
   return config.budget - coachPointsSpent(draft, coach) - slotsAfter * reservePerSlot(draft, config, pool);
 }
 
 function legalMons(draft: DraftState, coach: CoachId, config: DraftConfig, pool: Pool): DraftMon[] {
-  const owned = draft.picks.filter((p) => p.coach === coach).length;
-  if (draft.complete || owned >= config.rosterSize) return [];
+  if (isDoneDrafting(draft, coach, config)) return [];
   const cap = maxAffordable(draft, coach, config, pool);
   const byId = indexPool(pool);
   const ownedNums = ownedDexNumbers(draft.picks.filter((p) => p.coach === coach).map((p) => p.species), pool);
@@ -126,6 +157,39 @@ export function legalPicks(draft: DraftState, coach: CoachId, config: DraftConfi
   return legalMons(draft, coach, config, pool).map((m) => m.id);
 }
 
+/**
+ * Moves the clock past `draft.turn` to the next coach still drafting. A coach with no legal pick (out of
+ * affordable mons; the reserve keeps this from happening below rosterMin) is marked done on the way. With
+ * nobody left, or after rosterMax rounds, the draft is complete (round stays at the last round played).
+ */
+function advanceTurn(draft: DraftState, config: DraftConfig, pool: Pool): DraftState {
+  const n = draft.order.length;
+  const lastTurn = n * config.rosterMax;
+  let cur = draft;
+  for (let t = draft.turn + 1; t < lastTurn; t++) {
+    const coach = coachAtTurn(cur, t);
+    if (cur.done.includes(coach) || ownedCount(cur, coach) >= config.rosterMax) continue;
+    const onClock: DraftState = { ...cur, turn: t, round: Math.floor(t / n) + 1 };
+    if (legalMons(onClock, coach, config, pool).length > 0) return onClock;
+    cur = { ...cur, done: [...cur.done, coach] };
+  }
+  return { ...cur, turn: lastTurn, complete: true };
+}
+
+/**
+ * Returns a NEW DraftState where `coach` (on the clock, holding at least rosterMin mons) stops drafting; later
+ * rounds skip them. Throws if it is not their turn or they hold fewer than rosterMin.
+ */
+export function stopDrafting(
+  draft: DraftState, coach: CoachId, config: DraftConfig, pool: Pool = lookupPool(),
+): DraftState {
+  const picker = currentPicker(draft, config);
+  if (picker !== coach) throw new Error(`not ${coach}'s turn (current: ${picker ?? 'none, draft complete'})`);
+  const owned = ownedCount(draft, coach);
+  if (owned < config.rosterMin) throw new Error(`${coach} needs at least ${config.rosterMin} mons before stopping (has ${owned})`);
+  return advanceTurn({ ...draft, done: [...draft.done, coach] }, config, pool);
+}
+
 /** Returns a NEW DraftState with the pick applied. Throws if it is not `coach`'s turn or the pick is illegal. */
 export function applyPick(
   draft: DraftState, coach: CoachId, species: SpeciesId, config: DraftConfig, pool: Pool = lookupPool(),
@@ -141,19 +205,45 @@ export function applyPick(
   if (conflictsWithRoster(draft.picks.filter((p) => p.coach === coach).map((p) => p.species), species, pool)) {
     throw new Error(`${species} is another form of a species ${coach} already owns`);
   }
-  const pickIndex = draft.pickIndex + 1;
-  const n = draft.order.length;
-  const complete = pickIndex >= totalPicks(draft, config);
-  return {
-    order: draft.order,
-    round: complete ? config.rosterSize : Math.floor(pickIndex / n) + 1,
-    pickIndex,
+  const picked: DraftState = {
+    ...draft,
+    pickIndex: draft.pickIndex + 1,
     picks: [...draft.picks, {
-      coach, species, points: mon.points, overall: draft.pickIndex + 1, round: Math.floor(draft.pickIndex / n) + 1,
+      coach, species, points: mon.points, overall: draft.pickIndex + 1, round: draft.round,
     }],
     available: draft.available.filter((id) => id !== species),
-    complete,
   };
+  return advanceTurn(picked, config, pool);
+}
+
+/**
+ * The roster size an AI coach aims for, rolled from AI_STOP_DIALS.aimWeights. Pass an rng seeded per coach (the
+ * same every call) so the aim holds for the whole draft. rosterMin === rosterMax returns it without drawing.
+ */
+export function aiRosterTarget(config: DraftConfig, rng: Rng): number {
+  const { rosterMin: lo, rosterMax: hi } = config;
+  if (hi <= lo) return hi;
+  const w = AI_STOP_DIALS.aimWeights;
+  const inner = hi - lo - 1;
+  const weights = Array.from({ length: hi - lo + 1 }, (_, i) => (i === 0 ? w.min : i === hi - lo ? w.max : w.between / inner));
+  let roll = rng.next() * weights.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < weights.length; i++) {
+    roll -= weights[i]!;
+    if (roll < 0) return lo + i;
+  }
+  return hi;
+}
+
+/**
+ * Whether AI `coach`, on the clock, stops drafting now instead of picking: it reached its aim (aiRosterTarget),
+ * or it holds at least rosterMin and the points left per slot up to the aim fall under
+ * AI_STOP_DIALS.minPointsPerOpenSlot. Never below rosterMin.
+ */
+export function aiWantsToStop(draft: DraftState, coach: CoachId, config: DraftConfig, target: number): boolean {
+  const owned = ownedCount(draft, coach);
+  if (owned < config.rosterMin || owned >= config.rosterMax) return false;
+  if (owned >= target) return true;
+  return (config.budget - coachPointsSpent(draft, coach)) / (target - owned) < AI_STOP_DIALS.minPointsPerOpenSlot;
 }
 
 // ---- AI drafter ----
@@ -187,18 +277,20 @@ const isSpecial = (m: DraftMon): boolean => m.baseStats.spa > m.baseStats.atk + 
  * (early rounds aim high, late rounds fill cheap; overshooting costs more than undershooting),
  * plus role needs (a few fast mons, a few bulky ones, physical/special balance), a type-diversity
  * bonus, a penalty for stacking a shared weakness, a bonus for patching one, and seeded noise.
+ * Prices are planned for a roster of `aim` mons (aiRosterTarget; default rosterMax).
  */
 export function aiChoosePick(
-  draft: DraftState, coach: CoachId, config: DraftConfig, pool: Pool, rng: Rng,
+  draft: DraftState, coach: CoachId, config: DraftConfig, pool: Pool, rng: Rng, aim: number = config.rosterMax,
 ): SpeciesId {
   const legal = legalMons(draft, coach, config, pool);
   if (legal.length === 0) throw new Error(`${coach} has no legal pick`);
   const byId = indexPool(pool);
   const roster = coachPicks(draft, coach).map((id) => byId.get(id)).filter((m): m is DraftMon => !!m);
-  const slotsLeft = config.rosterSize - roster.length; // including this pick
+  const plan = Math.max(roster.length + 1, Math.min(config.rosterMax, aim));
+  const slotsLeft = plan - roster.length; // including this pick
   const budgetLeft = config.budget - coachPointsSpent(draft, coach);
   const cap = maxAffordable(draft, coach, config, pool);
-  const earlyBoost = 1 + 0.5 * (slotsLeft - 1) / Math.max(1, config.rosterSize - 1);
+  const earlyBoost = 1 + 0.5 * (slotsLeft - 1) / Math.max(1, plan - 1);
   const target = Math.min(cap, (budgetLeft / slotsLeft) * earlyBoost);
 
   const fast = roster.filter(isFast).length;

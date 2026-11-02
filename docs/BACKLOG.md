@@ -29,6 +29,9 @@ Status: TODO · RUNNING · DONE. Keep this short; details live in the job report
     needs) and a "what this adds" line + fit badge on pool cards, with a "Sort by fit" option.
 
 ## Next
+- Roster range follow-ups (2026-11-02): free agency is still drop-one/add-one, so a coach under `rosterMax`
+  cannot pick up a mon without dropping one; decide whether to allow a plain add (counts as a move, within
+  budget). The AI may also end a little below its rolled aim when its budget runs thin after the minimum.
 - Draft helper follow-ups: FIT badge uses the quick score (roles excluded) while the hover note uses the full one;
   hover popover covers the next card row; resistances table scrolls sideways in the narrow rail.
 - Mobile follow-ups from the pass: prove home-screen install on a real phone / desktop Chrome (service worker
@@ -45,18 +48,37 @@ Status: TODO · RUNNING · DONE. Keep this short; details live in the job report
 - Polish from the first play-test: a Mega shows its base name in the lead picker / after fainting (map by
   roster id); weather label prints raw ids ("SunnyDay"); export writes a Tera Type line for non-captains;
   loss cap 4 vs equal-strength AI eliminates most runs (tune AI difficulty tiers or default cap once humans play).
-- First commit + push → GitHub Pages live (repo creation pending the user's gh login).
-- Startup bundle: a 10 MB engine chunk still preloads because the draft pool / sets / scouting read data through
-  @pkmn/sim and @pkmn/randoms (randoms depends on the sim). Fix: precompute the randoms species-id list into
-  a small JSON in engine/src/data, read species via @pkmn/dex only, and dynamic-import the sim + randoms in
-  sets.ts / simulateMatch so only finishDraft and battles pay for them. Target < 1 MB before the first battle.
+- DONE 2026-11-02: first commit pushed, live at https://zanderjensen7.github.io/PokeDraftChamps/ (service worker registers there, so the PWA install gap from the mobile pass is half proven; home-screen install on a phone still unchecked).
+- DONE 2026-11-02: startup bundle. The engine has two entries: `@pdc/engine` (sim-free: draft, league, prep, stats,
+  scouting, form helpers over @pkmn/dex + a checked-in randoms JSON) and `@pdc/engine/battle` (sim, randoms, calc,
+  set builder, `engineDeps`), loaded on first use (captain confirm / free agency / battle / worker). First load
+  (index.html script + modulepreloads) went from 10.6 MB raw / 1.87 MB gzip (a 10.1 MB `src` chunk) to 2.57 MB raw /
+  0.54 MB gzip; the largest preloaded chunk is now the 2.0 MB @pkmn/dex data (0.37 MB gzip). The sim sits in an
+  8.2 MB lazy `battle` chunk + the 10.2 MB worker. Guard: `engine/src/entries.test.ts`.
 - Showdown look: default sprite set `ani` (3D-model animated sprites, front + back) with `gen5ani` pixel as
   the option; larger battle sprites; Gen 9 mons fall back automatically via @pkmn/img. One-line setting change
   plus layout sizing (user ruling 2026-11-02: match the Showdown Champs NatDex look).
-- Battle animations, tier 1: template system keyed by move type x shape (contact / projectile / beam / self /
-  status / field) + universal beats (lunge, shake, flash, HP drain, faint fade, Tera/Mega flash), own code
-  (Showdown + PokeRogue animation code is AGPL), cries on switch-in/faint, type-to-SFX table. 2-4 days.
-  Tier 2 (bespoke top-100 moves) only if replay/watch time proves worth it.
+- DONE 2026-11-02: battle log restyle (user ask): open by default on desktop / tablet / landscape phones
+  (`battleLogOpen` setting), typed entries from `app/src/battle/narrate.ts` `parseLog` rendered by
+  `components/battle/BattleLog.tsx` in Showdown's shape (turn dividers, your names blue / theirs orange, exact HP
+  for you and % for them, muted effect lines, Tera/Mega/Z pills, win banner), follow-while-at-bottom scroll with
+  "Jump to latest". Seen in a live battle. Open: Tera/Mega pills never came up in the sample logs.
+- DONE 2026-11-02: battle hover cards (user ask, "like Showdown's tooltips"): `components/battle/MonHoverCard.tsx`
+  + pure `battle/monInfo.ts` over the per-mon reveal tracking in `battleView.ts`; your mons show set + PP,
+  theirs show seen / scouted / likely moves, scouted item / ability / Tera, four speed tiers vs your active mon
+  (boosts, para, Tailwind, Trick Room, Scarf applied) and base stats; hover on desktop, tap-sheet on phones.
+  Seen on the bench at preview and on both active mons. Open: a hovered sprite that unmounts on a switch
+  leaves the card up until Escape / scroll / next hover; bench mons show moves without PP (the request only
+  carries PP for the active mon); the phone tap-sheet is unchecked by hand.
+- DONE 2026-11-02: "Edit sets" button in the prep screen's lineup panel header (both layouts) opens the Team
+  editor; discoverability note from the user not finding the set editor.
+- Roster range: the "Done drafting" button was not seen by hand (the test draft auto-finished at 9 with 1 point
+  left); covered by run.test.ts. Check it in a league with points to spare.
+- Attack VFX (user ruling 2026-11-02: no mon animation needed, the `ani` sprites already move; effects for
+  the attacks only): template system keyed by move type x shape (contact / projectile / beam / self / status /
+  field) drawn over the battle view, plus a hit flash and smooth HP drain so a hit visibly lands; Tera/Mega/Z
+  flash; cries on switch-in/faint and a type-to-SFX table. Own code (Showdown + PokeRogue animation code is
+  AGPL). 1-3 days. Bespoke top-100 move effects only if replay/watch time proves worth it.
 - Draft AI quality pass (role coverage, not overpaying), battle AI strength tuning (measure vs random and
   vs itself across seeds), prep threat summary wording.
 - Replay viewer for stored logs (watch any league match).

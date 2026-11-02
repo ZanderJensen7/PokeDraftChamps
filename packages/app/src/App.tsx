@@ -62,7 +62,7 @@ function TopBar() {
   const phaseText = !run
     ? ''
     : run.phase === 'draft'
-      ? `Draft · Round ${Math.min(run.draft.round, run.config.rosterSize)}`
+      ? `Draft · Round ${Math.min(run.draft.round, run.config.rosterMax)}`
       : run.phase === 'champion' ? 'Champion'
         : run.phase === 'eliminated' ? 'Run over'
           : weekLabel(run);

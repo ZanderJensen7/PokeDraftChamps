@@ -1,10 +1,9 @@
 // Sets up the human's live battle (human = p1, HeuristicPlayer = p2), hands it to BattleScreen through the
 // game store, and resolves with the MatchResult once the player presses CONTINUE on the result banner.
-import type { BattleSet, Coach, InteractiveBattle, MatchResult, SpeciesId } from '@pdc/engine';
-import {
-  BattleRng, buildSetFor, chooseLineup, createInteractiveBattle, deriveSeed, humanCoach, humanMatchResult,
-  nextHumanMatch, opponentOf,
-} from '@pdc/engine';
+import type { BattleSet, Coach, MatchResult, SpeciesId } from '@pdc/engine';
+import { deriveSeed, humanCoach, nextHumanMatch, opponentOf } from '@pdc/engine';
+import type { InteractiveBattle } from '@pdc/engine/battle';
+import { BattleRng, buildSetFor, chooseLineup, createInteractiveBattle, humanMatchResult } from '@pdc/engine/battle';
 import type { PlayHumanMatchArgs } from '../game/bridge';
 import { useGame } from '../store/useGame';
 

@@ -8,10 +8,11 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
-  aiChoosePick, coachById, createRng, createRun, deriveSeed, draftPick, engineDeps, finishDraft, fitScoreByPrice,
+  aiChoosePick, coachById, createRng, createRun, deriveSeed, draftPick, finishDraft, fitScoreByPrice,
   mergeAggregates, nextHumanMatch, priceSuggestions, resolveWeek, runAiDraftUntilHuman, runPool, runSpeciesStats,
   DEFAULT_LEAGUE_CONFIG, SCORE_BASELINE, type LeagueConfig, type PriceFit, type PriceSuggestion, type RunState, type SpeciesAggregate,
 } from '../src';
+import { engineDeps } from '../src/battle';
 
 interface Opts {
   leagues: number; teams: 8 | 12 | 16; weeks: number; megas: boolean; z: number; seed: number;

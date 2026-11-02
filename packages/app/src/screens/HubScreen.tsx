@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Coach, Match, RunState, SpeciesId } from '@pdc/engine';
 import {
   computeStandings, conflictsWithRoster, getDraftMon, humanCoach, nextHumanMatch, opponentOf, regularSeasonRecord,
 } from '@pdc/engine';
 import { useGame, weekLabel } from '../store/useGame';
+import { getBridge } from '../game/bridge';
 import { Crest, DialogueBox, GameButton, IconBadge, Panel, PriceBadge, ResponsiveDialog, TypePills } from '../components/ui';
 import { StandingsTable } from '../components/StandingsTable';
 import { Bracket } from '../components/Bracket';
@@ -80,6 +81,9 @@ function FreeAgency({ run, onClose }: { run: RunState; onClose: () => void }) {
   const [drop, setDrop] = useState<SpeciesId | null>(null);
   const [add, setAdd] = useState<SpeciesId | null>(null);
   const [q, setQ] = useState('');
+  const [busy, setBusy] = useState(false);
+  // Signing builds the new mon's set, whose builder loads with the battle engine: start that download now.
+  useEffect(() => { getBridge().loadBuildSets().catch(() => {}); }, []);
   const dropPts = drop ? (getDraftMon(drop)?.points ?? 0) : 0;
   const room = run.config.budget - human.pointsSpent + dropPts;
   const pool = useMemo(
@@ -92,8 +96,12 @@ function FreeAgency({ run, onClose }: { run: RunState; onClose: () => void }) {
   const term = q.trim().toLowerCase();
   const shown = pool.filter((m) => !term || m.name.toLowerCase().includes(term) || displayName(m.name).toLowerCase().includes(term)).slice(0, 60);
   const keep = human.roster.map((r) => r.species).filter((s) => s !== drop);
-  const sign = () => {
-    if (drop && add && doFreeAgency(drop, add)) onClose();
+  const sign = async () => {
+    if (!drop || !add) return;
+    setBusy(true);
+    const ok = await doFreeAgency(drop, add);
+    setBusy(false);
+    if (ok) onClose();
   };
   return (
     <ResponsiveDialog
@@ -104,7 +112,7 @@ function FreeAgency({ run, onClose }: { run: RunState; onClose: () => void }) {
       footer={
         <>
           <GameButton variant="ghost" onClick={onClose} className="max-md:min-h-11">Cancel</GameButton>
-          <GameButton disabled={!drop || !add || left <= 0} onClick={sign} className="max-md:min-h-11 max-md:flex-1">
+          <GameButton disabled={!drop || !add || left <= 0 || busy} onClick={sign} className="max-md:min-h-11 max-md:flex-1">
             {drop && add ? `Drop ${displayName(getDraftMon(drop)?.name ?? drop)}, sign ${displayName(getDraftMon(add)?.name ?? add)}` : 'Pick one to drop and one to sign'}
           </GameButton>
         </>

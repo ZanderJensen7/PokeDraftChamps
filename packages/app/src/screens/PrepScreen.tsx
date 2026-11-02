@@ -194,6 +194,17 @@ function ScoutTab({ doc }: { doc: PrepDoc }) {
   );
 }
 
+/** Lineup count plus the way into the set editor: movesets, EVs, items and natures change here, not on the prep screen. */
+function LineupAside({ count }: { count: number }) {
+  const openOverlay = useGame((s) => s.openOverlay);
+  return (
+    <span className="flex items-center gap-2">
+      <GameButton variant="ghost" size="sm" onClick={() => openOverlay('team')} title="Change moves, EVs, items and natures before the match">Edit sets</GameButton>
+      <span className={`font-display font-bold ${count === 6 ? 'text-win' : 'text-poke-yellow'}`}>{count}/6</span>
+    </span>
+  );
+}
+
 function LineupPicker({ run }: { run: RunState }) {
   const lineup = useGame((s) => s.lineup);
   const setLineup = useGame((s) => s.setLineup);
@@ -226,7 +237,7 @@ function LineupPicker({ run }: { run: RunState }) {
       setSwapIdx(null);
     };
     return (
-      <Panel title="Your lineup" aside={<span className={`font-display font-bold ${lineup.length === 6 ? 'text-win' : 'text-poke-yellow'}`}>{lineup.length}/6</span>}>
+      <Panel title="Your lineup" aside={<LineupAside count={lineup.length} />}>
         <p className="mb-2 text-sm text-muted">
           {swapIdx !== null ? `Tap another slot to swap with ${speciesName(lineup[swapIdx]!)}.` : 'Slot 1 leads. Tap two slots to swap them.'}
         </p>
@@ -291,7 +302,7 @@ function LineupPicker({ run }: { run: RunState }) {
     );
   }
   return (
-    <Panel title="Your lineup" aside={<span className={`font-display font-bold ${lineup.length === 6 ? 'text-win' : 'text-poke-yellow'}`}>{lineup.length}/6</span>}>
+    <Panel title="Your lineup" aside={<LineupAside count={lineup.length} />}>
       <p className="mb-2 text-sm text-muted">Tap to bring or bench. The first Pokemon leads. Drag or use the arrows to reorder.</p>
       <ol className="mb-3 space-y-1">
         {lineup.map((id, i) => (

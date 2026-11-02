@@ -6,7 +6,7 @@ import { RandomPlayer, type BattlePlayer } from './player';
 import { randomsSpeciesKeys } from './randoms';
 import { Rng } from './rng';
 import { createInteractiveBattle, runBattle, type BattleOutcome } from './runner';
-import { scoutFromLogs } from './scout';
+import { scoutFromLogs } from '../logs/scout';
 import { buildSeasonSets, buildSetFor } from './sets';
 import { humanMatchResult, simulateMatch } from './simulateMatch';
 

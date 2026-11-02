@@ -1,8 +1,8 @@
 // What a coach has shown in past battles: moves, items, abilities, tera, leads and who they brought.
-import { Dex } from '@pkmn/sim';
+import { Dex } from '@pkmn/dex';
 import type { CoachId, RosterEntry, ScoutedMon, ScoutReport, SpeciesId } from '../types';
 import { canonicalSpeciesId, fromTag, hasFromMove, ofTag, parseIdent, speciesIdFromDetails, speciesNameFromDetails, splitLine, type SideId } from './protocol';
-import { megaInfo, Z_CRYSTAL_BY_TYPE } from './sets';
+import { megaInfo, Z_CRYSTAL_BY_TYPE } from '../forms';
 
 export interface ScoutLog {
   log: readonly string[];

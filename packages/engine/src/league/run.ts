@@ -3,17 +3,24 @@
 import type {
   BattleSet, Coach, CoachId, DraftMon, LeagueConfig, Match, MatchResult, RosterEntry, RunState, SpeciesId,
 } from '../types';
+import { DEFAULT_LEAGUE_CONFIG } from '../types';
+import { MAX_POINTS } from '../data/points';
 import { pickCoachIdentities } from '../data/coaches';
 import { buildDraftPool, getDraftMon } from '../draft/pool';
-import { aiChoosePick, applyPick, createDraft, currentPicker, conflictsWithRoster } from '../draft/draft';
+import {
+  aiChoosePick, aiRosterTarget, aiWantsToStop, applyPick, createDraft, currentPicker, conflictsWithRoster, stopDrafting,
+} from '../draft/draft';
 import { createRng, deriveSeed } from './rng';
 import { buildSchedule } from './schedule';
 import { computeStandings } from './standings';
 import { advancePlayoffs, playoffRoundName, seedPlayoffs } from './playoffs';
 import { validateLeagueConfig } from './config';
 
-/** 2: league options megas + zCaptains, RosterEntry.isZCaptain (version-1 saves are migrated on load). */
-export const RUN_SAVE_VERSION = 2;
+/**
+ * 2: league options megas + zCaptains, RosterEntry.isZCaptain. 3: roster range (rosterMin/rosterMax replace
+ * rosterSize), captainMaxPoints, DraftState.turn/done. Older saves are migrated on load.
+ */
+export const RUN_SAVE_VERSION = 3;
 
 export interface CreateRunOptions {
   config: LeagueConfig;
@@ -94,8 +101,6 @@ function monOf(id: SpeciesId): DraftMon {
   return m;
 }
 
-const isMegaId = (id: SpeciesId): boolean => getDraftMon(id)?.isMega ?? false;
-
 /** Rosters mirror the draft picks (updated after every pick, so the UI can show them live). */
 function syncRosters(run: RunState): RunState {
   const coaches = run.coaches.map((c): Coach => {
@@ -109,17 +114,34 @@ function syncRosters(run: RunState): RunState {
   return { ...run, coaches };
 }
 
+/** Log lines for coaches the draft marked done on its own (nothing affordable left), then 'Draft complete.' when it ends. */
+function draftTailLog(run: RunState, before: readonly CoachId[]): string[] {
+  const lines = run.draft.done
+    .filter((c) => !before.includes(c))
+    .map((c) => `Draft: ${abbrevOf(run, c)} is out of affordable picks at ${run.draft.picks.filter((p) => p.coach === c).length} mons.`);
+  return run.draft.complete ? [...lines, 'Draft complete.'] : lines;
+}
+
 function afterPick(run: RunState, coach: CoachId, species: SpeciesId): RunState {
   const draft = applyPick(run.draft, coach, species, run.config, runPool(run));
   const pick = draft.picks[draft.picks.length - 1]!;
-  let next: RunState = {
+  const next: RunState = syncRosters({
     ...run,
     draft,
     log: [...run.log, `Draft R${pick.round} #${pick.overall}: ${abbrevOf(run, coach)} took ${monOf(species).name} (${pick.points})`],
+  });
+  return { ...next, log: [...next.log, ...draftTailLog(next, run.draft.done)] };
+}
+
+function afterStop(run: RunState, coach: CoachId): RunState {
+  const draft = stopDrafting(run.draft, coach, run.config, runPool(run));
+  const held = draft.picks.filter((p) => p.coach === coach).length;
+  const next: RunState = {
+    ...run,
+    draft,
+    log: [...run.log, `Draft R${run.draft.round}: ${abbrevOf(run, coach)} stopped drafting at ${held} mons.`],
   };
-  next = syncRosters(next);
-  if (draft.complete) next = { ...next, log: [...next.log, 'Draft complete.'] };
-  return next;
+  return { ...next, log: [...next.log, ...draftTailLog(next, [...run.draft.done, coach])] };
 }
 
 // ---- draft ----
@@ -130,7 +152,20 @@ export function draftPick(run: RunState, species: SpeciesId): RunState {
   return afterPick(run, run.humanId, species);
 }
 
-/** AI coaches pick until it is the human's turn or the draft completes. Pick seeds derive from (seed, pick index). */
+/**
+ * The human stops drafting (on the clock, holding at least config.rosterMin mons); later rounds skip them.
+ * Throws if it is not the human's turn or the roster is under the minimum.
+ */
+export function draftStop(run: RunState): RunState {
+  if (run.phase !== 'draft') throw new Error(`not drafting (phase ${run.phase})`);
+  return afterStop(run, run.humanId);
+}
+
+/**
+ * AI coaches pick (or stop, see aiWantsToStop) until it is the human's turn or the draft completes. Pick seeds
+ * derive from (seed, pick index); each coach's roster aim (aiRosterTarget) from (seed, 'rosterAim', coach), so
+ * a fixed-size league (rosterMin === rosterMax) drafts exactly as before the roster range existed.
+ */
 export function runAiDraftUntilHuman(run: RunState): RunState {
   if (run.phase !== 'draft') return run;
   let cur = run;
@@ -138,8 +173,13 @@ export function runAiDraftUntilHuman(run: RunState): RunState {
   for (;;) {
     const picker = currentPicker(cur.draft, cur.config);
     if (picker === undefined || picker === cur.humanId) return cur;
+    const aim = aiRosterTarget(cur.config, createRng(deriveSeed(cur.seed, 'rosterAim', picker)));
+    if (aiWantsToStop(cur.draft, picker, cur.config, aim)) {
+      cur = afterStop(cur, picker);
+      continue;
+    }
     const rng = createRng(deriveSeed(cur.seed, 'pick', cur.draft.pickIndex));
-    const species = aiChoosePick(cur.draft, picker, cur.config, pool, rng);
+    const species = aiChoosePick(cur.draft, picker, cur.config, pool, rng, aim);
     cur = afterPick(cur, picker, species);
   }
 }
@@ -150,12 +190,35 @@ function withCaptains(c: Coach, tera: readonly SpeciesId[], z: readonly SpeciesI
   return { ...c, roster: c.roster.map((r) => ({ ...r, isTeraCaptain: t.has(r.species), isZCaptain: zs.has(r.species) })) };
 }
 
-/** The `n` highest-priced non-Mega roster mons not in `exclude` (earlier pick wins ties). */
-function topPriced(c: Coach, n: number, exclude: ReadonlySet<SpeciesId> = new Set()): SpeciesId[] {
+/**
+ * Why a mon may not be a Tera or Z captain in this league, or undefined when it may: a Mega already holds its
+ * stone; 'overCap' = its draft price is above config.captainMaxPoints.
+ */
+export function captainBlock(config: Pick<LeagueConfig, 'captainMaxPoints'>, species: SpeciesId): 'mega' | 'overCap' | undefined {
+  const m = getDraftMon(species);
+  if (m?.isMega) return 'mega';
+  if ((m?.points ?? 0) > config.captainMaxPoints) return 'overCap';
+  return undefined;
+}
+
+/**
+ * How many Tera and Z captains this roster must name: config.teraCaptains / zCaptains, cut down when the
+ * roster has fewer captain-eligible mons (see captainBlock) than that; Tera is filled first.
+ */
+export function captainQuota(
+  config: Pick<LeagueConfig, 'captainMaxPoints' | 'teraCaptains' | 'zCaptains'>, roster: readonly RosterEntry[],
+): { tera: number; z: number } {
+  const eligible = roster.filter((r) => !captainBlock(config, r.species)).length;
+  const tera = Math.min(config.teraCaptains, eligible);
+  return { tera, z: Math.min(config.zCaptains, eligible - tera) };
+}
+
+/** The `n` highest-priced captain-eligible roster mons not in `exclude` (earlier pick wins ties). */
+function topPriced(c: Coach, config: LeagueConfig, n: number, exclude: ReadonlySet<SpeciesId> = new Set()): SpeciesId[] {
   if (n <= 0) return [];
   return c.roster
     .map((r, i) => ({ id: r.species, pts: getDraftMon(r.species)?.points ?? 0, i }))
-    .filter((x) => !exclude.has(x.id) && !isMegaId(x.id))
+    .filter((x) => !exclude.has(x.id) && !captainBlock(config, x.id))
     .sort((a, b) => b.pts - a.pts || a.i - b.i)
     .slice(0, n)
     .map((x) => x.id);
@@ -165,9 +228,10 @@ const teraOf = (c: Coach): SpeciesId[] => c.roster.filter((r) => r.isTeraCaptain
 const zOf = (c: Coach): SpeciesId[] => c.roster.filter((r) => r.isZCaptain).map((r) => r.species);
 
 /**
- * Sets the human's Tera and Z captains together. Each list must hold exactly config.teraCaptains /
- * config.zCaptains distinct roster species (0 = an empty list, which clears that role); no Mega may be a
- * captain (it already holds its stone); no mon may be both a Tera and a Z captain. An omitted list keeps
+ * Sets the human's Tera and Z captains together. Each list must hold exactly captainQuota's count of distinct
+ * roster species (config.teraCaptains / zCaptains unless the roster lacks eligible mons; 0 = an empty list,
+ * which clears that role); no Mega may be a captain (it already holds its stone), nor a mon priced above
+ * config.captainMaxPoints; no mon may be both a Tera and a Z captain. An omitted list keeps
  * the current captains of that role as they are (no count check, so Tera and Z can be set one at a time;
  * a mon already holding the other role is still refused). Allowed after the draft completes, any phase but champion/eliminated.
  */
@@ -179,11 +243,16 @@ export function setCaptains(
   const human = humanCoach(run);
   const tera = [...new Set(captains.tera ?? teraOf(human))];
   const z = [...new Set(captains.z ?? zOf(human))];
-  if (captains.tera && tera.length !== run.config.teraCaptains) throw new Error(`pick exactly ${run.config.teraCaptains} Tera captains`);
-  if (captains.z && z.length !== run.config.zCaptains) throw new Error(`pick exactly ${run.config.zCaptains} Z captains`);
+  const quota = captainQuota(run.config, human.roster);
+  if (captains.tera && tera.length !== quota.tera) throw new Error(`pick exactly ${quota.tera} Tera captains`);
+  if (captains.z && z.length !== quota.z) throw new Error(`pick exactly ${quota.z} Z captains`);
   for (const s of [...(captains.tera ? tera : []), ...(captains.z ? z : [])]) {
     if (!human.roster.some((r) => r.species === s)) throw new Error(`${s} is not on your roster`);
-    if (isMegaId(s)) throw new Error(`${monOf(s).name} is a Mega and cannot be a captain`);
+    const block = captainBlock(run.config, s);
+    if (block === 'mega') throw new Error(`${monOf(s).name} is a Mega and cannot be a captain`);
+    if (block === 'overCap') {
+      throw new Error(`${monOf(s).name} (${monOf(s).points}) is over the ${run.config.captainMaxPoints}-pt captain cap`);
+    }
   }
   const both = tera.find((s) => z.includes(s));
   if (both) throw new Error(`${monOf(both).name} cannot be both a Tera and a Z captain`);
@@ -204,21 +273,23 @@ export function setZCaptains(run: RunState, speciesIds: readonly SpeciesId[]): R
 }
 
 /**
- * Default captains: Tera = the highest-priced non-Megas, Z = the next highest-priced non-Megas that are not
- * Tera captains. The human keeps a role already set in full (exact count); a role left unset gets the default.
+ * Default captains: Tera = the highest-priced captain-eligible mons (not a Mega, within captainMaxPoints), Z =
+ * the next highest-priced eligible mons that are not Tera captains. The human keeps a role already set in full
+ * (captainQuota's count); a role left unset gets the default.
  */
 function defaultCaptains(c: Coach, config: LeagueConfig): Coach {
-  const keepTera = c.isHuman && teraOf(c).length === config.teraCaptains;
-  const keepZ = c.isHuman && zOf(c).length === config.zCaptains;
+  const quota = captainQuota(config, c.roster);
+  const keepTera = c.isHuman && teraOf(c).length === quota.tera;
+  const keepZ = c.isHuman && zOf(c).length === quota.z;
   const keptZ = keepZ ? zOf(c) : [];
-  const tera = keepTera ? teraOf(c) : topPriced(c, config.teraCaptains, new Set(keptZ));
-  const z = keepZ ? keptZ : topPriced(c, config.zCaptains, new Set(tera));
+  const tera = keepTera ? teraOf(c) : topPriced(c, config, config.teraCaptains, new Set(keptZ));
+  const z = keepZ ? keptZ : topPriced(c, config, config.zCaptains, new Set(tera));
   return withCaptains(c, tera, z);
 }
 
 /**
- * Ends the draft: AI Tera captains = their config.teraCaptains highest-priced non-Mega mons, Z captains =
- * the next config.zCaptains highest-priced non-Megas. The human keeps each role set in full via
+ * Ends the draft: AI Tera captains = their config.teraCaptains highest-priced captain-eligible mons (see
+ * captainBlock), Z captains = the next config.zCaptains eligible ones. The human keeps each role set in full via
  * setCaptains / setTeraCaptains / setZCaptains, and gets the same default for a role left unset. Builds every
  * coach's sets with deps.buildSets(coach, seed), builds the schedule, phase -> 'season', week 1.
  */
@@ -340,8 +411,9 @@ export async function resolveWeek(
 /**
  * Human-only move between weeks in the regular season: drop a roster mon, add an undrafted one
  * (it must be in draft.available). Checks the move budget (config.freeAgencyMoves) and the point budget.
- * The added mon inherits the dropped mon's Tera / Z captain flags unless it is a Mega (a Mega is never a
- * captain); that can leave the human a captain short, which is allowed until setCaptains fills the role.
+ * The added mon inherits the dropped mon's Tera / Z captain flags unless it may not be a captain (a Mega, or
+ * priced over config.captainMaxPoints); that can leave the human a captain short, which is allowed until
+ * setCaptains fills the role.
  * The dropped mon returns to the pool.
  * With deps.buildSets the coach's sets are rebuilt and only the new mon's set is taken; without it the
  * dropped mon's set is removed and the new mon has none.
@@ -362,8 +434,9 @@ export function freeAgency(
   const spent = human.pointsSpent - drop.points + add.points;
   if (spent > run.config.budget) throw new Error(`${add.name} (${add.points}) puts you over budget (${spent}/${run.config.budget})`);
 
+  const canCaptain = !captainBlock(run.config, addSpecies);
   const roster = human.roster.map((r, i): RosterEntry => (i === dropIdx
-    ? { species: addSpecies, isTeraCaptain: !add.isMega && r.isTeraCaptain, isZCaptain: !add.isMega && !!r.isZCaptain }
+    ? { species: addSpecies, isTeraCaptain: canCaptain && r.isTeraCaptain, isZCaptain: canCaptain && !!r.isZCaptain }
     : r));
   const sets = { ...human.sets };
   delete sets[dropSpecies];
@@ -388,24 +461,44 @@ export function serializeRun(run: RunState): string {
   return JSON.stringify(run);
 }
 
-/** Parses a save made by serializeRun. Version-1 saves are migrated (Megas off, Z off). Throws on a non-run payload or an unknown version. */
+/**
+ * Parses a save made by serializeRun. Older versions are migrated step by step (v1: Megas off, Z off; v2: a
+ * fixed roster size, no captain cap). Throws on a non-run payload or an unknown version.
+ */
 export function deserializeRun(json: string): RunState {
   const raw = JSON.parse(json) as RunState;
   if (!raw || typeof raw !== 'object' || !Array.isArray(raw.coaches) || !raw.draft
     || !Array.isArray(raw.draft.available) || !Array.isArray(raw.matches) || !raw.config) {
     throw new Error('not a PokeDraftChamps run save');
   }
-  if (raw.version === 1) return migrateV1(raw);
-  if (raw.version !== RUN_SAVE_VERSION) throw new Error(`unsupported save version ${String(raw.version)}`);
-  return raw;
+  let run = raw;
+  if (run.version === 1) run = migrateV1(run);
+  if (run.version === 2) run = migrateV2(run);
+  if (run.version !== RUN_SAVE_VERSION) throw new Error(`unsupported save version ${String(raw.version)}`);
+  return run;
 }
 
 /** v1 -> v2: config gains megas = false and zCaptains = 0; every roster entry gains isZCaptain = false. */
 function migrateV1(raw: RunState): RunState {
   return {
     ...raw,
-    version: RUN_SAVE_VERSION,
+    version: 2,
     config: { ...raw.config, megas: false, zCaptains: 0 },
     coaches: raw.coaches.map((c) => ({ ...c, roster: c.roster.map((r) => ({ ...r, isZCaptain: false })) })),
+  };
+}
+
+/**
+ * v2 -> v3: rosterSize becomes rosterMin = rosterMax = the old size and captainMaxPoints = MAX_POINTS (no cap),
+ * so an old league plays exactly as before. Without stops the snake turn equals the pick index.
+ */
+function migrateV2(raw: RunState): RunState {
+  const { rosterSize, ...config } = raw.config as LeagueConfig & { rosterSize?: number };
+  const size = rosterSize ?? DEFAULT_LEAGUE_CONFIG.rosterMax;
+  return {
+    ...raw,
+    version: 3,
+    config: { ...config, rosterMin: size, rosterMax: size, captainMaxPoints: MAX_POINTS },
+    draft: { ...raw.draft, turn: raw.draft.pickIndex, done: [] },
   };
 }

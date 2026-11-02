@@ -3,7 +3,7 @@
 import type {
   BuildSets, Coach, CoachId, MatchResult, RunState, ScoutReport, SimulateMatch, SpeciesId,
 } from '@pdc/engine';
-import { buildSets, createRng, deriveSeed, getDraftMon, nextHumanMatch, opponentOf } from '@pdc/engine';
+import { createRng, deriveSeed, getDraftMon, nextHumanMatch, opponentOf } from '@pdc/engine';
 import type { LiveBattle } from '../battle/session';
 
 export interface PlayHumanMatchArgs {
@@ -17,7 +17,11 @@ export interface PlayHumanMatchArgs {
 }
 
 export interface BattleBridge {
-  buildSets: BuildSets;
+  /**
+   * The season-set builder. Async because it lives in `@pdc/engine/battle` (the sim + randoms), which loads on
+   * first use so the app's first load stays small; later calls resolve at once.
+   */
+  loadBuildSets(): Promise<BuildSets>;
   simulateMatch: SimulateMatch;
   /** Plays the human's match for this week. The BattleScreen is mounted while this promise is pending. */
   playHumanMatch(args: PlayHumanMatchArgs): Promise<MatchResult>;
@@ -58,7 +62,7 @@ export const PLACEHOLDER_DELAY_MS = 1000;
 export const placeholderBridge: BattleBridge = {
   isPlaceholder: true,
   // Real season sets from the engine (pure, fast); matches stay placeholder coin flips.
-  buildSets,
+  loadBuildSets: async () => (await import('@pdc/engine/battle')).buildSets,
   simulateMatch: (home, away, seed) =>
     coinResult(home, away, seed, { [home.id]: firstSix(home), [away.id]: firstSix(away) }),
   async playHumanMatch({ run, humanLineup, oppLineup }) {

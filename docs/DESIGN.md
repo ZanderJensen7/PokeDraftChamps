@@ -19,13 +19,20 @@ per-species sets and roles from `@pkmn/randoms` (`getTeamGenerator('gen9randomba
 
 ## The run (one league = one run)
 1. **League setup** — size 8 / 12 / 16 coaches (default 16), 9 regular-season weeks (default), playoff
-   size 8 (default; half the league, min 4), point budget 120, roster size 11, Tera captains (default 2,
-   0 = off), Z captains (default 0 = off), Megas on/off (default off), loss cap (default 4: a 5th
-   regular-season loss ends the run). All of this is `LeagueConfig`. See DECISIONS 2026-11-02 for the
-   Mega / Tera / Z rulings.
+   size 8 (default; half the league, min 4), point budget 120, roster range 9–11 (`rosterMin` /
+   `rosterMax`; min = max makes a fixed-size league), Tera captains (default 2, 0 = off), Z captains
+   (default 0 = off), captain price cap (`captainMaxPoints`, default 14; 20 = no cap: a mon priced over it
+   can't be a Tera or Z captain), Megas on/off (default off), loss cap (default 4: a 5th regular-season
+   loss ends the run). All of this is `LeagueConfig`, checked by `validateLeagueConfig`. See DECISIONS
+   2026-11-02 for the Mega / Tera / Z rulings and the roster range + captain cap ruling.
 2. **Draft** — snake draft, pool = Gen 9 species that have a randoms set and are not restricted
-   legendaries / AG. Price by Smogon tier (`POINTS_BY_TIER`, data table). AI coaches draft by need
-   (role coverage, speed, type balance, stay within budget for remaining picks).
+   legendaries / AG. Price by Smogon tier (`POINTS_BY_TIER`, data table). Each coach drafts between
+   `rosterMin` and `rosterMax` mons: once at the minimum a coach may stop on their turn ("Done drafting"),
+   and a stopped or full coach is skipped by the snake; the draft ends when every coach is stopped or full.
+   Budget reserves only cover the picks still required (up to the minimum). AI coaches draft by need
+   (role coverage, speed, type balance, stay within budget for remaining picks); each rolls a seeded
+   roster aim from `AI_STOP_DIALS` (draft.ts) and stops at it, or earlier when the points left per slot
+   get thin, so AI rosters spread across the range. Lineups still bring 6.
 3. **Season** — every week: see the schedule and standings, open the **prep doc** for the next
    opponent (their full roster is public, like a real league), choose your 6 and your Tera captains'
    usage plan, play the match (Showdown-style battle UI vs the heuristic AI), then every other match

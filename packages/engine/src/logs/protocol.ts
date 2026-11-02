@@ -1,7 +1,7 @@
 // Small helpers for reading Showdown protocol lines. Pure, browser-safe.
-import { Dex, toID } from '@pkmn/sim';
+import { Dex, toID } from '@pkmn/dex';
 import type { SpeciesId } from '../types';
-import { randomsSpeciesKeys } from './randoms';
+import { randomsSpeciesKeys } from '../data/randoms';
 
 export type SideId = 'p1' | 'p2';
 

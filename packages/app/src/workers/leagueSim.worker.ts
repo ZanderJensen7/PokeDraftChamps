@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 // League simulation off the main thread: one AI-vs-AI match per message, answered with its MatchResult.
-import { simulateMatch, type Coach } from '@pdc/engine';
+import type { Coach } from '@pdc/engine';
+import { simulateMatch } from '@pdc/engine/battle';
 
 export interface SimRequest {
   id: number;

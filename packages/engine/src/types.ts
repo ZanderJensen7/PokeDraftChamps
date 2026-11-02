@@ -13,19 +13,24 @@ export interface LeagueConfig {
   weeks: number;            // regular-season weeks, default 9
   playoffTeams: number;     // default 8 (half the league, min 4)
   budget: number;           // draft points, default 120
-  rosterSize: number;       // default 11
+  /** A coach may stop drafting once they hold this many mons. Default 9 (at least 6: a match brings 6). */
+  rosterMin: number;
+  /** The most mons a roster may hold; the draft runs at most this many rounds. Default 11. */
+  rosterMax: number;
   teraCaptains: number;     // default 2; 0 = Tera off
   /** Mons per roster allowed to use a Z-move (needs a Z-Crystal). Default 0 = Z-moves off. */
   zCaptains: number;
   /** Mega forms are draftable (each holds its own stone). Default false. */
   megas: boolean;
+  /** Highest draft price a Tera or Z captain may have. Default 14; MAX_POINTS (20) = no cap. */
+  captainMaxPoints: number;
   lossCap: number;          // regular-season losses allowed before the run ends, default 4
   freeAgencyMoves: number;  // per season, default 2
 }
 
 export const DEFAULT_LEAGUE_CONFIG: LeagueConfig = {
-  teams: 16, weeks: 9, playoffTeams: 8, budget: 120, rosterSize: 11,
-  teraCaptains: 2, zCaptains: 0, megas: false, lossCap: 4, freeAgencyMoves: 2,
+  teams: 16, weeks: 9, playoffTeams: 8, budget: 120, rosterMin: 9, rosterMax: 11,
+  teraCaptains: 2, zCaptains: 0, megas: false, captainMaxPoints: 14, lossCap: 4, freeAgencyMoves: 2,
 };
 
 /** One draftable species as it appears in the pool / on a roster card. */
@@ -199,10 +204,17 @@ export interface DraftPick {
 export interface DraftState {
   /** Round-1 pick order; even rounds run it in reverse. */
   order: CoachId[];
-  /** Current round, 1-based (rounds = config.rosterSize). */
+  /** Current round, 1-based (at most config.rosterMax rounds). */
   round: number;
   /** 0-based index of the NEXT overall pick (== picks.length). */
   pickIndex: number;
+  /**
+   * 0-based slot in the snake sequence (order, then order reversed, ...) of the coach on the clock. Slots of
+   * coaches who are done (stopped, full, or out of affordable mons) are skipped, so it can run ahead of pickIndex.
+   */
+  turn: number;
+  /** Coaches who stopped drafting (at or above config.rosterMin) or ran out of affordable picks. Full rosters need no entry. */
+  done: CoachId[];
   picks: DraftPick[];
   /** Species still undrafted (also the free-agent pool after the draft). */
   available: SpeciesId[];

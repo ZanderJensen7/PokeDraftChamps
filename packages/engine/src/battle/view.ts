@@ -1,7 +1,7 @@
 // Incremental battle state as one side sees it, rebuilt from that side's protocol lines.
 import { Dex } from '@pkmn/sim';
 import type { SpeciesId } from '../types';
-import { fromTag, hasFromMove, ofTag, parseCondition, parseIdent, speciesIdFromDetails, speciesNameFromDetails, splitLine, toID, type SideId } from './protocol';
+import { fromTag, hasFromMove, ofTag, parseCondition, parseIdent, speciesIdFromDetails, speciesNameFromDetails, splitLine, toID, type SideId } from '../logs/protocol';
 
 export interface MonView {
   name: string;          // nickname as in the ident

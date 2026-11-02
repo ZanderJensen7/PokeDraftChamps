@@ -1,8 +1,8 @@
 // Per-mon performance in one played match, mined from the stored omniscient protocol log. Pure, browser-safe.
-import { Dex } from '@pkmn/sim';
+import { Dex } from '@pkmn/dex';
 import type { Coach, CoachId, Match, MatchResult, SpeciesId, SpeciesMatchStats } from '../types';
-import { canonicalSpeciesId, ofTag, parseCondition, parseIdent, speciesIdFromDetails, splitLine, toID, type SideId } from '../battle/protocol';
-import { megaInfo } from '../battle/sets';
+import { canonicalSpeciesId, ofTag, parseCondition, parseIdent, speciesIdFromDetails, splitLine, toID, type SideId } from '../logs/protocol';
+import { megaInfo } from '../forms';
 
 const otherSide = (s: SideId): SideId => (s === 'p1' ? 'p2' : 'p1');
 

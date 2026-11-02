@@ -4,7 +4,7 @@ import { validateLeagueConfig } from './config';
 import { aiChoosePick, legalPicks } from '../draft/draft';
 import { createRng, deriveSeed } from './rng';
 import {
-  createRun, deserializeRun, draftPick, finishDraft, freeAgency, nextHumanMatch, opponentOf,
+  captainBlock, createRun, deserializeRun, draftPick, draftStop, finishDraft, freeAgency, nextHumanMatch, opponentOf,
   regularSeasonRecord, resolveWeek, runAiDraftUntilHuman, serializeRun, setCaptains, setTeraCaptains, setZCaptains,
 } from './run';
 
@@ -52,7 +52,8 @@ describe('run flow', () => {
     expect(new Set(drafted.coaches.map((c) => c.abbrev)).size).toBe(16);
     expect(drafted.phase).toBe('draft');
     for (const c of drafted.coaches) {
-      expect(c.roster.length).toBe(11);
+      expect(c.roster.length).toBeGreaterThanOrEqual(DEFAULT_LEAGUE_CONFIG.rosterMin);
+      expect(c.roster.length).toBeLessThanOrEqual(DEFAULT_LEAGUE_CONFIG.rosterMax);
       expect(c.pointsSpent).toBeLessThanOrEqual(120);
     }
     expect(() => draftPick(drafted, drafted.draft.available[0]!)).toThrow();
@@ -146,8 +147,93 @@ describe('run flow', () => {
   });
 });
 
+describe('roster range', () => {
+  const cfg: LeagueConfig = { ...DEFAULT_LEAGUE_CONFIG, teams: 8, playoffTeams: 4 };
+
+  it('a seeded 8-team draft: every roster lands in [min, max], nobody is skipped while still drafting', () => {
+    const sizes = new Set<number>();
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const run = draftedRun(seed, cfg);
+      expect(run.draft.complete).toBe(true);
+      for (const c of run.coaches) {
+        expect(c.roster.length).toBeGreaterThanOrEqual(cfg.rosterMin);
+        expect(c.roster.length).toBeLessThanOrEqual(cfg.rosterMax);
+        if (!c.isHuman) sizes.add(c.roster.length);
+      }
+      // Replay the snake: a coach the clock passes over must be full or finished for good (never picks again).
+      const { order, picks } = run.draft;
+      const n = order.length;
+      const at = (t: number): string => (Math.floor(t / n) % 2 === 0 ? order[t % n] : order[n - 1 - (t % n)])!;
+      const finished = new Set<string>();
+      const owned = new Map<string, number>();
+      let t = 0;
+      for (const p of picks) {
+        while (at(t) !== p.coach) {
+          const skipped = at(t);
+          if ((owned.get(skipped) ?? 0) < cfg.rosterMax) {
+            expect(owned.get(skipped) ?? 0).toBeGreaterThanOrEqual(cfg.rosterMin);
+            finished.add(skipped);
+          }
+          t++;
+        }
+        expect(finished.has(p.coach)).toBe(false);
+        owned.set(p.coach, (owned.get(p.coach) ?? 0) + 1);
+        t++;
+      }
+    }
+    expect(sizes.size).toBeGreaterThan(1); // AI rosters spread over the range, not all at the max
+  });
+
+  it('the human may stop at the minimum, not before; later rounds skip them', () => {
+    let run = createRun({ config: cfg, seed: 11, humanName: 'Test Town Testers', humanAbbrev: 'tst', createdAt: 1 });
+    const pool = buildDraftPool();
+    const mine = (r: RunState): number => r.coaches.find((c) => c.id === r.humanId)!.roster.length;
+    run = runAiDraftUntilHuman(run);
+    expect(() => draftStop(run)).toThrow(/at least 9/);
+    while (mine(run) < cfg.rosterMin) {
+      run = draftPick(run, aiChoosePick(run.draft, run.humanId, run.config, pool, createRng(deriveSeed(11, 'h', run.draft.pickIndex))));
+      run = runAiDraftUntilHuman(run);
+    }
+    expect(run.draft.complete).toBe(false);
+    const done = runAiDraftUntilHuman(draftStop(run));
+    expect(done.draft.complete).toBe(true); // never handed back to the human
+    expect(mine(done)).toBe(cfg.rosterMin);
+    expect(done.draft.done).toContain(done.humanId);
+    expect(done.log.some((l) => / TST stopped drafting at 9 mons\.$/.test(l))).toBe(true);
+    expect(finishDraft(done, { buildSets: fakeSets }).phase).toBe('season');
+  });
+});
+
+describe('captain price cap', () => {
+  const drafted = draftedRun(2024);
+  const pts = (id: string): number => getDraftMon(id)!.points;
+
+  it('setters refuse a mon priced over captainMaxPoints; AI and default captains stay under it', () => {
+    const human = drafted.coaches.find((c) => c.id === drafted.humanId)!;
+    const over = human.roster.find((r) => pts(r.species) > drafted.config.captainMaxPoints)?.species;
+    const under = human.roster.filter((r) => !captainBlock(drafted.config, r.species)).map((r) => r.species);
+    expect(over).toBeDefined();
+    expect(captainBlock(drafted.config, over!)).toBe('overCap');
+    expect(() => setTeraCaptains(drafted, [over!, under[0]!])).toThrow(/over the 14-pt captain cap/);
+    expect(() => setCaptains(drafted, { tera: [under[0]!, under[1]!], z: [] })).not.toThrow();
+    const zLeague = { ...drafted, config: { ...drafted.config, zCaptains: 1 } };
+    expect(() => setZCaptains(zLeague, [over!])).toThrow(/captain cap/);
+    const run = finishDraft(drafted, { buildSets: fakeSets });
+    for (const c of run.coaches) {
+      const caps = c.roster.filter((r) => r.isTeraCaptain || r.isZCaptain);
+      expect(caps.length).toBeGreaterThan(0);
+      for (const r of caps) expect(pts(r.species)).toBeLessThanOrEqual(14);
+    }
+    const uncapped = { ...drafted, config: { ...drafted.config, captainMaxPoints: 20 } };
+    expect(captainBlock(uncapped.config, over!)).toBeUndefined();
+    expect(() => setTeraCaptains(uncapped, [over!, under[0]!])).not.toThrow();
+  });
+});
+
 describe('megas, Tera and Z captains', () => {
-  const cfg: LeagueConfig = { ...DEFAULT_LEAGUE_CONFIG, teams: 8, playoffTeams: 4, megas: true, teraCaptains: 0, zCaptains: 1 };
+  const cfg: LeagueConfig = {
+    ...DEFAULT_LEAGUE_CONFIG, teams: 8, playoffTeams: 4, megas: true, teraCaptains: 0, zCaptains: 1, captainMaxPoints: 20,
+  };
   const drafted = draftedRun(31, cfg);
   const pts = (id: string): number => getDraftMon(id)!.points;
   const isMega = (id: string): boolean => getDraftMon(id)!.isMega;
@@ -232,18 +318,51 @@ describe('megas, Tera and Z captains', () => {
 });
 
 describe('save migration + config validation', () => {
+  type Loose = Record<string, unknown>;
+  type LooseRun = Loose & { config: Loose; draft: Loose; coaches: { roster: Loose[] }[] };
+  /** A save as version 2 wrote it: one fixed rosterSize, no captain cap, no draft turn / done list. */
+  function asV2(run: RunState, size: number): LooseRun {
+    const v2 = JSON.parse(serializeRun(run)) as LooseRun;
+    v2.version = 2;
+    v2.config.rosterSize = size;
+    delete v2.config.rosterMin;
+    delete v2.config.rosterMax;
+    delete v2.config.captainMaxPoints;
+    delete v2.draft.turn;
+    delete v2.draft.done;
+    return v2;
+  }
+  const fixed = (size: number): LeagueConfig => ({
+    ...DEFAULT_LEAGUE_CONFIG, teams: 8, playoffTeams: 4, rosterMin: size, rosterMax: size, captainMaxPoints: 20,
+  });
+
   it('migrates a version-1 save', () => {
-    const run = finishDraft(draftedRun(9, { ...DEFAULT_LEAGUE_CONFIG, teams: 8, playoffTeams: 4 }), { buildSets: fakeSets });
-    type Loose = Record<string, unknown>;
-    const v1 = JSON.parse(serializeRun(run)) as Loose & { config: Loose; coaches: { roster: Loose[] }[] };
+    const run = finishDraft(draftedRun(9, fixed(11)), { buildSets: fakeSets });
+    const v1 = asV2(run, 11);
     v1.version = 1;
     delete v1.config.megas;
     delete v1.config.zCaptains;
     for (const c of v1.coaches) for (const r of c.roster) delete r.isZCaptain;
     const back = deserializeRun(JSON.stringify(v1));
     expect(back).toEqual(run);
-    expect(back.version).toBe(2);
-    expect(() => deserializeRun(JSON.stringify({ ...v1, version: 3 }))).toThrow(/version/);
+    expect(back.version).toBe(3);
+    expect(() => deserializeRun(JSON.stringify({ ...v1, version: 4 }))).toThrow(/version/);
+  });
+
+  it('migrates a version-2 save: rosterMin = rosterMax = the old size, no captain cap', () => {
+    const run = finishDraft(draftedRun(9, fixed(10)), { buildSets: fakeSets });
+    const back = deserializeRun(JSON.stringify(asV2(run, 10)));
+    expect(back).toEqual(run);
+    expect(back.version).toBe(3);
+    expect(back.config).toMatchObject({ rosterMin: 10, rosterMax: 10, captainMaxPoints: 20 });
+    expect('rosterSize' in back.config).toBe(false);
+    // Mid-draft: the clock resumes on the same coach the v2 snake would name.
+    let mid = createRun({ config: fixed(10), seed: 9, humanName: 'Test Town Testers', humanAbbrev: 'tst', createdAt: 1 });
+    mid = runAiDraftUntilHuman(mid);
+    mid = draftPick(mid, legalPicks(mid.draft, mid.humanId, mid.config)[0]!);
+    const midBack = deserializeRun(JSON.stringify(asV2(mid, 10)));
+    expect(midBack.draft.turn).toBe(mid.draft.pickIndex);
+    expect(runAiDraftUntilHuman(midBack)).toEqual(runAiDraftUntilHuman(mid));
   });
 
   it('validateLeagueConfig reports plain-sentence errors', () => {
@@ -255,8 +374,16 @@ describe('save migration + config validation', () => {
     expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, teams: 8, playoffTeams: 16 }).length).toBe(1);
     expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, teams: 10 as LeagueConfig['teams'], playoffTeams: 8 }).length).toBe(1);
     expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, weeks: 21 }).length).toBe(1);
-    expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, teraCaptains: 6, zCaptains: 5 }).length).toBe(1);
-    expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, budget: 10 }).length).toBe(1);
+    expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, teraCaptains: 6, zCaptains: 3 }).length).toBe(1); // 9 > rosterMin - 1
+    expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, budget: 5 }).length).toBe(1);
+    expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, rosterMin: 5 })[0]).toMatch(/minimum must be at least 6/);
+    expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, rosterMin: 6, rosterMax: 6 })).toEqual([]);
+    expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, rosterMax: 8 })[0]).toMatch(/maximum .*no lower than the minimum/);
+    expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, rosterMin: 9.5 }).length).toBe(1);
+    expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, captainMaxPoints: 20 })).toEqual([]);
+    expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, captainMaxPoints: 0 })[0]).toMatch(/captain price cap/);
+    expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, captainMaxPoints: 21 }).length).toBe(1);
+    expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, captainMaxPoints: 12.5 }).length).toBe(1);
     expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, lossCap: -1 }).length).toBe(1);
     expect(() => createRun({ config: { ...DEFAULT_LEAGUE_CONFIG, playoffTeams: 6 }, seed: 1, humanName: 'X', humanAbbrev: 'XXX' })).toThrow(/power of two/);
   });

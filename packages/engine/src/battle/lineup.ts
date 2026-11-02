@@ -2,7 +2,7 @@
 import { Dex } from '@pkmn/sim';
 import type { BattleSet, RosterEntry, SpeciesId } from '../types';
 import { attackTypesOfSet, pairScore, stabAttacks, stat100 } from './matchup';
-import { toID } from './protocol';
+import { toID } from '../logs/protocol';
 import { Rng } from './rng';
 import { buildSetFor } from './sets';
 

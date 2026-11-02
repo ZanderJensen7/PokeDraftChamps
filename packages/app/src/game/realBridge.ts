@@ -1,5 +1,5 @@
 // The real battle bridge: league matches in a Web Worker, the human's match live in BattleScreen,
-// scouting from stored logs. The live-battle code (@pkmn/sim's battle engine) loads on first use.
+// scouting from stored logs. The live-battle code and the set builder (@pdc/engine/battle: @pkmn/sim) load on first use.
 import type { CoachId, RunState, ScoutLog, ScoutReport } from '@pdc/engine';
 import { coachById, scoutFromLogs } from '@pdc/engine';
 import { placeholderBridge, setBridge, type BattleBridge } from './bridge';

@@ -6,11 +6,13 @@ export type SpriteSet = 'ani' | 'gen5ani';
 export interface Settings {
   spriteSet: SpriteSet;
   reducedMotion: boolean;
+  /** Battle log panel open (desktop, tablet, landscape phone). Portrait phones open it as a sheet on demand. */
+  battleLogOpen: boolean;
 }
 
 const KEY = 'pdc.settings.v2';
 const OLD_KEY = 'pdc.settings.v1';
-const DEFAULTS: Settings = { spriteSet: 'ani', reducedMotion: false };
+const DEFAULTS: Settings = { spriteSet: 'ani', reducedMotion: false, battleLogOpen: true };
 
 function load(): Settings {
   try {
@@ -25,6 +27,7 @@ function load(): Settings {
     return {
       spriteSet: parsed.spriteSet === 'gen5ani' ? 'gen5ani' : 'ani',
       reducedMotion: parsed.reducedMotion === true,
+      battleLogOpen: parsed.battleLogOpen !== false,
     };
   } catch {
     return DEFAULTS;
@@ -39,9 +42,9 @@ export const useSettings = create<SettingsStore>((set, get) => ({
   ...load(),
   update(patch) {
     set(patch);
-    const { spriteSet, reducedMotion } = get();
+    const { spriteSet, reducedMotion, battleLogOpen } = get();
     try {
-      localStorage.setItem(KEY, JSON.stringify({ spriteSet, reducedMotion }));
+      localStorage.setItem(KEY, JSON.stringify({ spriteSet, reducedMotion, battleLogOpen }));
     } catch {
       /* storage full or blocked: settings stay in memory */
     }

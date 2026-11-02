@@ -43,7 +43,7 @@ function Stepper({ label, value, min, max, onChange, hint }: {
         <span className="font-display font-bold uppercase tracking-wide">{label}</span>
         <div className="flex items-center gap-2" role="group" aria-label={label}>
           <GameButton variant="ghost" size="sm" disabled={value <= min} onClick={() => onChange(value - 1)} aria-label={`Fewer ${label}`} className="max-md:min-h-11 max-md:min-w-11">−</GameButton>
-          <span className="w-6 text-center font-display text-2xl font-bold text-poke-yellow tabular-nums" aria-live="polite">{value}</span>
+          <span className="w-8 text-center font-display text-2xl font-bold text-poke-yellow tabular-nums" aria-live="polite">{value}</span>
           <GameButton variant="ghost" size="sm" disabled={value >= max} onClick={() => onChange(value + 1)} aria-label={`More ${label}`} className="max-md:min-h-11 max-md:min-w-11">+</GameButton>
         </div>
       </div>
@@ -93,11 +93,16 @@ export function SetupScreen() {
   const [megas, setMegas] = useState(DEFAULT_LEAGUE_CONFIG.megas);
   const [teraCaptains, setTeraCaptains] = useState(DEFAULT_LEAGUE_CONFIG.teraCaptains);
   const [zCaptains, setZCaptains] = useState(DEFAULT_LEAGUE_CONFIG.zCaptains);
+  const [rosterMin, setRosterMin] = useState(DEFAULT_LEAGUE_CONFIG.rosterMin);
+  const [rosterMax, setRosterMax] = useState(DEFAULT_LEAGUE_CONFIG.rosterMax);
+  const [captainMaxPoints, setCaptainMaxPoints] = useState(DEFAULT_LEAGUE_CONFIG.captainMaxPoints);
   const [code, setCode] = useState(() => leagueCode(randomSeed()));
 
   const seed = seedFromCode(code);
   const tag = abbrev.trim().toUpperCase();
-  const config: LeagueConfig = { ...DEFAULT_LEAGUE_CONFIG, teams, weeks, playoffTeams, lossCap, megas, teraCaptains, zCaptains };
+  const config: LeagueConfig = {
+    ...DEFAULT_LEAGUE_CONFIG, teams, weeks, playoffTeams, lossCap, megas, teraCaptains, zCaptains, rosterMin, rosterMax, captainMaxPoints,
+  };
   const errors = validateLeagueConfig(config);
   const valid = name.trim().length >= 2 && /^[A-Z0-9]{3}$/.test(tag) && seed !== null && errors.length === 0;
   const activePreset = PRESETS.find((p) => p.megas === megas && p.tera === teraCaptains && p.z === zCaptains)?.id;
@@ -174,9 +179,19 @@ export function SetupScreen() {
           <Slider label="Weeks" value={weeks} min={4} max={12} onChange={setWeeks} hint="Regular-season matches before the playoffs." />
           <Slider label="Loss cap" value={lossCap} min={2} max={6} onChange={setLossCap} hint={`Loss number ${lossCap + 1} ends the run.`} />
         </div>
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="mt-4 grid gap-5 sm:grid-cols-2">
+          <Stepper label="Roster min" value={rosterMin} min={6} max={14} onChange={setRosterMin} hint="Every coach drafts at least this many." />
+          <Stepper
+            label="Roster max"
+            value={rosterMax}
+            min={6}
+            max={14}
+            onChange={setRosterMax}
+            hint={rosterMax === rosterMin ? 'Same as the min: every roster is this size.' : 'Past the min, a coach may stop drafting any time.'}
+          />
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2">
           <Fixed label="Budget" value={DEFAULT_LEAGUE_CONFIG.budget} />
-          <Fixed label="Roster" value={DEFAULT_LEAGUE_CONFIG.rosterSize} />
           <Fixed label="Free agency" value={DEFAULT_LEAGUE_CONFIG.freeAgencyMoves} />
         </div>
       </Panel>
@@ -193,6 +208,16 @@ export function SetupScreen() {
           <Toggle label="Mega Evolution" on={megas} onChange={setMegas} hint="Megas are drafted as their own picks; the base and its Mega can't be on one roster." />
           <Stepper label="Tera captains" value={teraCaptains} min={0} max={3} onChange={setTeraCaptains} hint="Only captains may Terastallize." />
           <Stepper label="Z captains" value={zCaptains} min={0} max={3} onChange={setZCaptains} hint="Z captains hold a Z-Crystal." />
+        </div>
+        <div className="mt-4 grid gap-5 sm:grid-cols-2">
+          <Stepper
+            label="Captain cap"
+            value={captainMaxPoints}
+            min={1}
+            max={20}
+            onChange={setCaptainMaxPoints}
+            hint={captainMaxPoints >= 20 ? 'No cap: any mon may be a captain.' : `Captains cost ${captainMaxPoints} points or less.`}
+          />
         </div>
         {errors.length > 0 && (
           <ul role="alert" className="mt-4 space-y-1 rounded-xl border-2 border-opp bg-opp-soft px-3 py-2 text-sm font-semibold text-ink">

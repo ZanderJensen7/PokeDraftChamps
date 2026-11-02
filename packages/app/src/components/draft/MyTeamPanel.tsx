@@ -87,15 +87,15 @@ function RoleChips({ needs }: { needs: TeamNeeds | null }) {
  * MY TEAM: what your roster looks like so far. Needs (engine summary), the compact resistances
  * chart, speed buckets and move-role coverage. Stays usable while the AI coaches pick.
  */
-export function MyTeamPanel({ rosterIds, rosterSize, needs, loading, className = '' }: {
-  rosterIds: readonly SpeciesId[]; rosterSize: number; needs: TeamNeeds | null; loading: boolean; className?: string;
+export function MyTeamPanel({ rosterIds, sizeText, needs, loading, className = '' }: {
+  rosterIds: readonly SpeciesId[]; sizeText: string; needs: TeamNeeds | null; loading: boolean; className?: string;
 }) {
   const key = rosterIds.join(',');
   // The type chart is sync, so it renders before the learnset-backed needs arrive.
   const table = useMemo(() => teamMatchupTable(key ? key.split(',') : []), [key]);
   const empty = rosterIds.length === 0;
   return (
-    <Panel title="My team" aside={<span className="font-display font-bold">{rosterIds.length}/{rosterSize}</span>} className={className}>
+    <Panel title="My team" aside={<span className="font-display font-bold">{sizeText}</span>} className={className}>
       {empty ? (
         <DialogueBox>Draft your first pick to see your team's shape.</DialogueBox>
       ) : (

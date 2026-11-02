@@ -13,15 +13,27 @@ no accounts, never monetized). Design source of truth: `docs/DESIGN.md`. Decisio
 - Commands: `npm run dev` (app on :5173), `npm test` (engine), `npm run typecheck`, `npm run build`.
 
 ## Engine layout (`packages/engine/src/`)
+- Engine entries: `@pdc/engine` (`src/index.ts`) is sim-free (@pkmn/dex/@pkmn/data only) so the app's first load
+  stays small; `@pdc/engine/battle` (`src/battle/index.ts`, plus `game.ts`'s `buildSets`/`engineDeps`) holds
+  everything that loads @pkmn/sim / @pkmn/randoms / @smogon/calc, and the app imports it lazily. `entries.test.ts`
+  fails if the main entry reaches the sim. The randoms species table is precomputed into `data/randomsSets.json`:
+  after bumping @pkmn/randoms run `npm run gen:randoms -w @pdc/engine` (`data/randomsData.test.ts` fails while stale).
 - `types.ts` — shared types; every module imports from it, it imports nothing.
-- `data/` — point prices by tier, bans, AI coach identities.
+- `data/` — point prices by tier, bans, AI coach identities, the precomputed randoms species table.
+- `forms.ts` — Mega / Z-Crystal helpers (`megaInfo`, `battleSpeciesId`, `zCrystalFor`); `logs/` — Showdown
+  protocol helpers + `scoutFromLogs` (both sim-free).
 - `draft/` — draft pool (Dex ∩ randoms sets − bans), snake draft, AI drafting.
 - `league/` — seeded rng, schedule, standings, playoffs, `run.ts` (the RunState + transitions; battle
   functions are INJECTED as `deps` so league stays pure and testable).
 - `battle/` — set building from randoms roles, battle runner over `BattleStreams`, `HeuristicPlayer`
-  (damage-calc driven AI), lineup choice (bring 6), scouting parser over stored logs, `simulateMatch`.
+  (damage-calc driven AI), lineup choice (bring 6), `simulateMatch`, battle view over the live log.
 - `prep/` — the prep doc: type matchup table + STAB/Weak scores, speed tiers, notable moves by category,
   likely sets, threat summary.
+- App battle UI (`packages/app/src`): `battle/battleView.ts` reduces the live log into per-mon view state
+  (hp, status, boosts, revealed moves/item/ability); `battle/narrate.ts` `parseLog` turns protocol lines into
+  typed Showdown-style log entries for `components/battle/BattleLog.tsx`; `battle/monInfo.ts` builds the
+  hover-card data (seen / scouted / likely moves, speed tiers vs your active mon) for
+  `components/battle/MonHoverCard.tsx`. The engine's `MatchResult.log` stays raw protocol.
 
 ## Rules of the house
 - Pure functions, seeded randomness (`league/rng.ts`, sim seeds), JSON-friendly state (arrays, not Set/Map)

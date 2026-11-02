@@ -17,6 +17,15 @@ export interface MonView {
   fainted: boolean;
   tera?: string;
   boosts: Record<string, number>;
+  /** Moves this mon used this battle, in order of first use (protocol display names; Z-moves left out). */
+  moves: string[];
+  /** Item revealed this battle (the one it holds now, or the last one it lost when `itemGone`). */
+  item?: string;
+  itemGone?: boolean;
+  /** Ability revealed this battle (the one it has now). */
+  ability?: string;
+  /** Set by `-zpower`: the next `|move|` is a Z-move and does not name a moveset move. */
+  zPowered?: boolean;
 }
 
 export interface SideView {
@@ -79,7 +88,7 @@ function speciesMatches(preview: string, actual: string): boolean {
 }
 
 function newMon(species: string, level = 100): MonView {
-  return { species, level, hp: 100, maxhp: 100, unseen: true, status: '', fainted: false, boosts: {} };
+  return { species, level, hp: 100, maxhp: 100, unseen: true, status: '', fainted: false, boosts: {}, moves: [] };
 }
 
 /** The team entry for an ident (+ details when known), created if the mon was never previewed. */
@@ -123,10 +132,80 @@ export function activeMon(view: FieldView, side: Side): MonView | null {
 
 const strip = (effect: string | undefined): string => (effect ?? '').replace(/^(move|ability|item):\s*/, '');
 
+/** The `[from] item: X` / `[from] ability: X` tag of a line, if any. */
+function fromTag(parts: string[], kind: 'item' | 'ability'): string | undefined {
+  for (const p of parts) {
+    const m = /^\[from\]\s*(item|ability):\s*(.+)$/.exec(p);
+    if (m && m[1] === kind) return m[2]!.trim();
+  }
+  return undefined;
+}
+
+function ofIdent(parts: string[]): string | undefined {
+  const p = parts.find((x) => x.startsWith('[of]'));
+  return p?.slice(4).trim();
+}
+
+/** Revealed moves, items and abilities: what the hover card shows as "seen this battle". */
+function trackReveals(view: FieldView, cmd: string | undefined, parts: string[]): void {
+  switch (cmd) {
+    case 'move': {
+      const from = parts.slice(3).find((p) => p.startsWith('[from]'));
+      if (from && !from.includes('lockedmove')) return; // called / reflected / Dancer: not its own move
+      const name = parts[2];
+      const mon = monFor(view, parts[1]);
+      if (!mon || !name || name === 'Struggle' || name === 'Recharge') return;
+      if (mon.zPowered) { mon.zPowered = false; return; }
+      if (!mon.moves.includes(name)) mon.moves.push(name);
+      return;
+    }
+    case '-zpower': {
+      const mon = monFor(view, parts[1]);
+      if (mon) mon.zPowered = true;
+      return;
+    }
+    case '-mega': {
+      const mon = monFor(view, parts[1]);
+      if (mon && parts[3]) { mon.item = parts[3]; mon.itemGone = false; }
+      return;
+    }
+    case '-item': case '-enditem': {
+      const mon = monFor(view, parts[1]);
+      if (mon && parts[2]) { mon.item = parts[2]; mon.itemGone = cmd === '-enditem'; }
+      break; // a [from] ability (Frisk, Pickpocket) still names its owner below
+    }
+    case '-ability': {
+      const mon = monFor(view, parts[1]);
+      if (mon && parts[2]) mon.ability = parts[2];
+      // Trace: "|-ability|tracer|Intimidate|[from] ability: Trace|[of] target" reveals the target's ability too.
+      if (fromTag(parts, 'ability') === 'Trace') {
+        const target = monFor(view, ofIdent(parts));
+        if (target && parts[2]) target.ability = parts[2];
+      }
+      return;
+    }
+    case '-activate': {
+      // "|-activate|p2a: X|ability: Protosynthesis" / "|-activate|p2a: X|item: Booster Energy"
+      const m = /^(ability|item):\s*(.+)$/.exec(parts[2] ?? '');
+      const mon = m ? monFor(view, parts[1]) : null;
+      if (mon && m) { if (m[1] === 'ability') mon.ability = m[2]!; else mon.item = m[2]!; }
+      break;
+    }
+  }
+  const ability = fromTag(parts, 'ability');
+  const item = cmd === '-item' || cmd === '-enditem' ? undefined : fromTag(parts, 'item');
+  if (!ability && !item) return;
+  const owner = monFor(view, ofIdent(parts) ?? parts[1]);
+  if (!owner) return;
+  if (ability) owner.ability = ability;
+  if (item) { owner.item = item; owner.itemGone = false; }
+}
+
 /** Apply one protocol line to the view (mutates). */
 export function applyLine(view: FieldView, line: string): void {
   const parts = splitLine(line);
   const cmd = parts[0];
+  trackReveals(view, cmd, parts);
   switch (cmd) {
     case 'player': {
       const side = parts[1];

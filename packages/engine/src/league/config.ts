@@ -1,6 +1,7 @@
 // League option checks, shared by createRun and the setup screen.
 import type { LeagueConfig } from '../types';
 import { buildDraftPool } from '../draft/pool';
+import { MAX_POINTS } from '../data/points';
 
 const TEAM_COUNTS: readonly number[] = [8, 12, 16];
 export const MAX_WEEKS = 20;
@@ -17,22 +18,28 @@ export function validateLeagueConfig(config: LeagueConfig): string[] {
     errors.push(`Playoff teams must be a power of two between 2 and the number of teams (got ${String(c.playoffTeams)}).`);
   }
   if (!isInt(c.weeks) || c.weeks < 1 || c.weeks > MAX_WEEKS) errors.push(`The season must last 1 to ${MAX_WEEKS} weeks (got ${String(c.weeks)}).`);
-  const rosterOk = isInt(c.rosterSize) && c.rosterSize >= 6;
-  if (!rosterOk) errors.push(`Rosters need at least 6 mons, since a match brings 6 (got ${String(c.rosterSize)}).`);
+  const minOk = isInt(c.rosterMin) && c.rosterMin >= 6;
+  if (!minOk) errors.push(`The roster minimum must be at least 6 mons, since a match brings 6 (got ${String(c.rosterMin)}).`);
+  const maxOk = isInt(c.rosterMax) && (!minOk || c.rosterMax >= c.rosterMin);
+  if (!maxOk) errors.push(`The roster maximum must be a whole number no lower than the minimum (got ${String(c.rosterMax)}).`);
+  const rosterOk = minOk && maxOk;
   if (!isInt(c.teraCaptains) || c.teraCaptains < 0) errors.push('Tera captains must be a whole number, 0 or more.');
   if (!isInt(c.zCaptains) || c.zCaptains < 0) errors.push('Z captains must be a whole number, 0 or more.');
-  if (rosterOk && isInt(c.teraCaptains) && isInt(c.zCaptains) && c.teraCaptains + c.zCaptains > c.rosterSize - 1) {
-    errors.push(`Tera and Z captains together may be at most ${c.rosterSize - 1} (one less than the roster size).`);
+  if (minOk && isInt(c.teraCaptains) && isInt(c.zCaptains) && c.teraCaptains + c.zCaptains > c.rosterMin - 1) {
+    errors.push(`Tera and Z captains together may be at most ${c.rosterMin - 1} (one less than the roster minimum).`);
+  }
+  if (!isInt(c.captainMaxPoints) || c.captainMaxPoints < 1 || c.captainMaxPoints > MAX_POINTS) {
+    errors.push(`The captain price cap must be 1 to ${MAX_POINTS} points (${MAX_POINTS} = no cap; got ${String(c.captainMaxPoints)}).`);
   }
   if (rosterOk) {
     const pool = buildDraftPool({ megas: !!c.megas });
     const cheapest = Math.min(...pool.map((m) => m.points));
-    const need = c.rosterSize * cheapest;
+    const need = c.rosterMin * cheapest;
     if (typeof c.budget !== 'number' || !(c.budget >= need)) {
-      errors.push(`The budget must be at least ${need} points (${c.rosterSize} mons at the cheapest price, ${cheapest}).`);
+      errors.push(`The budget must be at least ${need} points (${c.rosterMin} mons at the cheapest price, ${cheapest}).`);
     }
-    if (teams * c.rosterSize > pool.length) {
-      errors.push(`${teams} rosters of ${c.rosterSize} need ${teams * c.rosterSize} mons, but the pool has ${pool.length}.`);
+    if (teams * c.rosterMax > pool.length) {
+      errors.push(`${teams} rosters of up to ${c.rosterMax} need ${teams * c.rosterMax} mons, but the pool has ${pool.length}.`);
     }
   }
   if (!isInt(c.lossCap) || c.lossCap < 0) errors.push('The loss cap must be a whole number, 0 or more.');

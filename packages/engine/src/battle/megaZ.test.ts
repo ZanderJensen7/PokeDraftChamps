@@ -5,8 +5,9 @@ import { chooseLineup } from './lineup';
 import type { ParsedRequest, PlayerContext } from './player';
 import { Rng } from './rng';
 import { runBattle } from './runner';
-import { scoutFromLogs } from './scout';
-import { battleSpeciesId, buildSeasonSets, buildSetFor, Z_CRYSTAL_BY_TYPE, zCrystalFor } from './sets';
+import { scoutFromLogs } from '../logs/scout';
+import { battleSpeciesId, Z_CRYSTAL_BY_TYPE, zCrystalFor } from '../forms';
+import { buildSeasonSets, buildSetFor } from './sets';
 import { simulateMatch } from './simulateMatch';
 import { viewOf } from './view';
 

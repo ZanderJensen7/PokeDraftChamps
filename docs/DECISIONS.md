@@ -33,3 +33,14 @@
   lab** (`npm run balance`) simulates AI-only leagues headlessly and writes `docs/balance/latest.{json,md}`;
   the in-game Analytics screen shows the same numbers for the player's league. No telemetry leaves the
   browser (no backend); cross-player data would need an explicit opt-in export.
+- **2026-11-02 — Roster range + captain price cap.** User ruling: rosters are a range, not a fixed size,
+  and the strongest mons can't also be captains. `rosterSize` became `rosterMin` (default 9) + `rosterMax`
+  (default 11): a coach may stop drafting on their turn once at the minimum, stopped or full coaches are
+  skipped, budget reserves only cover required picks. Why: a coach who spends big on a few stars should be
+  able to stop short instead of buying filler, and lineups only bring 6. AI stopping is one data table
+  (`AI_STOP_DIALS`: aim weights 3 / 4 / 3 for min / in-between / max, stop early under 3 points per open
+  slot), seeded per coach, measured at about 38 % / 40 % / 22 % for 9 / 10 / 11 mons with ~0.4 points left.
+  `captainMaxPoints` (default 14, 20 = no cap) bars mons priced over it from Tera and Z captaincy, so a
+  captain is a mid-price pick made scary, not a top pick made scarier; the captain count drops when a
+  roster has too few eligible mons. Saves bumped to v3; v2 saves migrate as min = max = their old size with
+  no cap, so an old league keeps its rules.

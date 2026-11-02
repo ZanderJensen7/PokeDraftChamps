@@ -1,18 +1,9 @@
 // Typed access to the parts of @pkmn/randoms' gen9 generator that its public d.ts does not expose.
 import { TeamGenerators } from '@pkmn/randoms';
 import type { PRNGSeed } from '@pkmn/sim';
+import type { RandomsSpeciesData } from '../data/randoms';
 
-export interface RandomsSetData {
-  role: string;
-  movepool: string[];
-  abilities?: string[];
-  teraTypes?: string[];
-}
-
-export interface RandomsSpeciesData {
-  level?: number;
-  sets: RandomsSetData[];
-}
+export { randomsSpeciesData, randomsSpeciesKeys, type RandomsSetData, type RandomsSpeciesData } from '../data/randoms';
 
 export interface RandomsSet {
   name: string;
@@ -48,18 +39,4 @@ export function randomsGenerator(seed: number, salt = 0): RandomsGenerator {
   const s = seedTuple(seed, salt);
   const prngSeed = s.join(',') as PRNGSeed;
   return TeamGenerators.getTeamGenerator('gen9randombattle', prngSeed) as unknown as RandomsGenerator;
-}
-
-let keysCache: Set<string> | null = null;
-let dataCache: Record<string, RandomsSpeciesData> | null = null;
-
-/** The randoms species table (509 gen9 species), keyed by species id. */
-export function randomsSpeciesData(): Record<string, RandomsSpeciesData> {
-  if (!dataCache) dataCache = randomsGenerator(1).randomSets;
-  return dataCache;
-}
-
-export function randomsSpeciesKeys(): Set<string> {
-  if (!keysCache) keysCache = new Set(Object.keys(randomsSpeciesData()));
-  return keysCache;
 }

@@ -1,6 +1,6 @@
 // The player interface the runner drives, the request shape, and a seeded random player.
 import type { BattleSet, SpeciesId, StatsTable } from '../types';
-import type { SideId } from './protocol';
+import type { SideId } from '../logs/protocol';
 import { Rng } from './rng';
 
 export interface RequestMove {

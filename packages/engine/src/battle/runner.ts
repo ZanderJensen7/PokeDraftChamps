@@ -3,8 +3,9 @@ import { BattleStreams, Teams } from '@pkmn/sim';
 import type { BattleSet, SpeciesId } from '../types';
 import { HeuristicPlayer } from './heuristicPlayer';
 import type { BattlePlayer, ParsedRequest, PlayerContext } from './player';
-import { parseIdent, speciesIdFromDetails, splitLine, toID, type SideId } from './protocol';
-import { battleSpeciesId, setSpeciesId } from './sets';
+import { parseIdent, speciesIdFromDetails, splitLine, toID, type SideId } from '../logs/protocol';
+import { battleSpeciesId } from '../forms';
+import { setSpeciesId } from './sets';
 
 /**
  * Showdown custom-rule syntax. Verified 2026-11-02: accepted by `>start`, the log carries

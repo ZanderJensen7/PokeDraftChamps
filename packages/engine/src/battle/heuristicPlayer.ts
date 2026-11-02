@@ -5,7 +5,7 @@ import { Dex } from '@pkmn/sim';
 import type { BattleSet } from '../types';
 import { attackTypesOfSet, pairScore, stabAttacks, stat100, typeMultiplier } from './matchup';
 import { switchableSlots, usableMoves, type BattlePlayer, type ParsedRequest, type PlayerContext, type RequestPokemon } from './player';
-import { levelFromDetails, parseCondition, parseIdent, speciesNameFromDetails, toID, type SideId } from './protocol';
+import { levelFromDetails, parseCondition, parseIdent, speciesNameFromDetails, toID, type SideId } from '../logs/protocol';
 import { Rng } from './rng';
 import { setSpeciesId } from './sets';
 import { viewOf, viewTypes, type BattleView, type MonView, type SideView } from './view';

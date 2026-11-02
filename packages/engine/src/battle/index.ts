@@ -1,5 +1,7 @@
-// Battle layer: sets, players, the battle runner, AI, lineups, scouting and match simulation.
-export { buildSetFor, buildSeasonSets, setSpeciesId, spreadFor, battleSpeciesId, megaInfo, zCrystalFor, Z_CRYSTAL_BY_TYPE, type BuildSetOptions } from './sets';
+// The `@pdc/engine/battle` entry: everything that loads @pkmn/sim / @pkmn/randoms / @smogon/calc (sets, players, the
+// battle runner, AI, lineups, scouting, match simulation, and the league's bound engineDeps). The main entry
+// (`@pdc/engine`, src/index.ts) stays sim-free so the app's first load never pulls the simulator.
+export { buildSetFor, buildSeasonSets, setSpeciesId, spreadFor, type BuildSetOptions } from './sets';
 export {
   RandomPlayer, switchableSlots, usableMoves,
   type BattlePlayer, type ParsedRequest, type PlayerContext, type RequestActive, type RequestMove, type RequestPokemon,
@@ -10,7 +12,7 @@ export {
 } from './runner';
 export { HeuristicPlayer } from './heuristicPlayer';
 export { chooseLineup, LINEUP_SIZE } from './lineup';
-export { scoutFromLogs, type ScoutLog } from './scout';
 export { simulateMatch, humanMatchResult } from './simulateMatch';
 export { viewOf, viewTypes, type BattleView, type MonView, type SideView } from './view';
 export { Rng as BattleRng } from './rng';
+export * from '../game';

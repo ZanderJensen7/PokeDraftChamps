@@ -2,10 +2,10 @@
 // localStorage on every change; the battle itself only goes through the bridge (src/game/bridge.ts).
 import { create } from 'zustand';
 import type {
-  BattleSet, LeagueConfig, Match, PrepDoc, RunPhase, RunState, SpeciesId, StandingRow,
+  BattleSet, BuildSets, LeagueConfig, Match, PrepDoc, RunPhase, RunState, SpeciesId, StandingRow,
 } from '@pdc/engine';
 import {
-  buildPrepDoc, computeStandings, createRun, deserializeRun, draftPick, finishDraft, freeAgency,
+  buildPrepDoc, computeStandings, createRun, deserializeRun, draftPick, draftStop, finishDraft, freeAgency,
   humanCoach, nextHumanMatch, opponentOf, playoffRoundName, resolveWeek, runAiDraftUntilHuman,
   serializeRun, setCaptains,
 } from '@pdc/engine';
@@ -67,14 +67,20 @@ interface GameActions {
   revealNextPick(): void;
   skipDraftAnimation(): void;
   humanPick(species: SpeciesId): void;
-  /** Sets the human's Tera / Z captains; ends the draft if it is still open. Returns false on a refusal. */
-  setCaptainsWith(captains: { tera: SpeciesId[]; z: SpeciesId[] }): boolean;
+  /** The human stops drafting (allowed on the clock at or above config.rosterMin); the AI finishes the draft. */
+  stopDrafting(): void;
+  /**
+   * Sets the human's Tera / Z captains; ends the draft if it is still open. Resolves false on a refusal.
+   * Async: the set builder loads with the battle engine on first use.
+   */
+  setCaptainsWith(captains: { tera: SpeciesId[]; z: SpeciesId[] }): Promise<boolean>;
   /** Answer to the leave-battle confirm: forfeit and go, or stay. */
   confirmLeaveBattle(leave: boolean): void;
   loadPrep(): Promise<void>;
   setLineup(lineup: SpeciesId[]): void;
   playMatch(): Promise<void>;
-  doFreeAgency(drop: SpeciesId, add: SpeciesId): boolean;
+  /** Async like setCaptainsWith (the new mon's set comes from the lazily loaded set builder). */
+  doFreeAgency(drop: SpeciesId, add: SpeciesId): Promise<boolean>;
   saveSet(species: SpeciesId, set: BattleSet): void;
   exportSave(): void;
   importSave(file: File): Promise<void>;
@@ -115,7 +121,7 @@ const BATTLE_CLOSED = 'battle screen closed';
  * After captains change mid-season, held items follow the role: a new Z captain without a crystal and a
  * former Z captain still holding one take the item a fresh default set would carry. Moves, EVs etc. stay.
  */
-function syncCaptainItems(before: RunState, after: RunState): RunState {
+function syncCaptainItems(before: RunState, after: RunState, buildSets: BuildSets): RunState {
   const was = new Map(humanCoach(before).roster.map((r) => [r.species, !!r.isZCaptain]));
   const human = humanCoach(after);
   const changed = human.roster.filter((r) => {
@@ -123,7 +129,7 @@ function syncCaptainItems(before: RunState, after: RunState): RunState {
     return (was.get(r.species) ?? false) !== !!r.isZCaptain && !!r.isZCaptain !== isZCrystal(item);
   });
   if (changed.length === 0) return after;
-  const fresh = getBridge().buildSets(human, after.seed);
+  const fresh = buildSets(human, after.seed);
   const sets = { ...human.sets };
   for (const r of changed) {
     const cur = sets[r.species];
@@ -244,16 +250,29 @@ export const useGame = create<GameStore>((set, get) => ({
     }
   },
 
-  setCaptainsWith(captains) {
+  stopDrafting() {
     const { run } = get();
-    if (!run) return false;
+    if (!run) return;
     try {
+      const stopped = draftStop(run);
+      const next = runAiDraftUntilHuman(stopped);
+      set({ run: next, draftShown: stopped.draft.picks.length });
+    } catch (e) {
+      set({ toast: errText(e) });
+    }
+  },
+
+  async setCaptainsWith(captains) {
+    try {
+      const buildSets = await getBridge().loadBuildSets();
+      const { run } = get();
+      if (!run) return false;
       const withCaps = setCaptains(run, captains);
       if (run.phase === 'draft') {
-        const next = finishDraft(withCaps, { buildSets: getBridge().buildSets });
+        const next = finishDraft(withCaps, { buildSets });
         set({ run: next, screen: 'hub', lineup: defaultLineup(next), prep: null, prepKey: null });
       } else {
-        set({ run: syncCaptainItems(run, withCaps), prep: null, prepKey: null });
+        set({ run: syncCaptainItems(run, withCaps, buildSets), prep: null, prepKey: null });
       }
       return true;
     } catch (e) {
@@ -336,11 +355,12 @@ export const useGame = create<GameStore>((set, get) => ({
     }
   },
 
-  doFreeAgency(drop, add) {
-    const { run } = get();
-    if (!run) return false;
+  async doFreeAgency(drop, add) {
     try {
-      const next = freeAgency(run, drop, add, { buildSets: getBridge().buildSets });
+      const buildSets = await getBridge().loadBuildSets();
+      const { run } = get();
+      if (!run) return false;
+      const next = freeAgency(run, drop, add, { buildSets });
       const lineup = get().lineup.map((s) => (s === drop ? add : s));
       set({ run: next, lineup, prep: null, prepKey: null });
       return true;
