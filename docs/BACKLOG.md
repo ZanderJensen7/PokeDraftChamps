@@ -71,8 +71,12 @@ Each line is one job. Sessions are started from the top; three at a time at most
    `screens/HallOfFameScreen.tsx` (route `hall`, title-screen button), end-screen decisive match + career strip.
    Open: the perks taken (no perks exist yet); pool, achievements and seasonal objectives from the ROGUELIKE
    profile sketch.
-7. **Draft helper follow-ups.** FIT badge uses the quick score (roles excluded) while the hover note uses the
-   full one; hover popover covers the next card row; resistances table scrolls sideways in the narrow rail.
+7. **Draft helper follow-ups.** SHIPPED 2026-11-02 (branch `claude/sleepy-greider-aa96f3`): FIT badge and hover note
+   share one score (`warmRoleCategories` reads the pool's learnset categories in chunks after first paint,
+   `pickImpactSync` / `rankPool(..., { roles: true })` include `newRoles` once cached, the badge shows "…" until then;
+   `rankPool` without the option stays role-free so AI picks never depend on the cache); `CardPeek` popover flips above
+   near the viewport bottom, clamps horizontally, closes on scroll / Escape; the MY TEAM resistances are a 9 + 9 type
+   grid of team weak scores (the 18-column table stays in the prep doc).
 8. **Replay viewer** for stored logs (watch any league match); the tape-room perk needs it. SHIPPED 2026-11-02
    (branch `claude/replay-viewer-0db5c4`): `app/src/battle/replay.ts` (log cut into the live battle's beats,
    `useReplay` transport), `screens/ReplayScreen.tsx` (route `replay`, `watch(matchId)` in the store), the field +

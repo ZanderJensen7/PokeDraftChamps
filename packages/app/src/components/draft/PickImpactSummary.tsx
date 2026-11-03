@@ -13,7 +13,8 @@ const TONE = {
 /**
  * What drafting this mon would change: the engine's one-line note plus chips for the weak types it
  * fixes (green) or worsens (red), the move roles it adds (blue) and its speed slot. Type and speed
- * chips show at once; the role chips and final note arrive when the learnsets are read.
+ * chips show at once; the role chips and final note arrive when the learnsets are read (at once when the
+ * pool's role cache is already warm, the same numbers as the FIT badge).
  */
 export function PickImpactSummary({ rosterIds, candidate, pool, className = '' }: {
   rosterIds: readonly SpeciesId[]; candidate: SpeciesId; pool: readonly DraftMon[]; className?: string;
@@ -24,12 +25,17 @@ export function PickImpactSummary({ rosterIds, candidate, pool, className = '' }
   const outspeeds = rosterIds.length > 0 ? `, outspeeds ${imp.outspeeds} of ${rosterIds.length}` : '';
   return (
     <div className={`text-left ${className}`} aria-live="polite">
-      {imp.note && <p className="mb-1 text-xs font-semibold leading-snug">{displayText(imp.note)}</p>}
+      {imp.note && (
+        <p className="mb-1 text-xs font-semibold leading-snug">
+          {displayText(imp.note)}
+          {!imp.newRoles && <span className="font-normal text-faint"> (move roles loading…)</span>}
+        </p>
+      )}
       <div className="flex flex-wrap gap-1">
         {imp.weakFixed.map((w) => <span key={`f-${w.type}`} className={`${CHIP} ${TONE.good}`} title={`Weak score vs ${w.type}: ${w.before} to ${w.after}`}>+{w.type}</span>)}
         {imp.weakWorsened.map((w) => <span key={`w-${w.type}`} className={`${CHIP} ${TONE.bad}`} title={`Weak score vs ${w.type}: ${w.before} to ${w.after}`}>−{w.type}</span>)}
-        {full
-          ? full.newRoles.map((r) => <span key={`r-${r}`} className={`${CHIP} ${TONE.role}`} title={`Adds ${r}`}>+{ROLE_SHORT[r]}</span>)
+        {imp.newRoles
+          ? imp.newRoles.map((r) => <span key={`r-${r}`} className={`${CHIP} ${TONE.role}`} title={`Adds ${r}`}>+{ROLE_SHORT[r]}</span>)
           : <span className={`${CHIP} ${TONE.plain}`}>moves…</span>}
         <span className={`${CHIP} ${TONE.plain}`}>{imp.speedSlot}{outspeeds}</span>
       </div>

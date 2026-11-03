@@ -11,6 +11,15 @@
         ],
         "createdAt": "2026-11-03T04:06:47.192Z",
         "reason": "project style: docs/UI_STYLE.md specifies bevelled game-box cards (2px border, thicker bottom edge, 12px radius); pre-existing SpriteCard, not touched by the sprite fallback change"
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "packages/app/src/components/draft/CardPeek.tsx"
+        ],
+        "createdAt": "2026-11-03T07:00:26.679Z",
+        "reason": "docs/UI_STYLE.md specifies a rounded game box with a darker bevelled bottom edge; this popover reuses the same classes the pool-card popover had before (3 sibling components use border-b-4)"
       }
     ]
   }

@@ -15,7 +15,7 @@ export const ROLE_PRIORITY: readonly PrepMoveCategory[] = [
  * fitScore weights (base 40, clamped to 0-100):
  *  + weak fixes: 5 per point of score improvement on a weak type (max 3 points per type), cap +30
  *  - weak worsened: 4 per point lost on a type that ends weak (max 3 per type), cap -25
- *  + new roles (pickImpact only): 8 each for Entry Hazards / Hazard Removal / Momentum / Healing,
+ *  + new roles (pickImpact, and pickImpactSync / rankPool once the role cache is warm): 8 each for Entry Hazards / Hazard Removal / Momentum / Healing,
  *    4 each for the rest, cap +24
  *  + new STAB: 4 per attacking type the roster has no STAB in, cap +8
  *  + speed need: fast slot +8 if roster has < 2 fast mons, +3 if exactly 2; mid slot +2 if roster has < 2 mid
@@ -89,16 +89,62 @@ function buildCtx(rosterIds: SpeciesId[]): RosterCtx {
 const baseOf = (id: SpeciesId): SpeciesId => getDraftMon(id)?.baseSpecies ?? id;
 
 const categoryCache = new Map<SpeciesId, Promise<PrepMoveCategory[]>>();
+/** The resolved half of `categoryCache`, so the synchronous scorers can use roles once they are read. */
+const knownCategories = new Map<SpeciesId, PrepMoveCategory[]>();
 
 /** Notable-move categories a species can cover (Megas use their base species' learnset). Cached. */
 function categoriesFor(id: SpeciesId): Promise<PrepMoveCategory[]> {
   const base = baseOf(id);
   let p = categoryCache.get(base);
   if (!p) {
-    p = teamMoveMatrix([base]).then((m) => m[base] ?? []);
+    p = teamMoveMatrix([base]).then((m) => {
+      const cats = m[base] ?? [];
+      knownCategories.set(base, cats);
+      return cats;
+    });
     categoryCache.set(base, p);
+    p.catch(() => categoryCache.delete(base));
   }
   return p;
+}
+
+/** True when the learnset categories of every species in `ids` are already cached. */
+export function roleCategoriesReady(ids: readonly SpeciesId[]): boolean {
+  return ids.every((id) => knownCategories.has(baseOf(id)));
+}
+
+/**
+ * Reads the learnset categories for `ids` into the cache a chunk at a time, yielding to the event loop between
+ * chunks so a caller can start it right after first paint. `onProgress` fires after every chunk.
+ */
+export async function warmRoleCategories(
+  ids: readonly SpeciesId[], opts: { chunk?: number; onProgress?: () => void } = {},
+): Promise<void> {
+  const chunk = opts.chunk ?? 24;
+  const todo = [...new Set(ids.map(baseOf))].filter((b) => !knownCategories.has(b));
+  for (let i = 0; i < todo.length; i += chunk) {
+    await Promise.all(todo.slice(i, i + chunk).map((b) => categoriesFor(b).catch(() => undefined)));
+    opts.onProgress?.();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }
+}
+
+/** Categories some roster mon can cover, or null while any roster mon's learnset is unread. */
+function knownRosterRoles(rosterIds: readonly SpeciesId[]): Set<PrepMoveCategory> | null {
+  const have = new Set<PrepMoveCategory>();
+  for (const id of rosterIds) {
+    const cats = knownCategories.get(baseOf(id));
+    if (!cats) return null;
+    for (const c of cats) have.add(c);
+  }
+  return have;
+}
+
+/** Roles the candidate adds to the roster, or null while either side's learnsets are unread. */
+function knownNewRoles(have: Set<PrepMoveCategory> | null, candidate: SpeciesId): PrepMoveCategory[] | null {
+  const cats = knownCategories.get(baseOf(candidate));
+  if (!have || !cats) return null;
+  return ROLE_PRIORITY.filter((r) => cats.includes(r) && !have.has(r));
 }
 
 async function rolesFor(ids: SpeciesId[]): Promise<Record<PrepMoveCategory, SpeciesId[]>> {
@@ -230,22 +276,8 @@ function strip(s: SyncRaw): PickImpactSync {
   return rest;
 }
 
-const findMon = (pool: readonly DraftMon[] | undefined, id: SpeciesId): DraftMon | undefined =>
-  pool?.find((m) => m.id === id);
-
-/** Synchronous part of pickImpact: types, STAB, speed and the weak-score delta. No learnset work. */
-export function pickImpactSync(
-  rosterIds: SpeciesId[], candidate: SpeciesId, pool?: readonly DraftMon[],
-): PickImpactSync {
-  return strip(impactFromCtx(buildCtx(rosterIds), candidate, findMon(pool, candidate)));
-}
-
-export async function pickImpact(
-  rosterIds: SpeciesId[], candidate: SpeciesId, pool?: readonly DraftMon[],
-): Promise<PickImpact> {
-  const sync = impactFromCtx(buildCtx(rosterIds), candidate, findMon(pool, candidate));
-  const [roster, cand] = await Promise.all([rolesFor(rosterIds), categoriesFor(candidate)]);
-  const newRoles = ROLE_PRIORITY.filter((r) => cand.includes(r) && roster[r].length === 0);
+/** The sync result with the move roles folded in: the same numbers `pickImpact` returns. */
+function withRoles(sync: SyncRaw, newRoles: PrepMoveCategory[]): PickImpact {
   return {
     ...strip(sync),
     newRoles,
@@ -254,18 +286,50 @@ export async function pickImpact(
   };
 }
 
-/** Ranks candidates by the synchronous fit score (desc, ties by species id). Skips roster mons and picks costing more than `budgetLeft`. */
+const findMon = (pool: readonly DraftMon[] | undefined, id: SpeciesId): DraftMon | undefined =>
+  pool?.find((m) => m.id === id);
+
+/**
+ * Synchronous pickImpact: types, STAB, speed and the weak-score delta, plus `newRoles` (and the full score and
+ * note) once the learnset categories of the roster and the candidate are cached (`warmRoleCategories`). Until then
+ * `newRoles` is absent and the score leaves roles out. `{ roles: false }` forces the quick score.
+ */
+export function pickImpactSync(
+  rosterIds: SpeciesId[], candidate: SpeciesId, pool?: readonly DraftMon[], opts: { roles?: boolean } = {},
+): PickImpactSync {
+  const sync = impactFromCtx(buildCtx(rosterIds), candidate, findMon(pool, candidate));
+  const newRoles = opts.roles === false ? null : knownNewRoles(knownRosterRoles(rosterIds), candidate);
+  return newRoles ? withRoles(sync, newRoles) : strip(sync);
+}
+
+export async function pickImpact(
+  rosterIds: SpeciesId[], candidate: SpeciesId, pool?: readonly DraftMon[],
+): Promise<PickImpact> {
+  const sync = impactFromCtx(buildCtx(rosterIds), candidate, findMon(pool, candidate));
+  const [roster, cand] = await Promise.all([rolesFor(rosterIds), categoriesFor(candidate)]);
+  const newRoles = ROLE_PRIORITY.filter((r) => cand.includes(r) && roster[r].length === 0);
+  return withRoles(sync, newRoles);
+}
+
+/**
+ * Ranks candidates by the synchronous fit score (desc, ties by species id). Skips roster mons and picks costing
+ * more than `budgetLeft`. Roles are left out by default so the AI's picks never depend on what the cache holds;
+ * `{ roles: true }` (the draft screen) adds them per candidate once cached, and `rolesKnown` says which did.
+ */
 export function rankPool(
-  rosterIds: SpeciesId[], candidates: SpeciesId[], budgetLeft?: number,
-): { species: SpeciesId; fitScore: number }[] {
+  rosterIds: SpeciesId[], candidates: SpeciesId[], budgetLeft?: number, opts: { roles?: boolean } = {},
+): { species: SpeciesId; fitScore: number; rolesKnown: boolean }[] {
   const ctx = buildCtx(rosterIds);
   const owned = new Set(rosterIds);
-  const out: { species: SpeciesId; fitScore: number }[] = [];
+  const have = opts.roles ? knownRosterRoles(rosterIds) : null;
+  const out: { species: SpeciesId; fitScore: number; rolesKnown: boolean }[] = [];
   for (const id of candidates) {
     if (owned.has(id)) continue;
     const mon = getDraftMon(id);
     if (budgetLeft !== undefined && mon && mon.points > budgetLeft) continue;
-    out.push({ species: id, fitScore: impactFromCtx(ctx, id, mon).fitScore });
+    const sync = impactFromCtx(ctx, id, mon);
+    const newRoles = opts.roles ? knownNewRoles(have, id) : null;
+    out.push({ species: id, fitScore: newRoles ? withRoles(sync, newRoles).fitScore : sync.fitScore, rolesKnown: !!newRoles });
   }
   return out.sort((a, b) => b.fitScore - a.fitScore || (a.species < b.species ? -1 : a.species > b.species ? 1 : 0));
 }

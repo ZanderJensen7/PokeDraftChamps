@@ -12,6 +12,11 @@ every package.json. The build stamp shows the version and short commit in the co
 - Draft: a "Recommendations" switch (draft header, and Settings > Draft) hides the FIT badges, the needs sentences,
   "Sort by fit" and the "what this adds" note. Your team's resistances, speed tiers and roles stay. Before your
   first pick there is nothing to fit, so no fit score shows and "Sort by fit" waits for it.
+- Draft helper: the FIT badge and the hover note now agree. The move roles of the whole pool are read in the background
+  after the draft screen opens (the badge shows a faint "…" until its score settles, the note says roles are loading);
+  the "what this adds" popover flips above a card near the bottom of the screen, stays inside the window and closes on
+  scroll or Escape; the MY TEAM resistances are a two-row type grid with the team's weak score under each type, with
+  no sideways scrolling (the full table stays in the prep doc).
 - Free agency: a coach under the roster maximum can sign a free agent without dropping anyone ("Keep everyone" at
   the top of the drop list; it still counts as a move and must fit the budget). The dialog shows the roster count.
 - Team editor: "Import sets" takes Showdown text for one or many Pokemon and applies each set to the roster Pokemon
