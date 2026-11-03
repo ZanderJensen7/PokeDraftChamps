@@ -27,6 +27,7 @@ Mirror teams, 1 Tera captain per side unless noted. B is the default AI.
 | A (challenger) | Seed | Games | Tera | A wins | 95% CI |
 |---|---|---|---|---|---|
 | default (sanity) | 11 | 2000 | 1 | 50.6% | 48.5–52.8 |
+| default vs RandomPlayer (`--b random`) | 60 | 1000 | 1 | 95.9% | 94.5–97.0 |
 | epsilon 0.02 | 12 | 2000 | 1 | 50.1% | 48.0–52.3 |
 | one-turn lookahead | 13 | 2000 | 1 | 50.1% | 47.9–52.3 |
 | smartSack | 14 | 2000 | 1 | 54.9% | 52.8–57.1 |

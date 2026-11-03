@@ -83,10 +83,14 @@ Each line is one job. Sessions are started from the top; three at a time at most
    log + hover cards shared with the live battle as `BattleStage`; WATCH in the hub schedule (yours and the rest of
    the league), the week recap and the bracket.
 9. DONE 2026-11-02: set editor polish. `engine/src/setImport.ts` (parse, match, validate, `importRosterSets`, `fillSet`), `prep/sampleSets.ts` (`@pkmn/smogon` fetched lazily from data.pkmn.cc, randoms fallback), `spreads.ts` (`spreadFor` moved out of the battle layer + `SPREAD_PRESETS`); app `components/TeamSetTools.tsx`. Follow-ups: none known.
-10. **AI quality + pricing.** Draft AI (role coverage, not overpaying), battle AI strength (vs random, vs itself
-    across seeds), prep threat summary wording; rerun the lab with Megas on for the next outlier after Mega
-    Mewtwo; then the per-species price override table once the lab has thousands of games (lab 2026-11-02: fit
-    score = 41.9 + 0.66 x price, AI-vs-AI evidence only).
+10. **AI quality + pricing.** SHIPPED 2026-11-03 (branch `claude/ai-quality-07001e`).
+    - Battle AI: `npm run arena`. The default beats RandomPlayer 95.9% and itself 50.6%. No variant cleared 55%; smarter sacking was best at 53–55%. Stake 4 beats the default 57.6%. Log: `docs/balance/ai-tuning.md`.
+    - Draft AI: `npm run draft-arena`. The overpay guard is on and wins 53.7% and 54.5%. The role bonus (roles from the randoms movepools) is off: it doubles hazard removal coverage but wins only 48–49%. Fit mode stays a stake 3 rule (49.5%, 2.3 ms per pick).
+    - The lab report gains a draft-quality section: price and residual by round, and role coverage.
+    - The lab rerun with Megas on found no new ban. The top 20-pointer is Flutter Mane, at 65.5 against a median of 57.
+    - `PRICE_OVERRIDES` run 1 (`npm run prices`, `docs/balance/prices.md`): 83 species, at most 2 points each. The slope went from 0.46 to 0.51 (0.45 to 0.50 on a fresh seed), still short of 0.66. The residual SD is not better out of sample: 4.71 to 5.40.
+    - Prep threat summary: no claims about the opp's absences under partial fog.
+    - Open: further `npm run prices` passes; smarter sacking as the next battle AI candidate.
 11. **Roguelike layer, rest of the build order** (`docs/ROGUELIKE.md`): perk beats + trades → pool progression +
     scouting packs → coach archetypes → challenge leagues → mutator toggle → keepers / gauntlet.
 12. **Online follow-ups.** Cloudflare account steps (KV id, Worker deploy, repo variables / secrets, Web

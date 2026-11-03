@@ -6,7 +6,7 @@
 //   npm run arena -w @pdc/engine -- --games 300 --seed 1 --b epsilon=0.02
 //
 // Options: --games N (200, rounded up to even) --seed S (1) --a k=v,k=v --b k=v,k=v (HeuristicDials overrides; A is the
-//          challenger, B the default unless given) --know a|b (that side reads the other's real sets, stake 4)
+//          challenger, B the default unless given; `--b random` plays B as RandomPlayer) --know a|b (that side reads the other's real sets, stake 4)
 //          --tera N (Tera captains per team, 1) --pairs (two different teams per game pair, not mirrors) --jobs J (parallel processes, min(cpus - 2, 16))
 //          --shard i/J (internal: play only pairs i, i + J, ...)
 import { spawn } from 'node:child_process';
@@ -15,11 +15,11 @@ import { cpus } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { Dex } from '@pkmn/sim';
 import type { BattleSet, SpeciesId } from '../src/types';
-import { HeuristicPlayer, HEURISTIC_DIALS, runBattle, BattleRng, buildSetFor, type HeuristicDials } from '../src/battle';
+import { HeuristicPlayer, HEURISTIC_DIALS, RandomPlayer, runBattle, BattleRng, buildSetFor, type HeuristicDials } from '../src/battle';
 import { randomsSpeciesKeys } from '../src/battle/randoms';
 
 interface Opts {
-  games: number; seed: number; a: Partial<HeuristicDials>; b: Partial<HeuristicDials>;
+  games: number; seed: number; a: Partial<HeuristicDials>; b: Partial<HeuristicDials>; bRandom: boolean;
   know?: 'a' | 'b'; tera: number; pairs: boolean; jobs: number; shard?: [number, number];
 }
 
@@ -36,7 +36,7 @@ function parseDials(s: string): Partial<HeuristicDials> {
 }
 
 function parseArgs(argv: string[]): Opts {
-  const o: Opts = { games: 200, seed: 1, a: {}, b: {}, tera: 1, pairs: false, jobs: Math.max(1, Math.min(cpus().length - 2, 16)) };
+  const o: Opts = { games: 200, seed: 1, a: {}, b: {}, bRandom: false, tera: 1, pairs: false, jobs: Math.max(1, Math.min(cpus().length - 2, 16)) };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const num = (): number => {
@@ -48,7 +48,12 @@ function parseArgs(argv: string[]): Opts {
       case '--games': o.games = Math.max(2, Math.ceil(num() / 2) * 2); break;
       case '--seed': o.seed = Math.floor(num()); break;
       case '--a': o.a = parseDials(argv[++i] ?? ''); break;
-      case '--b': o.b = parseDials(argv[++i] ?? ''); break;
+      case '--b': {
+        const v = argv[++i] ?? '';
+        if (v === 'random') o.bRandom = true;
+        else o.b = parseDials(v);
+        break;
+      }
       case '--know': {
         const k = argv[++i];
         if (k !== 'a' && k !== 'b') throw new Error('--know must be a or b');
@@ -101,7 +106,7 @@ async function play(o: Opts): Promise<Tally> {
     const t2 = o.pairs ? team(s * 2 + 2, o.tera) : t1;
     for (const aOnP1 of [true, false]) {
       const a = new HeuristicPlayer(s * 7 + 1, o.a);
-      const b = new HeuristicPlayer(s * 7 + 2, o.b);
+      const b = o.bRandom ? new RandomPlayer(s * 7 + 2) : new HeuristicPlayer(s * 7 + 2, o.b);
       const started = performance.now();
       const out = await runBattle({
         p1: { name: 'Alpha', team: t1.sets, teraCaptains: t1.captains, player: aOnP1 ? a : b, knowsOpponentSets: o.know === (aOnP1 ? 'a' : 'b') },
@@ -158,7 +163,7 @@ async function main(): Promise<void> {
   const score = t.wins + t.ties / 2;
   const [lo, hi] = wilson(score, t.games);
   const pct = (x: number): string => `${(x * 100).toFixed(1)}%`;
-  console.log(`A (${dialText(o.a)}${o.know === 'a' ? ', knows sets' : ''}) vs B (${dialText(o.b)}${o.know === 'b' ? ', knows sets' : ''}), seed ${o.seed}, Tera captains ${o.tera}, ${o.pairs ? 'team pairs' : 'mirror teams'}`);
+  console.log(`A (${dialText(o.a)}${o.know === 'a' ? ', knows sets' : ''}) vs B (${o.bRandom ? 'RandomPlayer' : dialText(o.b)}${o.know === 'b' ? ', knows sets' : ''}), seed ${o.seed}, Tera captains ${o.tera}, ${o.pairs ? 'team pairs' : 'mirror teams'}`);
   console.log(`A wins ${t.wins}/${t.games} (+${t.ties} ties) = ${pct(score / t.games)}, 95% CI ${pct(lo)}-${pct(hi)}`);
   console.log(`${(t.ms / t.games).toFixed(0)} ms per battle, ${(t.turns / t.games).toFixed(1)} turns; ${((performance.now() - t0) / 1000).toFixed(1)} s wall, ${jobs} jobs`);
 }
