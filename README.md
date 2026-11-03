@@ -21,4 +21,17 @@ npm test           # engine tests
 npm run build      # typecheck + production build (static site in packages/app/dist)
 ```
 
-See `docs/DESIGN.md` for the game design and `CLAUDE.md` for the code map.
+See `docs/DESIGN.md` for the game design, `docs/ROGUELIKE.md` for the meta layer and `CLAUDE.md` for the code map.
+
+## Online bits (optional)
+
+The game is a static site and plays fully offline. Two optional pieces sit beside it, both free-tier Cloudflare:
+
+- **Daily leaderboard + opt-in run summaries**: the Worker in `packages/api` (see its README to deploy). The app
+  reads its URL from `VITE_PDC_API_URL`; without it the Daily League still plays and shows a share line instead
+  of a board.
+- **Page views**: Cloudflare Web Analytics, a cookieless beacon injected only when `VITE_CF_BEACON_TOKEN` is set.
+
+Both are GitHub Actions repository *variables* (`PDC_API_URL`, `CF_BEACON_TOKEN`) for the Pages build, and the
+Worker deploy needs the *secrets* `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Locally, copy
+`packages/app/.env.example` to `packages/app/.env.local`.

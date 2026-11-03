@@ -1,7 +1,8 @@
 # PokeDraftChamps — CLAUDE.md
 
-Free, solo, roguelike Pokemon draft league in the browser (PokeRogue-style: static site, no backend,
-no accounts, never monetized). Design source of truth: `docs/DESIGN.md`
+Free, solo, roguelike Pokemon draft league in the browser (PokeRogue-style: static site, no accounts, never
+monetized; no server the game needs to run: the optional `packages/api` Worker only takes what the player
+sends on purpose). Design source of truth: `docs/DESIGN.md`
 (roguelike / meta layer: `docs/ROGUELIKE.md`). Decisions log: `docs/DECISIONS.md`.
 
 ## Stack
@@ -27,7 +28,8 @@ no accounts, never monetized). Design source of truth: `docs/DESIGN.md`
   protocol helpers + `scoutFromLogs` (both sim-free).
 - `draft/` — draft pool (Dex ∩ randoms sets − bans), snake draft, AI drafting.
 - `league/` — seeded rng, schedule, standings, playoffs, `run.ts` (the RunState + transitions; battle
-  functions are INJECTED as `deps` so league stays pure and testable).
+  functions are INJECTED as `deps` so league stays pure and testable), `daily.ts` (one seed + config per UTC
+  date), `summary.ts` (`runScore` from the `DAILY_SCORE` table, `summarizeRun` -> `RunSummary`, `shareString`).
 - `battle/` — set building from randoms roles, battle runner over `BattleStreams`, `HeuristicPlayer`
   (damage-calc driven AI), lineup choice (bring 6), `simulateMatch`, battle view over the live log.
 - `prep/` — the prep doc: type matchup table + STAB/Weak scores, speed tiers, notable moves by category,
@@ -44,6 +46,14 @@ no accounts, never monetized). Design source of truth: `docs/DESIGN.md`
   the hit shudder (user ruling); Showdown / PokeRogue animation code is AGPL, so all of it is our own.
 
 - App build stamp + bug reports: `packages/app/src/app/version.ts` (`APP_VERSION`, values injected by `define` in `vite.config.ts` via `scripts/build-stamp.mjs`; versions move together through `npm run bump`), shown as the `VersionBadge` corner string in `App.tsx`, on the title screen and in Settings About; `src/app/errorLog.ts` (last 5 uncaught errors), `src/components/BugReport.tsx` (prefilled GitHub issue / copy, never auto-sends); template in `.github/ISSUE_TEMPLATE/`.
+
+## Online (`packages/api`, optional)
+- Cloudflare Worker + KV: `GET/POST /daily/:date` (leaderboard, client-reported scores, one entry per run id),
+  `POST /runs` (opt-in `RunSummary` upload, counters at `GET /runs/stats`). The app client is
+  `app/src/game/api.ts`; URL from `VITE_PDC_API_URL`, page-view beacon from `VITE_CF_BEACON_TOKEN`
+  (`app/.env.example`; GitHub Actions variables `PDC_API_URL` / `CF_BEACON_TOKEN`). Nothing leaves the browser
+  unless the player posts a score or turns on Settings > Online > share run results (default off).
+- Saves: the league in `pdc.run.v1`, the daily run in `pdc.daily.v1` (one attempt per UTC day).
 
 ## Rules of the house
 - Pure functions, seeded randomness (`league/rng.ts`, sim seeds), JSON-friendly state (arrays, not Set/Map)

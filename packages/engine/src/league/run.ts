@@ -29,6 +29,8 @@ export interface CreateRunOptions {
   humanAbbrev: string;
   /** Epoch ms; defaults to Date.now(). Pass it for reproducible ids in tests. */
   createdAt?: number;
+  /** Marks a daily league (see league/daily.ts); stored on the run as `daily`. */
+  daily?: { date: string };
 }
 
 /** Builds a coach's season sets. Injected (the battle module owns the real one). */
@@ -76,6 +78,7 @@ export function createRun(opts: CreateRunOptions): RunState {
     freeAgencyUsed: 0,
     createdAt,
     log: [`League created: ${config.teams} coaches, ${config.weeks} weeks, ${config.budget} points. You pick #${pos} in round 1.`],
+    ...(opts.daily ? { daily: { date: opts.daily.date } } : {}),
   };
 }
 

@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "npm run dev -w @pdc/app",
     "build": "npm run build -w @pdc/engine && npm run build -w @pdc/app",
-    "test": "npm run test -w @pdc/engine",
+    "test": "npm run test -w @pdc/engine && npm run test -w @pdc/api",
     "typecheck": "npm run typecheck --workspaces",
     "balance": "npm run balance -w @pdc/engine --",
     "bump": "node scripts/bump.mjs"

@@ -16,6 +16,7 @@ import { RecapScreen } from './screens/RecapScreen';
 import { EndScreen } from './screens/EndScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { AnalyticsScreen } from './screens/AnalyticsScreen';
+import { DailyScreen } from './screens/DailyScreen';
 import { BottomNav, useShowBottomNav } from './components/BottomNav';
 
 // The live battle (and @pkmn/sim behind it) loads on first use, outside the initial chunk.
@@ -41,6 +42,7 @@ const SCREENS: Record<Screen, () => React.JSX.Element | null> = {
   end: EndScreen,
   settings: SettingsScreen,
   analytics: AnalyticsScreen,
+  daily: DailyScreen,
 };
 
 function TopBar() {
@@ -80,7 +82,9 @@ function TopBar() {
         </button>
         {run && (
           <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
-            <span className="hidden truncate text-muted md:inline">{run.config.teams}-team league · code {leagueCode(run.seed)}</span>
+            <span className="hidden truncate text-muted md:inline">
+              {run.daily ? `Daily league · ${run.daily.date}` : `${run.config.teams}-team league · code ${leagueCode(run.seed)}`}
+            </span>
             <span className="truncate rounded-full bg-panel-inset px-3 py-1 font-display font-bold text-poke-yellow">{phaseText}</span>
             {human && <span className="shrink-0 rounded-md bg-you px-2 py-1 font-display font-bold">{human.abbrev}</span>}
           </div>

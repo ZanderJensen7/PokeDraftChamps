@@ -26,6 +26,11 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+        env:
+          # Repository variables (Settings > Secrets and variables > Actions > Variables). Both optional:
+          # without them the build has no leaderboard and no analytics beacon.
+          VITE_PDC_API_URL: ${{ vars.PDC_API_URL }}
+          VITE_CF_BEACON_TOKEN: ${{ vars.CF_BEACON_TOKEN }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: packages/app/dist

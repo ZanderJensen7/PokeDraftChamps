@@ -11,7 +11,9 @@ Reference for the loop: PokeRogue (browser, free, no backend).
 TypeScript monorepo (npm workspaces). `packages/engine` is pure TypeScript (no DOM): league, draft,
 schedule, standings, playoffs, run state, battle runner, heuristic AI, prep doc. `packages/app` is
 Vite + React + Tailwind + Zustand. Battles run on `@pkmn/sim` in the browser (Web Worker for AI-vs-AI
-league simulation). Saves in IndexedDB/localStorage with JSON export. Static hosting. No server, ever.
+league simulation). Saves in IndexedDB/localStorage with JSON export. Static hosting. No server the game
+needs to run: the optional `packages/api` Worker (daily leaderboard, opt-in run summaries) only receives what
+the player sends on purpose (DECISIONS 2026-11-02, roguelike / meta layer).
 
 Pokemon data: `@pkmn/dex` (Gen 9), learnsets via `@pkmn/data`, damage via `@smogon/calc`, competent
 per-species sets and roles from `@pkmn/randoms` (`getTeamGenerator('gen9randombattle').randomSet(name)`,

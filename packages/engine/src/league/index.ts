@@ -4,3 +4,5 @@ export * from './standings';
 export * from './playoffs';
 export * from './run';
 export * from './config';
+export * from './daily';
+export * from './summary';

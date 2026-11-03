@@ -6,6 +6,13 @@ every package.json. The build stamp shows the version and short commit in the co
 
 ## Unreleased
 
+- Daily League: one seeded league per UTC day (8 coaches, 7 weeks, top 4), the same AI picks for everyone, one
+  attempt, a score and a share line on the run-end screen, and a leaderboard when the build has a backend.
+- Settings > Online: a nickname for the leaderboard and an off-by-default switch to share anonymous run
+  results (settings, result, score; never battles or names).
+- Backend (`packages/api`): a Cloudflare Worker for the daily leaderboard and the opt-in run summaries, plus
+  an optional cookieless page-view beacon. Neither is needed to play.
+
 ## v0.3.1 — 2026-11-02
 
 - Mons without a 3D model on Showdown (Iron Valiant, Iron Hands, Iron Moth, Iron Thorns, Miraidon, Terapagos,

@@ -35,11 +35,13 @@ export const COACH_IDENTITIES: readonly CoachIdentity[] = [
 
 /**
  * n distinct identities in a seeded random order. `exclude` holds abbrevs or names to skip
- * (case-insensitive), e.g. the human's own, so nobody shares an abbrev.
+ * (case-insensitive), e.g. the human's own, so nobody shares an abbrev. The shuffle runs over the full table
+ * and the exclusion is applied after it, so two players with different names get the same league from the
+ * same seed (a daily league), apart from the one identity a name collision drops.
  */
 export function pickCoachIdentities(rng: Rng, n: number, exclude: readonly string[] = []): CoachIdentity[] {
   const ex = new Set(exclude.map((a) => a.toUpperCase()));
-  const candidates = COACH_IDENTITIES.filter((c) => !ex.has(c.abbrev) && !ex.has(c.name.toUpperCase()));
+  const candidates = rng.shuffle(COACH_IDENTITIES).filter((c) => !ex.has(c.abbrev) && !ex.has(c.name.toUpperCase()));
   if (n > candidates.length) throw new Error(`only ${candidates.length} coach identities available, asked for ${n}`);
-  return rng.shuffle(candidates).slice(0, n);
+  return candidates.slice(0, n);
 }

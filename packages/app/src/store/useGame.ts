@@ -1,22 +1,40 @@
 // The one game store: current run, screen state machine, prep doc, week recap. The run is saved to
-// localStorage on every change; the battle itself only goes through the bridge (src/game/bridge.ts).
+// localStorage on every change (two slots: the league run and the daily run); the battle itself only goes
+// through the bridge (src/game/bridge.ts).
 import { create } from 'zustand';
 import type {
   BattleSet, BuildSets, LeagueConfig, Match, PrepDoc, RunPhase, RunState, SpeciesId, StandingRow,
 } from '@pdc/engine';
 import {
-  buildPrepDoc, computeStandings, createRun, deserializeRun, draftPick, draftStop, finishDraft, freeAgency,
-  humanCoach, nextHumanMatch, opponentOf, playoffRoundName, resolveWeek, runAiDraftUntilHuman,
-  serializeRun, setCaptains,
+  buildPrepDoc, computeStandings, createRun, dailyDate, dailyInfo, deserializeRun, draftPick, draftStop,
+  finishDraft, freeAgency, humanCoach, nextHumanMatch, opponentOf, playoffRoundName, resolveWeek, resultLabel,
+  runAiDraftUntilHuman, serializeRun, setCaptains, summarizeRun,
 } from '@pdc/engine';
 import { downloadText } from '../game/download';
 import { getBridge, type PlayHumanMatchArgs } from '../game/bridge';
 import { isZCrystal, updateHumanSet } from '../game/sets';
+import { apiEnabled, postDailyScore, postRunSummary } from '../game/api';
+import { cleanNickname, useSettings } from './settings';
 
 export type Screen =
-  | 'title' | 'setup' | 'draft' | 'hub' | 'team' | 'prep' | 'battle' | 'recap' | 'end' | 'settings' | 'analytics';
+  | 'title' | 'setup' | 'draft' | 'hub' | 'team' | 'prep' | 'battle' | 'recap' | 'end' | 'settings' | 'analytics'
+  | 'daily';
 
+/** The league slot (any run without `daily`). */
 export const RUN_KEY = 'pdc.run.v1';
+/** The daily slot: one daily run at a time, overwritten by the next day's. */
+export const DAILY_KEY = 'pdc.daily.v1';
+/** Daily scores posted from this browser: { [runId]: { score, rank?, at } }. */
+export const POSTED_KEY = 'pdc.posted.v1';
+/** Run ids whose summary was uploaded (opt-in sharing), newest last, capped. */
+export const UPLOADED_KEY = 'pdc.uploaded.v1';
+const UPLOADED_CAP = 200;
+
+export interface PostedScore {
+  score: number;
+  rank?: number;
+  at: number;
+}
 
 export interface WeekRecap {
   week: number;
@@ -41,7 +59,14 @@ interface GameState {
   screen: Screen;
   /** Where Settings / Team return to. */
   returnTo: Screen;
+  /** A league save exists (RUN_KEY). */
   hasSave: boolean;
+  /** A daily save exists (DAILY_KEY), for any date. */
+  hasDaily: boolean;
+  /** The saved daily run's date, or null. */
+  dailySaveDate: string | null;
+  /** Daily scores posted from this browser, by run id. */
+  posted: Record<string, PostedScore>;
   /** Draft picks revealed so far (AI picks animate in one at a time). */
   draftShown: number;
   prep: PrepDoc | null;
@@ -64,6 +89,12 @@ interface GameActions {
   closeOverlay(): void;
   newLeague(opts: NewLeagueOptions): void;
   continueRun(): void;
+  /** Today's daily league: continues today's save when there is one (one attempt per day), else starts it. */
+  startDaily(): void;
+  /** Loads the daily slot (any date). */
+  continueDaily(): void;
+  /** Posts the daily run's score (the active run when it is a daily, else the daily save). */
+  postScore(): Promise<boolean>;
   revealNextPick(): void;
   skipDraftAnimation(): void;
   humanPick(species: SpeciesId): void;
@@ -90,12 +121,90 @@ interface GameActions {
 
 export type GameStore = GameState & GameActions;
 
-function readSave(): string | null {
+function readKey(key: string): string | null {
   try {
-    return localStorage.getItem(RUN_KEY);
+    return localStorage.getItem(key);
   } catch {
     return null;
   }
+}
+
+function readSave(): string | null {
+  return readKey(RUN_KEY);
+}
+
+/** The save slot a run belongs to. */
+export function slotOf(run: Pick<RunState, 'daily'>): string {
+  return run.daily ? DAILY_KEY : RUN_KEY;
+}
+
+/** The date of a serialized daily run, without parsing the whole save. */
+function dailyDateOf(raw: string | null): string | null {
+  if (!raw) return null;
+  return /"daily":\{"date":"(\d{4}-\d{2}-\d{2})"\}/.exec(raw)?.[1] ?? null;
+}
+
+/** The saved daily run, parsed, or null (none / unreadable). */
+export function loadDailySave(): RunState | null {
+  const raw = readKey(DAILY_KEY);
+  if (!raw) return null;
+  try {
+    return deserializeRun(raw);
+  } catch {
+    return null;
+  }
+}
+
+/** Coach name and tag for a daily run from the settings nickname. */
+function dailyIdentity(): { name: string; abbrev: string } {
+  const nick = cleanNickname(useSettings.getState().nickname);
+  const abbrev = nick.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase();
+  return { name: nick || 'Daily Challenger', abbrev: abbrev || 'YOU' };
+}
+
+function readJson<T>(key: string, fallback: T, ok: (x: unknown) => boolean): T {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed: unknown = JSON.parse(raw);
+    return ok(parsed) ? (parsed as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJson(key: string, value: unknown): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage full or blocked: kept in memory only */
+  }
+}
+
+const isRecord = (x: unknown): boolean => !!x && typeof x === 'object' && !Array.isArray(x);
+const readPosted = (): Record<string, PostedScore> => readJson(POSTED_KEY, {}, isRecord);
+const readUploaded = (): string[] => readJson<string[]>(UPLOADED_KEY, [], Array.isArray).filter((x) => typeof x === 'string');
+
+const isFinished = (run: RunState): boolean => run.phase === 'champion' || run.phase === 'eliminated';
+
+/** Run ids with an upload in flight (so a burst of run changes sends one request). */
+const uploading = new Set<string>();
+
+/**
+ * Opt-in anonymous run-summary upload, once per run id, fire-and-forget. Only when the player turned
+ * sharing on and the build has an API; the run must be over.
+ */
+function maybeUploadSummary(run: RunState): void {
+  if (!isFinished(run) || !useSettings.getState().shareRuns || !apiEnabled()) return;
+  if (uploading.has(run.id) || readUploaded().includes(run.id)) return;
+  uploading.add(run.id);
+  void postRunSummary(summarizeRun(run)).then((res) => {
+    uploading.delete(run.id);
+    if (!res.ok) return;
+    const list = readUploaded().filter((id) => id !== run.id);
+    list.push(run.id);
+    writeJson(UPLOADED_KEY, list.slice(-UPLOADED_CAP));
+  });
 }
 
 function screenFor(run: RunState): Screen {
@@ -161,11 +270,16 @@ function freshRunState(run: RunState) {
   };
 }
 
+const initialDaily = readKey(DAILY_KEY);
+
 export const useGame = create<GameStore>((set, get) => ({
   run: null,
   screen: 'title',
   returnTo: 'title',
   hasSave: readSave() !== null,
+  hasDaily: initialDaily !== null,
+  dailySaveDate: dailyDateOf(initialDaily),
+  posted: readPosted(),
   draftShown: 0,
   prep: null,
   prepKey: null,
@@ -225,6 +339,79 @@ export const useGame = create<GameStore>((set, get) => ({
     } catch (e) {
       set({ toast: `Could not load the save: ${errText(e)}` });
     }
+  },
+
+  startDaily() {
+    const date = dailyDate();
+    const { run } = get();
+    // Already playing today's daily: just go back to it.
+    if (run?.daily?.date === date) {
+      set({ screen: screenFor(run) });
+      return;
+    }
+    // One attempt per day: today's save is continued, never restarted.
+    if (get().dailySaveDate === date) {
+      get().continueDaily();
+      return;
+    }
+    try {
+      const info = dailyInfo(date);
+      const { name, abbrev } = dailyIdentity();
+      let next = createRun({ config: info.config, seed: info.seed, humanName: name, humanAbbrev: abbrev, daily: { date } });
+      next = runAiDraftUntilHuman(next);
+      set({ ...freshRunState(next), draftShown: 0, toast: null });
+    } catch (e) {
+      set({ toast: errText(e) });
+    }
+  },
+
+  continueDaily() {
+    const raw = readKey(DAILY_KEY);
+    if (!raw) return;
+    try {
+      set(freshRunState(deserializeRun(raw)));
+    } catch (e) {
+      set({ toast: `Could not load the daily save: ${errText(e)}` });
+    }
+  },
+
+  async postScore() {
+    const { run } = get();
+    const target = run?.daily ? run : loadDailySave();
+    if (!target?.daily) {
+      set({ toast: 'No daily run to post.' });
+      return false;
+    }
+    if (!apiEnabled()) {
+      set({ toast: 'Leaderboard not configured in this build.' });
+      return false;
+    }
+    if (!isFinished(target)) {
+      set({ toast: 'Finish the daily league first.' });
+      return false;
+    }
+    const nickname = cleanNickname(useSettings.getState().nickname);
+    if (!nickname) {
+      set({ toast: 'Set a nickname first: it is the name on the leaderboard.' });
+      return false;
+    }
+    const summary = summarizeRun(target);
+    const res = await postDailyScore(target.daily.date, {
+      nickname,
+      score: summary.score,
+      seed: target.seed >>> 0,
+      runId: target.id,
+      abbrev: summary.humanAbbrev,
+      result: resultLabel(summary),
+    });
+    if (!res.ok) {
+      set({ toast: `Could not post the score: ${res.error}` });
+      return false;
+    }
+    const posted = { ...readPosted(), ...get().posted, [target.id]: { score: summary.score, rank: res.data.rank, at: Date.now() } };
+    writeJson(POSTED_KEY, posted);
+    set({ posted, toast: `Posted: rank #${res.data.rank}` });
+    return true;
   },
 
   revealNextPick() {
@@ -380,7 +567,7 @@ export const useGame = create<GameStore>((set, get) => ({
     const { run } = get();
     const raw = run ? serializeRun(run) : readSave();
     if (!raw) return;
-    const tag = run ? humanCoach(run).abbrev : 'run';
+    const tag = run ? (run.daily ? `daily-${run.daily.date}` : humanCoach(run).abbrev) : 'run';
     downloadText(`pokedraftchamps-${tag}-week${run?.week ?? 0}.json`, raw);
   },
 
@@ -394,13 +581,16 @@ export const useGame = create<GameStore>((set, get) => ({
   },
 
   clearSave() {
+    const { run } = get();
+    const key = run ? slotOf(run) : RUN_KEY;
     try {
-      localStorage.removeItem(RUN_KEY);
+      localStorage.removeItem(key);
     } catch {
       /* storage blocked: nothing to clear */
     }
     set({
-      run: null, hasSave: false, screen: 'title', returnTo: 'title', prep: null, prepKey: null,
+      ...(key === DAILY_KEY ? { hasDaily: false, dailySaveDate: null } : { hasSave: false }),
+      run: null, screen: 'title', returnTo: 'title', prep: null, prepKey: null,
       lastWeekResults: null, battle: null, simulatingWeek: false, leaveBattleTo: null,
     });
   },
@@ -410,13 +600,19 @@ export const useGame = create<GameStore>((set, get) => ({
   },
 }));
 
-// Persist the run on every change.
+// Persist the run on every change, in its slot (daily or league); a run that just ended may upload its summary.
 useGame.subscribe((s, prev) => {
   if (s.run === prev.run || !s.run) return;
+  const run = s.run;
   try {
-    localStorage.setItem(RUN_KEY, serializeRun(s.run));
-    if (!s.hasSave) useGame.setState({ hasSave: true });
+    localStorage.setItem(slotOf(run), serializeRun(run));
+    if (run.daily) {
+      if (!s.hasDaily || s.dailySaveDate !== run.daily.date) useGame.setState({ hasDaily: true, dailySaveDate: run.daily.date });
+    } else if (!s.hasSave) {
+      useGame.setState({ hasSave: true });
+    }
   } catch {
     useGame.setState({ toast: 'Could not save to this browser (storage full or blocked). Use Export save.' });
   }
+  maybeUploadSummary(run);
 });

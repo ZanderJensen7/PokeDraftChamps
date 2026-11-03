@@ -1,6 +1,7 @@
 import type { EliminationReason } from '@pdc/engine';
-import { computeStandings, humanCoach, regularSeasonRecord } from '@pdc/engine';
+import { computeStandings, humanCoach, regularSeasonRecord, runScore } from '@pdc/engine';
 import { useGame } from '../store/useGame';
+import { PostScoreButton, ShareLine } from '../components/DailyBits';
 import { Crest, DialogueBox, GameButton, Panel } from '../components/ui';
 import { StandingsTable } from '../components/StandingsTable';
 import { Bracket } from '../components/Bracket';
@@ -34,14 +35,17 @@ export function EndScreen() {
   const champion = run.phase === 'champion';
   const reason = run.eliminationReason;
   const hadPlayoffs = run.matches.some((m) => m.playoffRound !== undefined);
+  const daily = run.daily;
+  const outcome = champion ? 'League champions!' : 'Run over';
   return (
     <div className="mx-auto max-w-3xl space-y-4 py-4">
       <Panel>
         <div className="flex flex-col items-center gap-3 py-4 text-center">
           {champion ? <Trophy /> : <Crest abbrev={human.abbrev} size={88} side="you" />}
           <h1 className={`font-display text-4xl font-bold uppercase ${champion ? 'text-poke-yellow' : ''}`}>
-            {champion ? 'League champions!' : 'Run over'}
+            {daily ? `Daily League · ${daily.date}` : outcome}
           </h1>
+          {daily && <div className={`font-display text-2xl font-bold uppercase ${champion ? 'text-poke-yellow' : ''}`}>{outcome}</div>}
           <div className="font-display text-xl font-bold">{human.name}</div>
           <div className="text-lg">
             Regular season <b className="tabular-nums">{rec.wins}-{rec.losses}</b>
@@ -49,7 +53,12 @@ export function EndScreen() {
           </div>
         </div>
         {!champion && reason && <DialogueBox>{REASON[reason]}</DialogueBox>}
-        {champion && <DialogueBox>You drafted, prepped and survived the bracket. Try a bigger league or a tighter loss cap next.</DialogueBox>}
+        {champion && !daily && <DialogueBox>You drafted, prepped and survived the bracket. Try a bigger league or a tighter loss cap next.</DialogueBox>}
+        {champion && daily && <DialogueBox>You drafted, prepped and survived the bracket. Post your score and see how the rest of today’s coaches did.</DialogueBox>}
+      </Panel>
+      <Panel title="Score" aside={<span className="font-display text-xl font-bold text-poke-yellow tabular-nums">{runScore(run).toLocaleString('en-US')} pts</span>}>
+        <ShareLine run={run} />
+        {daily && <div className="mt-3 flex justify-center"><PostScoreButton run={run} /></div>}
       </Panel>
       {hadPlayoffs && (
         <Panel title="Playoffs"><Bracket run={run} /></Panel>
@@ -60,7 +69,9 @@ export function EndScreen() {
       <MvpStrip run={run} onOpenAnalytics={() => go('analytics')} />
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
         <GameButton variant="secondary" onClick={() => go('analytics')}>Full analytics</GameButton>
-        <GameButton size="lg" onClick={() => go('setup')}>New league</GameButton>
+        {daily
+          ? <GameButton size="lg" onClick={() => go('daily')}>Back to Daily League</GameButton>
+          : <GameButton size="lg" onClick={() => go('setup')}>New league</GameButton>}
         <GameButton variant="ghost" onClick={() => go('title')}>Title screen</GameButton>
       </div>
     </div>

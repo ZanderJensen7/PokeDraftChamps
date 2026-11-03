@@ -242,6 +242,39 @@ export interface RunState {
   createdAt: number;
   /** Human-readable event log lines. */
   log: string[];
+  /** Set on a daily league: everyone who plays that date gets the same seed and config (league/daily.ts). */
+  daily?: { date: string };
+}
+
+/**
+ * One finished (or in-progress) run boiled down for the run-end screen, the daily leaderboard and the opt-in
+ * run-summary upload. JSON-friendly; built by summarizeRun (league/summary.ts). Never holds battle logs.
+ */
+export interface RunSummary {
+  version: 1;
+  runId: string;
+  seed: number;
+  config: LeagueConfig;
+  /** The daily league's date when this was a daily run. */
+  daily?: string;
+  humanName: string;
+  humanAbbrev: string;
+  phase: RunPhase;
+  eliminationReason?: EliminationReason;
+  wins: number;
+  losses: number;
+  differential: number;
+  playoffWins: number;
+  /** Final standings rank, 1-based; 0 before any match is played. */
+  rank: number;
+  /** Matches the human has played (regular season + playoffs). */
+  matchesPlayed: number;
+  /** runScore: wins, differential, playoff wins and the title, weighted by DAILY_SCORE. */
+  score: number;
+  roster: SpeciesId[];
+  mvp?: { species: SpeciesId; name: string; winRate: number; kos: number };
+  createdAt: number;
+  finishedAt: number;
 }
 
 // ---- Performance analytics (appended by the stats module) ----

@@ -15,6 +15,7 @@ function HowToPlay({ onClose }: { onClose: () => void }) {
         <li><b className="text-poke-yellow">3. Play the season.</b> Each week, study your opponent in the Prep doc (their roster is public), bring 6, and battle. Every other match simulates.</li>
         <li><b className="text-poke-yellow">4. Make the playoffs.</b> Top seeds play single elimination. Win the final to become champion.</li>
         <li><b className="text-poke-yellow">Run over</b> if you pass the loss cap, miss the playoffs, or lose a playoff match. Two free-agency moves per season let you patch holes.</li>
+        <li><b className="text-poke-yellow">Daily League.</b> One shorter league a day, the same for everyone: same coaches, same AI picks. One attempt per day; post your score to the daily leaderboard. It saves separately, so your own league stays put.</li>
       </ol>
       <DialogueBox className="mt-4">Your run saves automatically in this browser. Export it from Settings to keep a copy.</DialogueBox>
     </ResponsiveDialog>
@@ -49,11 +50,12 @@ export function TitleScreen() {
 
       <nav className="flex w-full max-w-xs flex-col gap-3">
         {hasSave && (
-          <GameButton size="lg" block onClick={() => (run ? go(run.phase === 'draft' ? 'draft' : run.phase === 'season' || run.phase === 'playoffs' ? 'hub' : 'end') : continueRun())}>
+          <GameButton size="lg" block onClick={() => (run && !run.daily ? go(run.phase === 'draft' ? 'draft' : run.phase === 'season' || run.phase === 'playoffs' ? 'hub' : 'end') : continueRun())}>
             Continue
           </GameButton>
         )}
         <GameButton size="lg" block variant={hasSave ? 'secondary' : 'primary'} onClick={() => go('setup')}>New League</GameButton>
+        <GameButton size="lg" block variant="secondary" onClick={() => go('daily')}>Daily League</GameButton>
         <GameButton block variant="ghost" onClick={() => setHowTo(true)}>How to Play</GameButton>
         <GameButton block variant="ghost" onClick={() => setBug(true)}>Report a bug</GameButton>
         <GameButton block variant="ghost" onClick={() => fileRef.current?.click()}>Import Save</GameButton>
