@@ -166,3 +166,14 @@ Each line is one job. Sessions are started from the top; three at a time at most
   open: look at it live and tune sizes / sound levels by feel; the phone layout was not seen. Bespoke top-100
   move effects only if replay / watch time proves worth it.
 - DONE 2026-11-03: persistent field effects (user note: Sub / Leech Seed had no visuals, "persistent effects need visuals"). `battle/fieldFx.ts` reads the battle view (new `MonView.volatiles`) into weather / terrain / Trick Room / screens / Tailwind / hazard layers / Substitute, Leech Seed, confusion, Taunt, Encore & co; `fieldCanvas.ts` draws each for as long as it lasts under the one-shot particles, with a fade in / out (rain, sun rays, sand, snow, hail, wind, terrain floor glow, shimmering screen walls, gusts, rocks / spikes / toxic spikes / web on the platform, a plush Substitute doll in front of a dimmed sprite, vine + bulb, orbiting stars, feet badges). One-shot starts added: Substitute / Leech Seed / other volatiles, hazards dropping into place. Reduced motion keeps the still parts, Attack effects off hides all. App now has vitest (`npm test` runs `packages/app` too). Checked in the built-in browser through a scripted harness driving the real stage (not committed); a real replay was not driven end to end. Open: the look is untuned by feel (colors, sizes, density), phone layout not seen, Magic / Wonder Room and Gravity have no look.
+- DONE 2026-11-02: team editor at Showdown-teambuilder usefulness (user ask: recommended sets up front, more detail on
+  what moves do). Engine `prep/moveRows.ts` (`moveRows(species)` = every legal move as a row: type, category, power,
+  accuracy, PP / max PP, priority, shortDesc / desc, flags that matter, secondary chance, STAB) and `prep/calcStats.ts`
+  (`calcStats`, `natureMultipliers`, `speedStanding`; sim-free, `stat100` is sim-side), tests in `moveRows.test.ts`.
+  App: `components/MoveTable.tsx` (pinned slots, sort / filter chips, expandable details; phone list + bottom sheet),
+  `ItemPicker.tsx` (searchable, common first, effect per row), `TeamStats.tsx` (base / EVs / calculated stat per row,
+  nature marks, EVs left, speed line), `SampleSets` in `TeamSetTools.tsx` as cards (randoms at once, Smogon when they
+  arrive; open until the player closes it, remembered per browser session). Decision: every mon starts on a generated
+  default set, so "open while the set is still default" is just "open"; there is no untouched-set flag. Checked in the
+  built-in browser, desktop and mobile preset. Open: IV editing (presets still set them), Scarf / item boosts in the
+  speed line, a Z-Move / Tera preview in the table.

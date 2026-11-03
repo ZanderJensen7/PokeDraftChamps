@@ -6,3 +6,5 @@ export * from './prepDoc';
 export * from './draftHelper';
 export * from './monDetail';
 export * from './sampleSets';
+export * from './calcStats';
+export * from './moveRows';
