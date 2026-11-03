@@ -28,33 +28,57 @@ Status: TODO · RUNNING · DONE. Keep this short; details live in the job report
     then a MY TEAM panel on the draft screen (resistances + STAB/Weak, speed tiers, role coverage, plain-sentence
     needs) and a "what this adds" line + fit badge on pool cards, with a "Sort by fit" option.
 
-## Next
-- User notes 2026-11-02 (evening):
-  - Draft: a toggle for the draft recommendations (FIT badges, needs panel); no fit score before the first pick
-    (nothing to fit yet). Keep the line between hand-holding and the prep/draft being part of the fun.
-  - League setup: options for the number of free-agency moves and the total point budget (tier prices unchanged).
-  - Mobile: the "what everyone drafted" view is rough, it cannot scroll all the way.
-  - Traffic: a way to see how many people play (privacy-respecting analytics on the static site; decide what, see
-    DECISIONS on no telemetry leaving the browser without opt-in).
-- Roster range follow-ups (2026-11-02): free agency is still drop-one/add-one, so a coach under `rosterMax`
-  cannot pick up a mon without dropping one; decide whether to allow a plain add (counts as a move, within
-  budget). The AI may also end a little below its rolled aim when its budget runs thin after the minimum.
-- Draft helper follow-ups: FIT badge uses the quick score (roles excluded) while the hover note uses the full one;
-  hover popover covers the next card row; resistances table scrolls sideways in the narrow rail.
-- Mobile follow-ups from the pass: prove home-screen install on a real phone / desktop Chrome (service worker
-  did not register in the test pane); landscape battle HP boxes overlap the sprites; lineup reorder on phones
-  is tap-to-swap (no drag); AI-pick ticker lags the header during the draft animation.
+## Next (the queue, top first)
+Each line is one job. Sessions are started from the top; three at a time at most, never two on the same files.
+
+1. **Stakes (ascension).** `docs/ROGUELIKE.md`. `LeagueConfig.stake` + a `STAKES` data table of one added rule
+   per level; AI difficulty knobs in `battle/heuristicPlayer.ts` (switch on predicted KOs) and `draft/draft.ts`
+   `aiChoosePick` (fit scoring via `prep/draftHelper`); loss cap, AI budget, prep-doc gating, playoff size;
+   stake picker on the setup screen; win at N unlocks N+1 in a profile store. Also answers "loss cap 4 vs
+   equal-strength AI eliminates most runs".
+2. **Battle polish bundle.** A Mega shows its base name in the lead picker / after fainting (map by roster id);
+   weather label prints raw ids ("SunnyDay"); export writes a Tera Type line for non-captains.
+3. **Mobile bundle.** The "what everyone drafted" view cannot scroll all the way; landscape battle HP boxes
+   overlap the sprites; lineup reorder on phones is tap-to-swap (no drag); AI-pick ticker lags the header during
+   the draft animation; prove home-screen install on a real phone.
+4. **Setup + draft options (user notes).** League setup: number of free-agency moves and total point budget
+   (tier prices unchanged). Draft: a toggle for the recommendations (FIT badges, needs panel); no fit score
+   before the first pick. Keep the line between hand-holding and the prep/draft being part of the fun.
+5. **Free agency plain add.** A coach under `rosterMax` may sign without dropping (counts as a move, within
+   budget). The AI may also end a little below its rolled aim when its budget runs thin after the minimum.
+6. **Career profile + Hall of Fame.** `engine/src/profile.ts` (`Profile`, `recordRunEnd` over `summarizeRun`),
+   `pdc.profile.v1` beside the saves, export/import with them; career record, titles per stake, trophy case;
+   the run-end screen gains the decisive match and the perks taken (`docs/ROGUELIKE.md`).
+7. **Draft helper follow-ups.** FIT badge uses the quick score (roles excluded) while the hover note uses the
+   full one; hover popover covers the next card row; resistances table scrolls sideways in the narrow rail.
+8. **Replay viewer** for stored logs (watch any league match); the tape-room perk needs it.
+9. **Set editor polish.** Showdown text import/export (`@pkmn/sets`), sample sets from `@pkmn/smogon`.
+10. **AI quality + pricing.** Draft AI (role coverage, not overpaying), battle AI strength (vs random, vs itself
+    across seeds), prep threat summary wording; rerun the lab with Megas on for the next outlier after Mega
+    Mewtwo; then the per-species price override table once the lab has thousands of games (lab 2026-11-02: fit
+    score = 41.9 + 0.66 x price, AI-vs-AI evidence only).
+11. **Roguelike layer, rest of the build order** (`docs/ROGUELIKE.md`): perk beats + trades → pool progression +
+    scouting packs → coach archetypes → challenge leagues → mutator toggle → keepers / gauntlet.
+12. **Online follow-ups.** Cloudflare account steps (KV id, Worker deploy, repo variables / secrets, Web
+    Analytics token) are the user's; then `ALLOWED_ORIGINS` to the Pages origin; replay-verified daily scores
+    only if faking becomes a problem.
+13. **Formats**: Champs NatDex (Megas, Z), other gens; doubles never. **Optional** bring-your-own-key LLM
+    opponent mode.
+14. Checks by hand: the "Done drafting" button in a league with points to spare (covered by `run.test.ts`);
+    Tera/Mega pills in the battle log; the phone hover tap-sheet; attack-effect sizes and sound levels live.
+
+## Done log (from the old Next section)
+- DONE 2026-11-02: Daily League (one seed per UTC day, own save slot, score + share line, leaderboard via
+  `packages/api`), Settings > Online (nickname, opt-in run summaries), Cloudflare Web Analytics beacon hook,
+  Worker deploy workflow. Answers the traffic note.
+- Sprites without a 3D model (2026-11-02): Showdown has none for 20 pool species (Future Paradox line, all Ogerpon
+  forms, Dialga/Palkia-Origin, Miraidon, Terapagos, Pecharunt, Greninja-Bond). `spriteFor` in `ui/SpriteCard.tsx`
+  falls back to the animated pixel front sprite where one exists (7 of them); the other 13 stay still images, and
+  no animated backs exist for any of the 20. Recheck after bumping @pkmn/img.
+- Showdown look: default sprite set `ani` (3D-model animated sprites, front + back) with `gen5ani` pixel as
+  the option; larger battle sprites; Gen 9 mons fall back automatically via @pkmn/img (user ruling 2026-11-02).
 - DONE 2026-11-02: Mega Mewtwo X/Y banned (`BANNED_MEGAS`); see DECISIONS. Rerun the lab with Megas on to
   find the next outlier now that the top is gone.
-- Lab findings 2026-11-02 (40 leagues, 12 teams, Megas): fit score = 41.9 + 0.66 x price, i.e. tier price
-  barely predicts performance under the current AI; candidates up: Electrode, Tauros-Paldea forms, Passimian,
-  Araquanid, Inteleon, Iron Hands/Boulder; down: Quagsire, Chi-Yu, Mega Charizard Y, Mega Diancie, Mega Glalie,
-  Talonflame, Zoroark-Hisui. Treat as AI-vs-AI evidence (the AI never plays stall), rerun after AI tuning.
-- Price overrides table: once the balance lab has thousands of games, add a per-species override layer on top
-  of POINTS_BY_TIER (data table, shrink/grow by evidence) and re-run the lab to confirm scores flatten by price.
-- Polish from the first play-test: a Mega shows its base name in the lead picker / after fainting (map by
-  roster id); weather label prints raw ids ("SunnyDay"); export writes a Tera Type line for non-captains;
-  loss cap 4 vs equal-strength AI eliminates most runs (tune AI difficulty tiers or default cap once humans play).
 - DONE 2026-11-02: first commit pushed, live at https://zanderjensen7.github.io/PokeDraftChamps/ (service worker registers there, so the PWA install gap from the mobile pass is half proven; home-screen install on a phone still unchecked).
 - DONE 2026-11-02: startup bundle. The engine has two entries: `@pdc/engine` (sim-free: draft, league, prep, stats,
   scouting, form helpers over @pkmn/dex + a checked-in randoms JSON) and `@pdc/engine/battle` (sim, randoms, calc,
@@ -62,13 +86,6 @@ Status: TODO · RUNNING · DONE. Keep this short; details live in the job report
   (index.html script + modulepreloads) went from 10.6 MB raw / 1.87 MB gzip (a 10.1 MB `src` chunk) to 2.57 MB raw /
   0.54 MB gzip; the largest preloaded chunk is now the 2.0 MB @pkmn/dex data (0.37 MB gzip). The sim sits in an
   8.2 MB lazy `battle` chunk + the 10.2 MB worker. Guard: `engine/src/entries.test.ts`.
-- Sprites without a 3D model (2026-11-02): Showdown has none for 20 pool species (Future Paradox line, all Ogerpon
-  forms, Dialga/Palkia-Origin, Miraidon, Terapagos, Pecharunt, Greninja-Bond). `spriteFor` in `ui/SpriteCard.tsx`
-  falls back to the animated pixel front sprite where one exists (7 of them); the other 13 stay still images, and
-  no animated backs exist for any of the 20. Recheck after bumping @pkmn/img.
-- Showdown look: default sprite set `ani` (3D-model animated sprites, front + back) with `gen5ani` pixel as
-  the option; larger battle sprites; Gen 9 mons fall back automatically via @pkmn/img. One-line setting change
-  plus layout sizing (user ruling 2026-11-02: match the Showdown Champs NatDex look).
 - DONE 2026-11-02: battle log restyle (user ask): open by default on desktop / tablet / landscape phones
   (`battleLogOpen` setting), typed entries from `app/src/battle/narrate.ts` `parseLog` rendered by
   `components/battle/BattleLog.tsx` in Showdown's shape (turn dividers, your names blue / theirs orange, exact HP
@@ -84,8 +101,6 @@ Status: TODO · RUNNING · DONE. Keep this short; details live in the job report
 - DONE 2026-11-02: "Edit sets" button in the prep screen's lineup panel header (both layouts) opens the Team
   editor; discoverability note from the user not finding the set editor.
 - DONE 2026-11-02: Early-build stamp (v0.2.0 · early build · short SHA, Vite `define`) on title, header and Settings About, plus an in-game "Report a bug" dialog that prefills a GitHub issue (never auto-sends) and a bug issue template.
-- Roster range: the "Done drafting" button was not seen by hand (the test draft auto-finished at 9 with 1 point
-  left); covered by run.test.ts. Check it in a league with points to spare.
 - DONE 2026-11-02: attack effects (user ruling: no mon animation, the `ani` sprites already move; effects for the
   attacks only). `app/src/battle/vfx.ts` (pure) turns each narrated protocol line into an effect event with
   data tables for the shape per move (contact / projectile / beam / self / status / field from dex flags +
@@ -99,14 +114,3 @@ Status: TODO · RUNNING · DONE. Keep this short; details live in the job report
   the built-in browser by sampling the effect canvas (the pane was hidden, so animation frames were sparse):
   open: look at it live and tune sizes / sound levels by feel; the phone layout was not seen. Bespoke top-100
   move effects only if replay / watch time proves worth it.
-- Draft AI quality pass (role coverage, not overpaying), battle AI strength tuning (measure vs random and
-  vs itself across seeds), prep threat summary wording.
-- Replay viewer for stored logs (watch any league match).
-- Roguelike layer beyond free agency: designed in `docs/ROGUELIKE.md` (2026-11-02). Build order: stakes →
-  career profile + run-end screen → perk beats + trades → pool progression → coach archetypes → daily +
-  challenge leagues → mutator toggle → keepers / gauntlet. Daily leaderboard + opt-in analytics need the
-  small backend described there (Cloudflare Worker first; page-view beacon can go in now).
-- Human set editor polish: Showdown text import/export (`@pkmn/sets`), sample sets from `@pkmn/smogon`.
-- Formats: Champs NatDex (Megas, Z), other gens; doubles never.
-- Optional bring-your-own-key LLM opponent mode.
-- Deploy: GitHub Pages / Cloudflare Pages static build.
