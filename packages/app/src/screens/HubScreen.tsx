@@ -85,11 +85,14 @@ function FreeAgency({ run, onClose }: { run: RunState; onClose: () => void }) {
   const human = humanCoach(run);
   const left = run.config.freeAgencyMoves - run.freeAgencyUsed;
   const [drop, setDrop] = useState<SpeciesId | null>(null);
+  const [keepAll, setKeepAll] = useState(false);
+  const underMax = human.roster.length < run.config.rosterMax;
   const [add, setAdd] = useState<SpeciesId | null>(null);
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   // Signing builds the new mon's set, whose builder loads with the battle engine: start that download now.
   useEffect(() => { getBridge().loadBuildSets().catch(() => {}); }, []);
+  const ready = !!drop || keepAll;
   const dropPts = drop ? (getDraftMon(drop)?.points ?? 0) : 0;
   const room = run.config.budget - human.pointsSpent + dropPts;
   const pool = useMemo(
@@ -103,7 +106,7 @@ function FreeAgency({ run, onClose }: { run: RunState; onClose: () => void }) {
   const shown = pool.filter((m) => !term || m.name.toLowerCase().includes(term) || displayName(m.name).toLowerCase().includes(term)).slice(0, 60);
   const keep = human.roster.map((r) => r.species).filter((s) => s !== drop);
   const sign = async () => {
-    if (!drop || !add) return;
+    if (!ready || !add) return;
     setBusy(true);
     const ok = await doFreeAgency(drop, add);
     setBusy(false);
@@ -118,21 +121,39 @@ function FreeAgency({ run, onClose }: { run: RunState; onClose: () => void }) {
       footer={
         <>
           <GameButton variant="ghost" onClick={onClose} className="max-md:min-h-11">Cancel</GameButton>
-          <GameButton disabled={!drop || !add || left <= 0 || busy} onClick={sign} className="max-md:min-h-11 max-md:flex-1">
-            {drop && add ? `Drop ${displayName(getDraftMon(drop)?.name ?? drop)}, sign ${displayName(getDraftMon(add)?.name ?? add)}` : 'Pick one to drop and one to sign'}
+          <GameButton disabled={!ready || !add || left <= 0 || busy} onClick={sign} className="max-md:min-h-11 max-md:flex-1">
+            {ready && add
+              ? `${drop ? `Drop ${displayName(getDraftMon(drop)?.name ?? drop)}, sign` : 'Sign'} ${displayName(getDraftMon(add)?.name ?? add)}`
+              : underMax ? 'Pick who to drop (or keep everyone) and who to sign' : 'Pick one to drop and one to sign'}
           </GameButton>
         </>
       }
     >
       <DialogueBox className="mb-4">
         {left > 0
-          ? `${left} of ${run.config.freeAgencyMoves} moves left this season. A signed Pokemon inherits the dropped one's captain role (a Mega can't: pick a new captain under Captains).`
+          ? `${left} of ${run.config.freeAgencyMoves} moves left this season. A signed Pokemon inherits the dropped one's captain role (a Mega can't: pick a new captain under Captains).${underMax ? ' You have room on the roster, so you can also sign without dropping anyone.' : ''}`
           : 'No free-agency moves left this season.'}
       </DialogueBox>
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <div className="mb-2 font-display font-bold uppercase tracking-wide">1. Drop</div>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="font-display font-bold uppercase tracking-wide">1. Drop</span>
+            <span className="text-sm text-muted">Roster <b className="text-poke-yellow">{human.roster.length} / {run.config.rosterMax}</b></span>
+          </div>
           <ul className="space-y-1">
+            {underMax && (
+              <li>
+                <button
+                  type="button"
+                  aria-pressed={keepAll}
+                  onClick={() => { setKeepAll(!keepAll); setDrop(null); setAdd(null); }}
+                  className={`focus-ring flex min-h-11 w-full items-center gap-2 rounded-lg border-2 px-2 py-1 text-left ${keepAll ? 'border-win bg-you-soft' : 'border-transparent bg-panel-inset hover:border-edge'}`}
+                >
+                  <span className="flex-1 font-semibold">Keep everyone</span>
+                  <span className="text-sm text-muted">Add without dropping</span>
+                </button>
+              </li>
+            )}
             {human.roster.map((r) => {
               const m = getDraftMon(r.species);
               const on = drop === r.species;
@@ -140,7 +161,7 @@ function FreeAgency({ run, onClose }: { run: RunState; onClose: () => void }) {
                 <li key={r.species} className="flex items-center gap-1">
                   <button
                     type="button"
-                    onClick={() => { setDrop(on ? null : r.species); setAdd(null); }}
+                    onClick={() => { setDrop(on ? null : r.species); setKeepAll(false); setAdd(null); }}
                     className={`focus-ring flex min-h-11 w-full items-center gap-2 rounded-lg border-2 px-2 py-1 text-left ${on ? 'border-loss bg-opp-soft' : 'border-transparent bg-panel-inset hover:border-edge'}`}
                   >
                     <IconBadge name={m?.name ?? r.species} roles={rolesOf(r)} tone="you" />
@@ -156,12 +177,12 @@ function FreeAgency({ run, onClose }: { run: RunState; onClose: () => void }) {
         <div>
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="font-display font-bold uppercase tracking-wide">2. Sign</span>
-            <span className="text-sm text-muted">Up to <b className="text-poke-yellow">{drop ? room : '—'}</b> pts</span>
+            <span className="text-sm text-muted">Up to <b className="text-poke-yellow">{ready ? room : '—'}</b> pts</span>
           </div>
           <input className="field mb-2 w-full" placeholder="Search free agents" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search free agents" />
           <ul className="space-y-1 pr-1 md:max-h-80 md:overflow-y-auto">
             {shown.map((m) => {
-              const ok = !!drop && m.points <= room && !conflictsWithRoster(keep, m.id);
+              const ok = ready && m.points <= room && !conflictsWithRoster(keep, m.id);
               const on = add === m.id;
               return (
                 <li key={m.id} className="flex items-center gap-1">

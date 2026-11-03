@@ -32,6 +32,19 @@ function draftedRun(seed: number, config: LeagueConfig = DEFAULT_LEAGUE_CONFIG):
   return run;
 }
 
+/** Like draftedRun, but the human stops drafting once they hold `stopAt` mons (the AI drafts as usual). */
+function draftedRunStopping(seed: number, stopAt: number, config: LeagueConfig = DEFAULT_LEAGUE_CONFIG): RunState {
+  let run = createRun({ config, seed, humanName: 'Test Town Testers', humanAbbrev: 'tst', createdAt: 1 });
+  const pool = buildDraftPool({ megas: config.megas });
+  for (;;) {
+    run = runAiDraftUntilHuman(run);
+    if (run.draft.complete) break;
+    if (run.coaches[0]!.roster.length >= stopAt) { run = draftStop(run); continue; }
+    run = draftPick(run, aiChoosePick(run.draft, run.humanId, run.config, pool, createRng(deriveSeed(seed, 'h', run.draft.pickIndex))));
+  }
+  return run;
+}
+
 /** Plays weeks with `humanWins(week)` deciding the human's result until the run ends. */
 async function playOut(run: RunState, humanWins: (week: number) => boolean): Promise<RunState> {
   let cur = run;
@@ -136,6 +149,66 @@ describe('run flow', () => {
     expect(run.freeAgencyUsed).toBe(1);
     run = freeAgency(run, add, drop);
     expect(() => freeAgency(run, drop, add)).toThrow(); // 2 moves used
+  });
+
+  describe('free agency without a drop', () => {
+    const buildSets = (c: Coach) => Object.fromEntries(c.roster.map((r) => [r.species, { species: r.species } as never]));
+    const base = finishDraft(draftedRunStopping(2024, 9, { ...DEFAULT_LEAGUE_CONFIG, budget: 200 }), { buildSets: fakeSets });
+    const human = base.coaches[0]!;
+    const price = (id: string) => getDraftMon(id)!.points;
+    const owned = new Set(human.roster.map((r) => getDraftMon(r.species)!.num));
+    const room = base.config.budget - human.pointsSpent;
+    const add = base.draft.available.find((id) => price(id) <= room && !owned.has(getDraftMon(id)!.num))!;
+
+    it('signs a free agent under rosterMax, counts a move, builds the set and grants no captain flag', () => {
+      expect(human.roster.length).toBe(9);
+      const run = freeAgency(base, null, add, { buildSets });
+      const after = run.coaches[0]!;
+      expect(after.roster.length).toBe(10);
+      expect(after.roster.slice(0, 9)).toEqual(human.roster);
+      expect(after.roster[9]).toEqual({ species: add, isTeraCaptain: false, isZCaptain: false });
+      expect(after.pointsSpent).toBe(human.pointsSpent + price(add));
+      expect(after.sets[add]).toBeDefined();
+      expect(run.freeAgencyUsed).toBe(1);
+      expect(run.draft.available).not.toContain(add);
+      expect(run.draft.available.length).toBe(base.draft.available.length - 1);
+      expect(run.log[run.log.length - 1]).toMatch(/signed .*\.$/);
+      expect(run.log[run.log.length - 1]).not.toMatch(/dropped/);
+    });
+
+    it('refuses a plain add on a full roster', () => {
+      let run = base;
+      const fill = (r: RunState): RunState => {
+        const h = r.coaches[0]!;
+        const nums = new Set(h.roster.map((x) => getDraftMon(x.species)!.num));
+        const next = r.draft.available.find((id) => price(id) <= r.config.budget - h.pointsSpent && !nums.has(getDraftMon(id)!.num))!;
+        return { ...r, freeAgencyUsed: 0, coaches: r.coaches.map((c, i) => (i === 0 ? { ...c, roster: [...c.roster, { species: next, isTeraCaptain: false, isZCaptain: false }], pointsSpent: c.pointsSpent + price(next) } : c)),
+          draft: { ...r.draft, available: r.draft.available.filter((id) => id !== next) } };
+      };
+      run = fill(fill(run));
+      expect(run.coaches[0]!.roster.length).toBe(run.config.rosterMax);
+      expect(() => freeAgency(run, null, add)).toThrow(/full/);
+      const drop = run.coaches[0]!.roster[0]!.species;
+      const other = run.draft.available.find((id) => price(id) <= price(drop) && !owned.has(getDraftMon(id)!.num))!;
+      expect(() => freeAgency(run, drop, other)).not.toThrow(); // dropping still works
+    });
+
+    it('refuses a plain add over budget or of a form the coach already owns', () => {
+      const tight = { ...base, config: { ...base.config, budget: human.pointsSpent + price(add) - 1 } };
+      expect(() => freeAgency(tight, null, add)).toThrow(/over budget/);
+      const mega = buildDraftPool({ megas: true }).find((m) => m.isMega && owned.has(m.num))!;
+      const withMega = { ...base, config: { ...base.config, megas: true }, draft: { ...base.draft, available: [...base.draft.available, mega.id] } };
+      expect(() => freeAgency(withMega, null, mega.id)).toThrow(/another form/);
+    });
+
+    it('still uses up the move budget', () => {
+      const once = freeAgency(base, null, add);
+      const nums = new Set([...owned, getDraftMon(add)!.num]);
+      const second = once.draft.available.find((id) => price(id) <= once.config.budget - once.coaches[0]!.pointsSpent && !nums.has(getDraftMon(id)!.num))!;
+      const twice = freeAgency(once, null, second);
+      expect(twice.freeAgencyUsed).toBe(2);
+      expect(() => freeAgency(twice, null, add)).toThrow(/no free-agency moves/);
+    });
   });
 
   it('serializes and round-trips', async () => {

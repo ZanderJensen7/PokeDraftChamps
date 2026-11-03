@@ -53,8 +53,11 @@ Each line is one job. Sessions are started from the top; three at a time at most
 4. **Setup + draft options (user notes).** League setup: number of free-agency moves and total point budget
    (tier prices unchanged). Draft: a toggle for the recommendations (FIT badges, needs panel); no fit score
    before the first pick. Keep the line between hand-holding and the prep/draft being part of the fun.
-5. **Free agency plain add.** A coach under `rosterMax` may sign without dropping (counts as a move, within
-   budget). The AI may also end a little below its rolled aim when its budget runs thin after the minimum.
+5. **Free agency plain add.** SHIPPED 2026-11-02 (branch `claude/stakes-85a96b`): `freeAgency(run, null, add)` signs
+   without a drop when the human is under `rosterMax` (one move, within budget, Species Clause, no captain flags);
+   the hub dialog has "Keep everyone" and a roster count. AI stop-early measured over 12 seeds x (16 and 8 teams),
+   264 AI coaches: 20 ended below their rolled aim (7.6 %), all by the `minPointsPerOpenSlot` dial (under 3 points per
+   open slot); 0 ended below aim with 3+ points per open slot left. Under the 10 % bar, so `AI_STOP_DIALS` is unchanged.
 6. **Career profile + Hall of Fame.** `engine/src/profile.ts` (`Profile`, `recordRunEnd` over `summarizeRun`),
    `pdc.profile.v1` beside the saves, export/import with them; career record, titles per stake, trophy case;
    the run-end screen gains the decisive match and the perks taken (`docs/ROGUELIKE.md`).
