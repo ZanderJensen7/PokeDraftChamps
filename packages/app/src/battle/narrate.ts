@@ -5,6 +5,7 @@
 import { Dex } from '@pkmn/dex';
 import { displayName } from '../game/names';
 import { parseCondition, parseIdent, splitLine, type Side } from './battleView';
+import { conditionName } from './conditions';
 
 export interface Narration {
   text: string;
@@ -14,6 +15,11 @@ export interface Narration {
 export interface NarrateContext {
   /** Opponent coach name, for "X sent out Y!". */
   oppName: string;
+  /**
+   * Protocol nickname -> roster display name per side. The sim names a Mega pick by its base species until it
+   * Mega Evolves; the roster calls it "Mega Charizard X" throughout.
+   */
+  names?: Partial<Record<Side, Record<string, string>>>;
 }
 
 const dex = Dex.forGen(9);
@@ -48,11 +54,14 @@ function tag(parts: string[], key: 'from' | 'of'): string | undefined {
   return p ? p.slice(key.length + 2).trim() : undefined;
 }
 
-/** "Garchomp" for your side, "the opposing Garchomp" for theirs (name marked with its side). */
-function who(ident: string | undefined): string {
+/**
+ * "Garchomp" for your side, "the opposing Garchomp" for theirs (name marked with its side). With a context the
+ * nickname becomes the roster's display name (a Mega pick by its Mega name); without one it stays as printed.
+ */
+function who(ident: string | undefined, ctx?: NarrateContext): string {
   const id = parseIdent(ident);
   if (!id) return 'the Pokemon';
-  const name = `${MON_OPEN}${id.side}${id.name}${MON_CLOSE}`;
+  const name = `${MON_OPEN}${id.side}${ctx?.names?.[id.side]?.[id.name] ?? id.name}${MON_CLOSE}`;
   return id.side === 'p1' ? name : `the opposing ${name}`;
 }
 
@@ -121,7 +130,7 @@ const SIDE_START: Record<string, string> = {
 const HAZARDS = new Set(['Stealth Rock', 'Spikes', 'Toxic Spikes', 'Sticky Web']);
 const PROTECTS = new Set(['Protect', 'Detect', "King's Shield", 'Spiky Shield', 'Baneful Bunker', 'Silk Trap', 'Burning Bulwark', 'Obstruct']);
 
-function damageFrom(x: string, from: string, of: string | undefined): string {
+function damageFrom(x: string, from: string, of: string | undefined, ctx: NarrateContext): string {
   const effect = strip(from);
   switch (effect) {
     case 'brn': return `${x} was hurt by its burn!`;
@@ -138,15 +147,15 @@ function damageFrom(x: string, from: string, of: string | undefined): string {
     case 'Curse': return `${x} is afflicted by the curse!`;
     case 'Nightmare': return `${x} is locked in a nightmare!`;
     default:
-      if (of && (from.startsWith('ability:') || from.startsWith('item:'))) return `${x} was hurt by ${who(of)}'s ${pretty(effect)}!`;
+      if (of && (from.startsWith('ability:') || from.startsWith('item:'))) return `${x} was hurt by ${who(of, ctx)}'s ${pretty(effect)}!`;
       return `${x} was hurt by ${pretty(effect)}!`;
   }
 }
 
-function healFrom(x: string, from: string | undefined, of: string | undefined): string {
+function healFrom(x: string, from: string | undefined, of: string | undefined, ctx: NarrateContext): string {
   if (!from) return `${x} had its HP restored.`;
   const effect = strip(from);
-  if (effect === 'drain') return `${of ? who(of) : 'The target'} had its energy drained!`;
+  if (effect === 'drain') return `${of ? who(of, ctx) : 'The target'} had its energy drained!`;
   if (from.startsWith('item:')) return `${x} restored a little HP using its ${effect}!`;
   if (from.startsWith('ability:')) return `${x} restored HP using its ${effect}!`;
   return `${x} had its HP restored.`;
@@ -164,7 +173,7 @@ function describe(line: string, ctx: NarrateContext): Narration | null {
   const cmd = parts[0];
   if (!cmd) return null;
   const say = (text: string): Narration => ({ text: cap(text), kind: 'say' });
-  const x = who(parts[1]);
+  const x = who(parts[1], ctx);
   const from = tag(parts, 'from');
   const of = tag(parts, 'of');
   if (parts.includes('[silent]')) return null;
@@ -174,7 +183,7 @@ function describe(line: string, ctx: NarrateContext): Narration | null {
     case 'win': return { text: `${bold(parts[1])} won the battle!`, kind: 'end' };
     case 'tie': return { text: 'The battle ended in a draw!', kind: 'end' };
     case 'switch': {
-      const name = parseIdent(parts[1]) ? who(parts[1]).replace('the opposing ', '') : 'the Pokemon';
+      const name = parseIdent(parts[1]) ? who(parts[1], ctx).replace('the opposing ', '') : 'the Pokemon';
       return say(parts[1]?.startsWith('p1') ? `Go! ${name}!` : `${ctx.oppName} sent out ${name}!`);
     }
     case 'drag': return say(`${x} was dragged out!`);
@@ -195,8 +204,8 @@ function describe(line: string, ctx: NarrateContext): Narration | null {
         default: return say(`${x} can't move!`);
       }
     }
-    case '-damage': return from ? say(damageFrom(x, from, of)) : null;
-    case '-heal': return say(healFrom(x, from, of));
+    case '-damage': return from ? say(damageFrom(x, from, of, ctx)) : null;
+    case '-heal': return say(healFrom(x, from, of, ctx));
     case '-status': {
       const s = parts[2] ?? '';
       if (s === 'slp' && from === 'move: Rest') return say(`${x} slept and became healthy!`);
@@ -217,19 +226,19 @@ function describe(line: string, ctx: NarrateContext): Narration | null {
     case '-clearallboost': return say('All stat changes were eliminated!');
     case '-clearnegativeboost': return say(`${x}'s lowered stats returned to normal!`);
     case '-invertboost': return say(`${x}'s stat changes were inverted!`);
-    case '-copyboost': return say(`${x} copied ${who(parts[2])}'s stat changes!`);
+    case '-copyboost': return say(`${x} copied ${who(parts[2], ctx)}'s stat changes!`);
     case '-weather': {
       if (parts.includes('[upkeep]')) return null;
       if (parts[1] === 'none') return say('The weather cleared up.');
-      return say(WEATHER_START[parts[1] ?? ''] ?? `The weather became ${pretty(parts[1] ?? '')}.`);
+      return say(WEATHER_START[parts[1] ?? ''] ?? `The weather became ${conditionName(parts[1] ?? '')}.`);
     }
     case '-fieldstart': {
       const f = strip(parts[1]);
-      return say(FIELD_START[f] ?? `${pretty(f)} started!`);
+      return say(FIELD_START[f] ?? `${conditionName(f)} started!`);
     }
     case '-fieldend': {
       const f = strip(parts[1]);
-      return say(f === 'Trick Room' ? 'The twisted dimensions returned to normal!' : `The ${pretty(f)} wore off.`);
+      return say(f === 'Trick Room' ? 'The twisted dimensions returned to normal!' : `The ${conditionName(f)} wore off.`);
     }
     case '-sidestart': {
       const c = strip(parts[2]);
@@ -245,7 +254,7 @@ function describe(line: string, ctx: NarrateContext): Narration | null {
     case '-supereffective': return say("It's super effective!");
     case '-resisted': return say("It's not very effective...");
     case '-immune': return say(`It doesn't affect ${x}...`);
-    case '-miss': return say(parts[2] ? `${who(parts[2])} avoided the attack!` : `${x}'s attack missed!`);
+    case '-miss': return say(parts[2] ? `${who(parts[2], ctx)} avoided the attack!` : `${x}'s attack missed!`);
     case '-fail': return say(parts[2] === 'heal' ? `${x}'s HP is full!` : 'But it failed!');
     case '-notarget': return say('But there was no target...');
     case '-nothing': return say('But nothing happened!');
@@ -256,13 +265,14 @@ function describe(line: string, ctx: NarrateContext): Narration | null {
     case '-mega': {
       const base = parts[2] ?? parseIdent(parts[1])?.name ?? '';
       const stone = parts[3] ?? 'Mega Stone';
-      return say(`${x}'s ${stone} is reacting to the Key Stone! ${cap(x)} has Mega Evolved into ${bold(displayName(megaForm(base, stone)))}!`);
+      const raw = who(parts[1]); // the base form, as the sim names it, evolves into the Mega
+      return say(`${raw}'s ${stone} is reacting to the Key Stone! ${cap(raw)} has Mega Evolved into ${bold(displayName(megaForm(base, stone)))}!`);
     }
     case '-zpower': return say(`${x} surrounds itself with its Z-Power!`);
     case '-prepare': return say(`${x} is getting ready to use ${parts[2]}!`);
     case '-item': {
       const item = parts[2] ?? 'an item';
-      if (from === 'ability: Frisk' && of) return say(`${who(of)} frisked ${x} and found its ${item}!`);
+      if (from === 'ability: Frisk' && of) return say(`${who(of, ctx)} frisked ${x} and found its ${item}!`);
       if (item === 'Air Balloon') return say(`${x} floats in the air with its Air Balloon!`);
       if (from?.startsWith('move:')) return say(`${x} obtained ${item}.`);
       return say(`${x} is holding ${item}.`);
@@ -270,15 +280,15 @@ function describe(line: string, ctx: NarrateContext): Narration | null {
     case '-enditem': {
       const item = parts[2] ?? 'item';
       if (parts.includes('[eat]')) return say(`${x} ate its ${item}!`);
-      if (from === 'move: Knock Off') return say(`${of ? who(of) : 'The attacker'} knocked off ${x}'s ${item}!`);
-      if (from === 'stealeat') return say(`${of ? who(of) : 'The attacker'} stole and ate ${x}'s ${item}!`);
+      if (from === 'move: Knock Off') return say(`${of ? who(of, ctx) : 'The attacker'} knocked off ${x}'s ${item}!`);
+      if (from === 'stealeat') return say(`${of ? who(of, ctx) : 'The attacker'} stole and ate ${x}'s ${item}!`);
       if (item === 'Air Balloon') return say(`${x}'s Air Balloon popped!`);
       if (item === 'Focus Sash') return say(`${x} hung on using its Focus Sash!`);
       return say(`${x}'s ${item} was used up.`);
     }
     case '-ability': {
       const ability = pretty(parts[2] ?? '');
-      if (from === 'ability: Trace' && of) return say(`${x} traced ${who(of)}'s ${bold(ability)}!`);
+      if (from === 'ability: Trace' && of) return say(`${x} traced ${who(of, ctx)}'s ${bold(ability)}!`);
       return say(`${x}'s ${ability} activated!`);
     }
     case '-start': {
@@ -454,7 +464,7 @@ export function parseLog(lines: readonly string[], ctx: NarrateContext): LogEntr
 
     const from = tag(parts, 'from');
     if (from?.startsWith('ability:') && ABILITY_TAGGED.has(cmd) && !parts.includes('[silent]')) {
-      push('ability', `[${who(tag(parts, 'of') ?? ident)}'s ${pretty(strip(from))}]`);
+      push('ability', `[${who(tag(parts, 'of') ?? ident, ctx)}'s ${pretty(strip(from))}]`);
     }
 
     const n = describe(line, ctx);
@@ -473,7 +483,7 @@ export function parseLog(lines: readonly string[], ctx: NarrateContext): LogEntr
         pill = { label: 'Z-Move', type: move?.exists ? move.type : 'normal' };
       }
       if (cmd === '-ability' && from !== 'ability: Trace') {
-        push('ability', `[${who(ident)}'s ${pretty(parts[2] ?? '')}]`);
+        push('ability', `[${who(ident, ctx)}'s ${pretty(parts[2] ?? '')}]`);
       } else {
         push(pill ? 'line' : kindOf(cmd), n.text, pill);
       }
@@ -493,7 +503,7 @@ export function parseLog(lines: readonly string[], ctx: NarrateContext): LogEntr
       const now = c.fainted ? 0 : c.hp;
       if (prev && now < prev.hp && max > 0 && cmd !== '-heal') {
         const lost = prev.hp - now;
-        const x = who(ident);
+        const x = who(ident, ctx);
         if (parseIdent(ident)?.side === 'p1') {
           push('hp', `(${cap(x)} lost ${lost} HP!${now > 0 ? ` ${now}/${max} left` : ''})`);
         } else {

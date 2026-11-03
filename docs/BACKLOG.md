@@ -52,9 +52,12 @@ Status: TODO · RUNNING · DONE. Keep this short; details live in the job report
   Talonflame, Zoroark-Hisui. Treat as AI-vs-AI evidence (the AI never plays stall), rerun after AI tuning.
 - Price overrides table: once the balance lab has thousands of games, add a per-species override layer on top
   of POINTS_BY_TIER (data table, shrink/grow by evidence) and re-run the lab to confirm scores flatten by price.
-- Polish from the first play-test: a Mega shows its base name in the lead picker / after fainting (map by
-  roster id); weather label prints raw ids ("SunnyDay"); export writes a Tera Type line for non-captains;
-  loss cap 4 vs equal-strength AI eliminates most runs (tune AI difficulty tiers or default cap once humans play).
+- DONE 2026-11-02: polish from the first play-test. A Mega pick goes by its Mega name in the lead picker, bench,
+  HP box and the log's switch / faint lines (`session.ts` maps each protocol nickname to the roster entry by
+  roster id, `narrate` and the battle screen read the map); weather / terrain chips and log lines use the
+  `battle/conditions.ts` name table ("Sun", never "SunnyDay"); the Showdown export (`exportSetText`, engine,
+  tested) writes a Tera Type line only for Tera captains. Still open from that play-test: loss cap 4 vs
+  equal-strength AI eliminates most runs (tune AI difficulty tiers or default cap once humans play).
 - DONE 2026-11-02: first commit pushed, live at https://zanderjensen7.github.io/PokeDraftChamps/ (service worker registers there, so the PWA install gap from the mobile pass is half proven; home-screen install on a phone still unchecked).
 - DONE 2026-11-02: startup bundle. The engine has two entries: `@pdc/engine` (sim-free: draft, league, prep, stats,
   scouting, form helpers over @pkmn/dex + a checked-in randoms JSON) and `@pdc/engine/battle` (sim, randoms, calc,

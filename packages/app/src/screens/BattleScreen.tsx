@@ -12,7 +12,8 @@ import { getBridge } from '../game/bridge';
 import { useIsLandscapePhone, useIsMobile } from '../hooks/useIsMobile';
 import { displayName } from '../game/names';
 import { dex9 } from '../game/sets';
-import type { LiveBattle } from '../battle/session';
+import type { BattleNames, LiveBattle } from '../battle/session';
+import { conditionName } from '../battle/conditions';
 import {
   activeMon, battleViewReducer, initialBattleView, parseCondition, parseDetails, parseIdent,
   type FieldView, type MonView, type Side, type SideView,
@@ -63,7 +64,7 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
   const reduced = useSettings((s) => s.reducedMotion);
   const effectsOn = useSettings((s) => s.battleEffects) && !reduced;
   const fx = useRef<FxHandle>(null);
-  const ctx = useMemo(() => ({ oppName: opp.name }), [opp.name]);
+  const ctx = useMemo(() => ({ oppName: opp.name, names: live.names }), [opp.name, live.names]);
   const [state, dispatch] = useReducer(battleViewReducer, 'The battle is about to begin…', initialBattleView);
   const linesRef = useRef<string[]>([]);
   const [received, setReceived] = useState(0);
@@ -200,7 +201,7 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
   const actionArea = showResult && result ? (
     <ResultBanner result={result} live={live} />
   ) : showActions && request ? (
-    <ActionPanel request={request} onChoose={choose} onForfeit={() => setForfeitOpen(true)} />
+    <ActionPanel request={request} names={live.names} onChoose={choose} onForfeit={() => setForfeitOpen(true)} />
   ) : (
     <button
       type="button"
@@ -216,7 +217,7 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
   const fieldStack = (
     <>
       <TeamStrip side={view.sides.p2} sideId="p2" bind={hover.bind} tone="opp" label={opp.name} />
-      <Field view={view} bind={hover.bind} fx={fx} effectsOn={effectsOn} />
+      <Field view={view} names={live.names} bind={hover.bind} fx={fx} effectsOn={effectsOn} />
       <TeamStrip side={view.sides.p1} sideId="p1" bind={hover.bind} tone="you" label={live.human.name} extra={phone ? logToggle : undefined} />
     </>
   );
@@ -277,11 +278,17 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
 
 // ---------------------------------------------------------------- field
 
-function HpBox({ mon, mine }: { mon: MonView; mine: boolean }) {
+/** The name on an HP box: the Mega form once it has Mega Evolved, else the roster's name for the nickname. */
+function monName(mon: MonView, side: Side, names: BattleNames): string {
+  if (/-Mega\b/.test(mon.species)) return displayName(mon.species);
+  return (mon.nick && names[side][mon.nick]) || mon.nick || displayName(mon.species);
+}
+
+function HpBox({ mon, name, mine }: { mon: MonView; name: string; mine: boolean }) {
   return (
     <div className="battle-hpbox w-full px-2 py-1.5 sm:px-3 sm:py-2">
       <div className="flex items-center gap-1.5">
-        <span className="truncate font-display text-sm font-bold leading-tight sm:text-base">{/-Mega\b/.test(mon.species) ? displayName(mon.species) : (mon.nick ?? mon.species)}</span>
+        <span className="truncate font-display text-sm font-bold leading-tight sm:text-base">{name}</span>
         {/-Mega\b/.test(mon.species) && <RoleTag role="mega" compact />}
         <span className="ml-auto shrink-0 text-xs font-bold">Lv{mon.level}</span>
       </div>
@@ -344,12 +351,12 @@ function SpriteHit({ mon, side, index, bind, children }: { mon: MonView; side: S
   );
 }
 
-function Field({ view, bind, fx, effectsOn }: { view: FieldView; bind: BindFn; fx: Ref<FxHandle>; effectsOn: boolean }) {
+function Field({ view, names, bind, fx, effectsOn }: { view: FieldView; names: BattleNames; bind: BindFn; fx: Ref<FxHandle>; effectsOn: boolean }) {
   const foe = activeMon(view, 'p2');
   const me = activeMon(view, 'p1');
   const chips = [
-    view.weather,
-    ...view.fields,
+    view.weather && conditionName(view.weather),
+    ...view.fields.map(conditionName),
     ...Object.keys(view.sides.p2.conditions).map((c) => `Foe: ${c}`),
     ...Object.keys(view.sides.p1.conditions).map((c) => `You: ${c}`),
   ].filter((c): c is string => !!c);
@@ -367,7 +374,7 @@ function Field({ view, bind, fx, effectsOn }: { view: FieldView; bind: BindFn; f
         </div>
       )}
       {/* opponent: HP box top-left, front sprite top-right on its platform */}
-      {foe && <div className="absolute left-2 top-2 z-10 w-[46%] max-w-[15rem] sm:left-3 sm:top-3 sm:w-[42%]"><HpBox mon={foe} mine={false} /></div>}
+      {foe && <div className="absolute left-2 top-2 z-10 w-[46%] max-w-[15rem] sm:left-3 sm:top-3 sm:w-[42%]"><HpBox mon={foe} name={monName(foe, 'p2', names)} mine={false} /></div>}
       <div className="battle-platform right-[6%] top-[40%] h-[15%] w-[36%]" />
       <div className="absolute right-[12%] top-[8%] flex w-[24%] justify-center">
         {foe && (
@@ -385,7 +392,7 @@ function Field({ view, bind, fx, effectsOn }: { view: FieldView; bind: BindFn; f
           </SpriteHit>
         )}
       </div>
-      {me && <div className="absolute bottom-2 right-2 z-10 w-[46%] max-w-[15rem] sm:bottom-3 sm:right-3 sm:w-[42%]"><HpBox mon={me} mine /></div>}
+      {me && <div className="absolute bottom-2 right-2 z-10 w-[46%] max-w-[15rem] sm:bottom-3 sm:right-3 sm:w-[42%]"><HpBox mon={me} name={monName(me, 'p1', names)} mine /></div>}
     </div>
   );
 }
@@ -433,25 +440,32 @@ function speciesOf(p: RequestPokemon): string {
   return parseDetails(p.details).species;
 }
 
+/** Your request entry's name: the roster's (a Mega pick by its Mega name), else the species it lists. */
+function nameOf(p: RequestPokemon, names: BattleNames): string {
+  const nick = parseIdent(p.ident)?.name;
+  return (nick && names.p1[nick]) || displayName(speciesOf(p));
+}
+
 interface ChoiceProps {
   request: ParsedRequest;
+  names: BattleNames;
   onChoose: (cmd: string) => void;
 }
 
-function ActionPanel({ request, onChoose, onForfeit }: ChoiceProps & { onForfeit: () => void }) {
-  if (request.teamPreview) return <LeadPicker request={request} onChoose={onChoose} />;
+function ActionPanel({ request, names, onChoose, onForfeit }: ChoiceProps & { onForfeit: () => void }) {
+  if (request.teamPreview) return <LeadPicker request={request} names={names} onChoose={onChoose} />;
   if (request.forceSwitch?.some(Boolean)) {
     return (
       <div className="dialogue space-y-3 px-4 py-3 max-md:space-y-2 max-md:px-3 max-md:py-2.5">
         <div className="font-display text-lg font-bold">Choose who comes in next.</div>
-        <Bench request={request} onChoose={onChoose} />
+        <Bench request={request} names={names} onChoose={onChoose} />
       </div>
     );
   }
-  return <MovePanel request={request} onChoose={onChoose} onForfeit={onForfeit} />;
+  return <MovePanel request={request} names={names} onChoose={onChoose} onForfeit={onForfeit} />;
 }
 
-function MovePanel({ request, onChoose, onForfeit }: ChoiceProps & { onForfeit: () => void }) {
+function MovePanel({ request, names, onChoose, onForfeit }: ChoiceProps & { onForfeit: () => void }) {
   const [mode, setMode] = useState<'moves' | 'switch'>('moves');
   const [tera, setTera] = useState(false);
   // Mega Evolution is armed by default: a Mega pick was drafted to Mega Evolve.
@@ -477,7 +491,7 @@ function MovePanel({ request, onChoose, onForfeit }: ChoiceProps & { onForfeit: 
           <div className="font-display text-lg font-bold">Switch to…</div>
           <GameButton size="sm" variant="ghost" onClick={() => setMode('moves')}>BACK</GameButton>
         </div>
-        <Bench request={request} onChoose={onChoose} />
+        <Bench request={request} names={names} onChoose={onChoose} />
       </div>
     );
   }
@@ -486,7 +500,7 @@ function MovePanel({ request, onChoose, onForfeit }: ChoiceProps & { onForfeit: 
       {/* Phones: the bench opens as a bottom sheet over the move grid. */}
       {mode === 'switch' && isMobile && (
         <Sheet title="Switch to…" onClose={() => setMode('moves')}>
-          <Bench request={request} onChoose={onChoose} />
+          <Bench request={request} names={names} onChoose={onChoose} />
         </Sheet>
       )}
       <div className="grid grid-cols-2 gap-2 max-md:gap-1.5">
@@ -559,7 +573,7 @@ function MovePanel({ request, onChoose, onForfeit }: ChoiceProps & { onForfeit: 
   );
 }
 
-function Bench({ request, onChoose }: ChoiceProps) {
+function Bench({ request, names, onChoose }: ChoiceProps) {
   const mons = request.side.pokemon;
   const any = mons.some((p) => !p.active && !parseCondition(p.condition)?.fainted);
   return (
@@ -577,7 +591,7 @@ function Bench({ request, onChoose }: ChoiceProps) {
           >
             <PokeIcon name={speciesOf(p)} faded={fainted} />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-bold">{displayName(speciesOf(p))}{p.active && !fainted ? ' (in battle)' : ''}</div>
+              <div className="truncate text-sm font-bold">{nameOf(p, names)}{p.active && !fainted ? ' (in battle)' : ''}</div>
               <HpBar value={c?.hp ?? 0} max={c?.maxhp || 1} />
               <div className="text-right text-[11px] font-bold tabular-nums text-muted">{fainted ? 'Fainted' : `${c?.hp ?? 0}/${c?.maxhp ?? 0}`}</div>
             </div>
@@ -589,7 +603,7 @@ function Bench({ request, onChoose }: ChoiceProps) {
   );
 }
 
-function LeadPicker({ request, onChoose }: ChoiceProps) {
+function LeadPicker({ request, names, onChoose }: ChoiceProps) {
   const mons = request.side.pokemon;
   const [order, setOrder] = useState<number[]>([]);
   const toggle = (slot: number) => setOrder((o) => (o.includes(slot) ? o.filter((s) => s !== slot) : [...o, slot]));
@@ -617,7 +631,7 @@ function LeadPicker({ request, onChoose }: ChoiceProps) {
                 <span className="absolute left-1 top-1 rounded-full bg-poke-yellow px-1.5 text-xs font-bold text-cream-ink">{pos === 0 ? 'LEAD' : pos + 1}</span>
               )}
               <PokeSprite name={speciesOf(p)} side="p2" size={64} />
-              <span className="w-full truncate text-center text-xs font-bold">{displayName(speciesOf(p))}</span>
+              <span className="w-full truncate text-center text-xs font-bold">{nameOf(p, names)}</span>
             </button>
           );
         })}

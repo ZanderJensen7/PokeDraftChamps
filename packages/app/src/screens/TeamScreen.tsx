@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Sets } from '@pkmn/sets';
 import type { BattleSet, SpeciesId, StatsTable } from '@pdc/engine';
-import { getDraftMon, humanCoach } from '@pdc/engine';
+import { exportSetText, getDraftMon, humanCoach } from '@pdc/engine';
 import { useGame } from '../store/useGame';
 import {
   DialogueBox, GameButton, IconBadge, ItemIcon, ResponsiveDialog, Panel, PokeSprite, PriceBadge, RoleTags, StatBlock, TypePill, TypePills,
@@ -220,7 +220,7 @@ function SetEditor({ species, saved, showTera, isZCaptain }: {
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
         <div className="flex flex-wrap gap-2">
           <GameButton variant="ghost" size="sm" onClick={() => { setIoText(''); setIo('import'); }}>Import</GameButton>
-          <GameButton variant="ghost" size="sm" onClick={() => { setIoText(Sets.exportSet(draft)); setIo('export'); }}>Export</GameButton>
+          <GameButton variant="ghost" size="sm" onClick={() => { setIoText(exportSetText(draft, { teraCaptain: showTera })); setIo('export'); }}>Export</GameButton>
           <GameButton variant="ghost" size="sm" disabled={!dirty} onClick={() => setDraft(saved ?? null)}>Revert</GameButton>
         </div>
         <GameButton disabled={!dirty} onClick={save}>Save set</GameButton>

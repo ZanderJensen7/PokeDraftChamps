@@ -12,6 +12,12 @@ every package.json. The build stamp shows the version and short commit in the co
   results (settings, result, score; never battles or names).
 - Backend (`packages/api`): a Cloudflare Worker for the daily leaderboard and the opt-in run summaries, plus
   an optional cookieless page-view beacon. Neither is needed to play.
+- Battle: a Mega pick goes by its Mega name ("Mega Charizard X") in the lead picker, on the bench, on its HP box
+  and in the log's switch and faint lines, instead of its base species until it Mega Evolves.
+- Battle: weather and terrain chips and log lines show names ("Sun", "Rain", "Electric Terrain") instead of
+  protocol ids ("SunnyDay").
+- Team editor: the Showdown export carries a Tera Type line only for Tera captains; an imported Tera type on
+  anyone else is kept on the set but left out of the text.
 
 ## v0.3.1 — 2026-11-02
 
