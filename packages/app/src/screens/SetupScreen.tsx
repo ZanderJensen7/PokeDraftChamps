@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import type { LeagueConfig } from '@pdc/engine';
-import { DEFAULT_LEAGUE_CONFIG, validateLeagueConfig } from '@pdc/engine';
+import { applyStake, DEFAULT_LEAGUE_CONFIG, MAX_STAKE, rulesAt, STAKES, validateLeagueConfig } from '@pdc/engine';
 import { useGame } from '../store/useGame';
+import { useProfile } from '../store/profile';
 import { Crest, DialogueBox, GameButton, Panel, Segmented } from '../components/ui';
 import { leagueCode, randomSeed, seedFromCode } from '../game/names';
 
 type Teams = LeagueConfig['teams'];
 
 const PLAYOFF_OPTIONS: Record<Teams, number[]> = { 8: [4], 12: [4, 8], 16: [8] };
+/** Everyone plays everyone at most once (user ruling 2026-11-03), capped at 9 weeks for the bigger leagues. */
+const defaultWeeks = (t: Teams) => Math.min(t - 1, 9);
 
 function Slider({ label, value, min, max, onChange, hint }: {
   label: string; value: number; min: number; max: number; onChange: (v: number) => void; hint: string;
@@ -74,6 +77,35 @@ function Toggle({ label, on, onChange, hint }: { label: string; on: boolean; onC
   );
 }
 
+/** Stakes 1..MAX_STAKE; the ones above the unlocked stake are greyed out. */
+function StakePicker({ value, unlocked, onChange }: { value: number; unlocked: number; onChange: (v: number) => void }) {
+  return (
+    <div role="radiogroup" aria-label="Stake" className="grid grid-cols-5 gap-2 sm:grid-cols-10">
+      {STAKES.map(({ stake, label }) => {
+        const on = stake === value;
+        const locked = stake > unlocked;
+        return (
+          <button
+            key={stake}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            disabled={locked}
+            aria-label={locked ? `Stake ${stake}, locked: win stake ${stake - 1} to unlock` : `Stake ${stake}: ${label}`}
+            title={locked ? `Win stake ${stake - 1} to unlock` : label}
+            onClick={() => onChange(stake)}
+            className={`focus-ring min-h-11 rounded-xl border-2 border-b-4 px-1 py-2 text-center transition-transform duration-150 active:translate-y-0.5
+              ${on ? 'border-poke-yellow bg-panel-hi' : 'border-edge bg-panel-inset hover:bg-panel'}
+              disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-panel-inset disabled:active:translate-y-0`}
+          >
+            <span className={`font-display text-2xl font-bold leading-none max-sm:text-xl ${on ? 'text-poke-yellow' : 'text-ink'}`}>{stake}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 interface Preset { id: string; label: string; sub: string; megas: boolean; tera: number; z: number }
 const PRESETS: Preset[] = [
   { id: 'gen9', label: 'Gen 9 Draft', sub: 'No Megas · 2 Tera', megas: false, tera: 2, z: 0 },
@@ -84,11 +116,14 @@ export function SetupScreen() {
   const newLeague = useGame((s) => s.newLeague);
   const go = useGame((s) => s.go);
   const hasSave = useGame((s) => s.hasSave);
+  const stakeUnlocked = useProfile((s) => s.stakeUnlocked);
+  const [stake, setStake] = useState(stakeUnlocked);
   const [name, setName] = useState('Pallet Town Pidgeots');
   const [abbrev, setAbbrev] = useState('PAL');
   const [teams, setTeams] = useState<Teams>(DEFAULT_LEAGUE_CONFIG.teams);
   const [playoffTeams, setPlayoffTeams] = useState(DEFAULT_LEAGUE_CONFIG.playoffTeams);
-  const [weeks, setWeeks] = useState(DEFAULT_LEAGUE_CONFIG.weeks);
+  const [weeks, setWeeks] = useState(() => defaultWeeks(DEFAULT_LEAGUE_CONFIG.teams));
+  const [weeksTouched, setWeeksTouched] = useState(false);
   const [lossCap, setLossCap] = useState(DEFAULT_LEAGUE_CONFIG.lossCap);
   const [megas, setMegas] = useState(DEFAULT_LEAGUE_CONFIG.megas);
   const [teraCaptains, setTeraCaptains] = useState(DEFAULT_LEAGUE_CONFIG.teraCaptains);
@@ -101,8 +136,12 @@ export function SetupScreen() {
   const seed = seedFromCode(code);
   const tag = abbrev.trim().toUpperCase();
   const config: LeagueConfig = {
-    ...DEFAULT_LEAGUE_CONFIG, teams, weeks, playoffTeams, lossCap, megas, teraCaptains, zCaptains, rosterMin, rosterMax, captainMaxPoints,
+    ...DEFAULT_LEAGUE_CONFIG, teams, weeks, playoffTeams, lossCap, megas, teraCaptains, zCaptains, rosterMin, rosterMax, captainMaxPoints, stake,
   };
+  // What the run will actually play: the stake tightens the loss cap and the bracket where it is stricter.
+  const effective = applyStake(config);
+  const stakeRules = rulesAt(stake);
+  const nextLocked = stakeUnlocked < MAX_STAKE ? stakeUnlocked + 1 : null;
   const errors = validateLeagueConfig(config);
   const valid = name.trim().length >= 2 && /^[A-Z0-9]{3}$/.test(tag) && seed !== null && errors.length === 0;
   const activePreset = PRESETS.find((p) => p.megas === megas && p.tera === teraCaptains && p.z === zCaptains)?.id;
@@ -110,6 +149,7 @@ export function SetupScreen() {
 
   const pickTeams = (t: Teams) => {
     setTeams(t);
+    setWeeks(weeksTouched ? Math.min(weeks, t - 1) : defaultWeeks(t));
     const opts = PLAYOFF_OPTIONS[t];
     if (!opts.includes(playoffTeams)) setPlayoffTeams(opts[opts.length - 1]!);
   };
@@ -152,6 +192,35 @@ export function SetupScreen() {
         </div>
       </Panel>
 
+      <Panel title="Stake" aside={<span>{stakeUnlocked}/{MAX_STAKE} unlocked</span>}>
+        <StakePicker value={stake} unlocked={stakeUnlocked} onChange={setStake} />
+        {stake === 1 ? (
+          <p className="mt-3 text-sm text-muted">
+            The base game.{nextLocked !== null && ` Win the title at stake ${stakeUnlocked} to unlock stake ${nextLocked}.`}
+          </p>
+        ) : (
+          <>
+            <ol className="mt-3 space-y-1 text-sm">
+              {STAKES.slice(1, stake).map((s) => (
+                <li key={s.stake} className="flex gap-2">
+                  <span className="w-6 shrink-0 text-right font-display font-bold text-poke-yellow tabular-nums">{s.stake}</span>
+                  <span><span className="font-bold">{s.label}.</span> <span className="text-muted">{s.rule}</span></span>
+                </li>
+              ))}
+            </ol>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Fixed label="Loss cap" value={effective.lossCap} />
+              <Fixed label="Playoffs" value={`Top ${effective.playoffTeams}`} />
+              <Fixed label="AI budget" value={effective.budget + stakeRules.aiBudgetBonus} />
+              <Fixed label="Your budget" value={effective.budget} />
+            </div>
+            {nextLocked !== null && stake === stakeUnlocked && (
+              <p className="mt-2 text-sm text-muted">Win the title here to unlock stake {nextLocked}.</p>
+            )}
+          </>
+        )}
+      </Panel>
+
       <Panel title="League size">
         <Segmented
           label="League size"
@@ -171,13 +240,22 @@ export function SetupScreen() {
             onChange={setPlayoffTeams}
             options={PLAYOFF_OPTIONS[teams].map((n) => ({ value: n, label: `Top ${n}`, sub: n === 4 ? '2 rounds' : '3 rounds' }))}
           />
+          {effective.playoffTeams < playoffTeams && (
+            <p className="mt-1 text-sm font-semibold text-poke-yellow">Stake {stake}: only the top {effective.playoffTeams} make the playoffs.</p>
+          )}
         </div>
       </Panel>
 
       <Panel title="Season rules">
         <div className="grid gap-5 sm:grid-cols-2">
-          <Slider label="Weeks" value={weeks} min={4} max={12} onChange={setWeeks} hint="Regular-season matches before the playoffs." />
-          <Slider label="Loss cap" value={lossCap} min={2} max={6} onChange={setLossCap} hint={`Loss number ${lossCap + 1} ends the run.`} />
+          <Slider
+            label="Weeks" value={weeks} min={4} max={teams - 1}
+            onChange={(w) => { setWeeks(w); setWeeksTouched(true); }}
+            hint="Regular-season matches before the playoffs. At most one match against each coach."
+          />
+          <Slider label="Loss cap" value={lossCap} min={2} max={6} onChange={setLossCap} hint={effective.lossCap < lossCap
+            ? `Stake ${stake} caps it at ${effective.lossCap}: loss number ${effective.lossCap + 1} ends the run.`
+            : `Loss number ${lossCap + 1} ends the run.`} />
         </div>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
           <Stepper label="Roster min" value={rosterMin} min={6} max={14} onChange={setRosterMin} hint="Every coach drafts at least this many." />

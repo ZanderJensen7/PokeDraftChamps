@@ -115,6 +115,30 @@ describe('HeuristicPlayer', () => {
     expect(wins).toBeGreaterThanOrEqual(16);
     expect(avgMs).toBeLessThan(2000);
   }, 120_000);
+
+  it('aiKnowsSets (stake 4) wins more than half of 120 seeded games against the default AI', async () => {
+    // 60 team pairs, each played twice: the knowing AI takes each team once and each side once; same teams both games.
+    // Measured 116/200 and 118/200 on two seed ranges, against 96/200 and 104/200 for two identical AIs.
+    let wins = 0;
+    let games = 0;
+    for (let g = 1000; g < 1060; g++) {
+      const teamA = teamOf(pickSpecies(300 + g, 6), g);
+      const teamB = teamOf(pickSpecies(400 + g, 6), g + 50);
+      for (const knowerOnP1 of [true, false]) {
+        const knower = new HeuristicPlayer(g);
+        const plain = new HeuristicPlayer(g + 1000);
+        const o = await runBattle({
+          p1: { name: 'Alpha', team: teamA, player: knowerOnP1 ? knower : plain, teraCaptains: [], knowsOpponentSets: knowerOnP1 },
+          p2: { name: 'Beta', team: teamB, player: knowerOnP1 ? plain : knower, teraCaptains: [], knowsOpponentSets: !knowerOnP1 },
+          seed: new Rng(g).seed4(),
+        });
+        if (o.winner === (knowerOnP1 ? 'p1' : 'p2')) wins++;
+        games++;
+      }
+    }
+    console.log(`[battle] aiKnowsSets vs default: ${wins}/${games} wins`);
+    expect(wins).toBeGreaterThan(games / 2);
+  }, 300_000);
 });
 
 describe('interactive battle', () => {

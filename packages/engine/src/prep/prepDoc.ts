@@ -63,6 +63,15 @@ function listNames(doc: PrepDoc, side: 'you' | 'opp', ids: SpeciesId[]): string 
 
 /** Cheap plain-English heuristics, most important first, at most 8 lines. */
 export function threatSummary(doc: PrepDoc): string[] {
+  // An empty opposing roster only happens under fog of war (stake 7): claim nothing about it, only about your team.
+  if (doc.opp.length === 0) {
+    const noResist = ALL_TYPES.filter((t) => doc.matchup.you.rows.every((r) => (r.byType[t] ?? 1) >= 1));
+    return [
+      'Opp roster unknown under fog of war: you see their mons once they have been brought to a battle.',
+      ...(noResist.length > 0 ? [`Your team has no resist or immunity to ${noResist.join(', ')}.`] : []),
+    ];
+  }
+
   const lines: { priority: number; text: string }[] = [];
   const add = (priority: number, text: string) => lines.push({ priority, text });
 

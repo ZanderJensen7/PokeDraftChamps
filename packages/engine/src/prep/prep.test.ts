@@ -126,4 +126,13 @@ describe('prepDoc', () => {
     expect(lines.length).toBeLessThanOrEqual(8);
     expect(typeof lines[0]).toBe('string');
   });
+
+  it('threatSummary claims nothing about an opposing roster hidden by fog of war', async () => {
+    const doc = await buildPrepDoc({
+      you: ['greattusk', 'gholdengo', 'dragonite'].map((species) => ({ species, isTeraCaptain: false })), opp: [],
+    });
+    const lines = threatSummary(doc);
+    expect(lines[0]).toMatch(/roster unknown under fog of war/);
+    expect(lines.slice(1).every((l) => !/opp/i.test(l))).toBe(true);
+  });
 });

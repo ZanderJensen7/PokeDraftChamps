@@ -25,6 +25,11 @@ every package.json. The build stamp shows the version and short commit in the co
 - Mon detail sheet: tap a mon's icon or name on the draft board, hub rosters, prep doc, team editor, free agency
   or analytics for its abilities, base stats, speed tiers, type matchups, notable moves, full learnset (with a
   filter), likely sets and, for a league coach's mon, what their battles have revealed.
+- Stakes: ten difficulty levels on the setup screen, one added rule each (loss cap, smarter AI drafts, an AI
+  that knows your sets in battle, no Likely sets tab, +5 AI budget, fog of war, smaller playoffs, drafting
+  last); winning the title at a stake unlocks the next.
+- The season length now follows the league size: 7 weeks with 8 coaches, 9 with 12 or 16, and never more weeks
+  than there are other coaches, so nobody plays the same coach twice in the regular season.
 
 ## v0.3.1 — 2026-11-02
 

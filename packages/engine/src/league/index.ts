@@ -6,3 +6,4 @@ export * from './run';
 export * from './config';
 export * from './daily';
 export * from './summary';
+export * from './stakes';

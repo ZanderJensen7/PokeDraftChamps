@@ -39,23 +39,25 @@ still Showdown. A flat damage or stat bonus is never on the table.
 ### Stakes (ascension)
 A run is played at a stake. Win the title at stake N to unlock stake N+1. Each stake adds exactly one
 rule and keeps every rule below it. Stakes never use mutators: the ladder is about skill, not variance.
-The exact rules are a data table and will be tuned against humans; this is the shape:
+The rules are one data table (`engine/src/data/stakes.ts`, `STAKES` / `rulesAt`) and will be tuned against
+humans. Shipped ladder:
 
-| Stake | Added rule |
-|---|---|
-| 1 | Base game |
-| 2 | Loss cap 3 |
-| 3 | AI drafts with fit scoring (`prep/draftHelper` `rankPool`) |
-| 4 | AI switches on predicted KOs (battle AI lookahead) |
-| 5 | Prep doc loses the Likely Sets tab |
-| 6 | AI coaches get +5 budget |
-| 7 | Opposing rosters hidden until week 1; scouting only |
-| 8 | Playoffs take 6, not 8 |
-| 9 | Rival coaches get Mega / Z on top of your settings |
-| 10 | Loss cap 2 |
+| Stake | Added rule | Where it acts |
+|---|---|---|
+| 1 | Base game | the league as set up |
+| 2 | Loss cap 3 | `applyStake` (never loosens a lower league cap) |
+| 3 | AI drafts by fit, not just price | `aiChoosePick(..., { fit })` in `runAiDraftUntilHuman` |
+| 4 | AI knows your sets: the battle AI reads your real moves, item, ability and spread | `PlayerContext.opponentSets`, AI sides only (league sims and the human's battle) |
+| 5 | Prep doc loses the Likely sets tab | prep screen |
+| 6 | AI coaches get +5 budget | `createRun` |
+| 7 | Fog of war: you only see opposing mons once they have been brought to a battle | hub + prep (`visibleRoster`) |
+| 8 | Playoffs take the top quarter of the league | `applyStake` (8 → 2, 12 / 16 → 4, never above the setup's choice) |
+| 9 | You draft last in round 1 | `createRun` draft order |
+| 10 | Loss cap 2 | `applyStake` |
 
-Needs: a difficulty knob in `battle/heuristicPlayer.ts` and one in `draft/draft.ts` `aiChoosePick`
-(neither exists today), prep-doc gating, and `RunState.stake`.
+Winning the title at a stake unlocks the next (`pdc.profile.v1` `stakeUnlocked`). Stake 4 replaced a first
+"AI switches on predicted KOs" that measured at ~50% against the default AI; the knowing AI wins ~58% (see
+DECISIONS 2026-11-03). Rival Megas / Z on top of your settings (an early idea for stake 9) did not ship.
 
 ### Perk beats ("front office")
 At fixed beats — after the draft, after week 3, after week 6, and on making the playoffs — the player

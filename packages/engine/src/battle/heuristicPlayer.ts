@@ -57,7 +57,8 @@ const Z_PLAIN_WEAK = 40;
 
 /**
  * Rule-based AI. Moves are scored from damage calcs against an assumed opponent spread
- * (252 HP + its higher attacking stat, neutral nature, revealed item/ability), KO first,
+ * (252 HP + its higher attacking stat, neutral nature, revealed item/ability; the real sets when
+ * `ctx.opponentSets` is given), KO first,
  * with speed-order awareness, plus a small table for status, setup, hazards and recovery.
  * Seeded: the same seed and the same battle give the same choices.
  */
@@ -139,7 +140,7 @@ export class HeuristicPlayer implements BattlePlayer {
     if (!zs || !zs.some(Boolean)) return undefined;
     const { view, me, them, oppMon, active, activeSet } = sit;
     const ourMon = ownCalcMon(activeSet, active, me.boosts, false);
-    const oppCalc = oppCalcMon(oppMon, them.boosts);
+    const oppCalc = oppCalcMon(oppMon, them.boosts, oppSetOf(sit.ctx, oppMon));
     if (!ourMon || !oppCalc) return undefined;
     const field = makeField(view, me, them);
     const oppTypes = viewTypes(oppMon);
@@ -167,6 +168,7 @@ export class HeuristicPlayer implements BattlePlayer {
   private teamPreview(req: ParsedRequest, ctx: PlayerContext): string {
     const n = req.side.pokemon.length;
     const opp = ctx.opponentTeam.map(id => Dex.species.get(id)).filter(s => s.exists);
+    const oppSets = ctx.opponentSets;
     let bestIdx = 0;
     let bestScore = -Infinity;
     req.side.pokemon.forEach((p, i) => {
@@ -178,7 +180,13 @@ export class HeuristicPlayer implements BattlePlayer {
         spe: p.stats?.spe ?? stat100(sp.baseStats.spe), ability: set?.ability,
       };
       let score = 0;
-      for (const o of opp) score += pairScore(ours, { types: o.types, attacks: stabAttacks(o.types), spe: stat100(o.baseStats.spe) });
+      for (const o of opp) {
+        const known = oppSets?.find(s => toID(s.species) === o.id);
+        score += pairScore(ours, {
+          types: o.types, attacks: known ? attackTypesOfSet(known, o.types) : stabAttacks(o.types),
+          spe: stat100(o.baseStats.spe), ability: known?.ability,
+        });
+      }
       if (set?.moves.some(m => toID(m) === 'stealthrock')) score += 0.6;
       score += this.rng.next() * 0.3;
       if (score > bestScore) { bestScore = score; bestIdx = i; }
@@ -190,15 +198,16 @@ export class HeuristicPlayer implements BattlePlayer {
   // ---------- moves ----------
 
   private evaluateMoves(sit: Situation, tera: boolean): { evals: MoveEval[]; koFirst: boolean } {
-    const { req, view, me, them, oppMon, active, activeSet, megaForme } = sit;
+    const { req, ctx, view, me, them, oppMon, active, activeSet, megaForme } = sit;
     const ourMon = ownCalcMon(activeSet, active, me.boosts, tera, megaForme);
-    const oppCalc = oppCalcMon(oppMon, them.boosts);
+    const oppSet = oppSetOf(ctx, oppMon);
+    const oppCalc = oppCalcMon(oppMon, them.boosts, oppSet);
     if (!ourMon || !oppCalc) return { evals: [], koFirst: false };
     const ourHp = hpOf(active);
-    const threats = threatsAgainst(oppMon, oppCalc, ourMon, makeField(view, them, me));
+    const threats = threatsAgainst(oppMon, oppCalc, ourMon, makeField(view, them, me), oppSet);
     const bestThreat = Math.max(0, ...threats.map(t => t.pct));
     const ourSpe = effectiveSpeed(megaForme ? ourMon.stats.spe : (active.stats?.spe ?? 100), me.boosts.spe ?? 0, active.item, parseCondition(active.condition).status);
-    const theirSpe = oppSpeed(oppMon, them.boosts.spe ?? 0);
+    const theirSpe = oppSpeed(oppMon, them.boosts.spe ?? 0, oppSet && oppCalc);
     const weOutspeed = view.trickRoom ? ourSpe < theirSpe : ourSpe > theirSpe;
     const koFirstAt = (prio: number) => threats.some(t => t.pct >= ourHp && (t.prio > prio || (t.prio === prio && !weOutspeed)));
     const oppTypes = viewTypes(oppMon);
@@ -221,7 +230,7 @@ export class HeuristicPlayer implements BattlePlayer {
         const r = damagePct(ourMon, oppCalc, dm.name, field);
         let pct = r.avg;
         // An unrevealed ability might still make the target immune to this type.
-        if (!oppMon.ability && mayAbilityImmune(oppMon, dm.type)) pct *= 0.6;
+        if (!oppMon.ability && !oppSet && mayAbilityImmune(oppMon, dm.type)) pct *= 0.6;
         if (typeMultiplier(dm.type, oppTypes, oppMon.ability) === 0 && dm.id !== 'thousandarrows') pct = 0;
         const koChance = r.max >= oppHp ? (r.min >= oppHp ? 1 : Math.max(0.3, (r.max - oppHp) / Math.max(1, r.max - r.min))) : 0;
         if (koChance > 0 && pct > 0) score = (koFirst ? 150 : 1000) * acc * (0.7 + 0.3 * koChance) + dm.priority * 10;
@@ -235,7 +244,7 @@ export class HeuristicPlayer implements BattlePlayer {
         if (pct === 0) score = 0;
         dealt = pct;
       } else {
-        score = this.statusScore(sit, dm, ourHp, bestThreat, koFirst, oppTypes) * acc;
+        score = this.statusScore(sit, dm, ourHp, bestThreat, koFirst, oppTypes, oppSet && oppCalc) * acc;
       }
       evals.push({ slot, score: score + this.rng.next() * 2, tera, pct: dealt });
     }
@@ -243,7 +252,7 @@ export class HeuristicPlayer implements BattlePlayer {
     return { evals, koFirst: koFirstAt(0) };
   }
 
-  private statusScore(sit: Situation, dm: DexMove, ourHp: number, bestThreat: number, koFirst: boolean, oppTypes: string[]): number {
+  private statusScore(sit: Situation, dm: DexMove, ourHp: number, bestThreat: number, koFirst: boolean, oppTypes: string[], oppReal?: Pokemon): number {
     const { me, them, oppMon, ctx } = sit;
     const id = dm.id;
     const oppAlive = Math.max(1, ctx.opponentTeam.length - [...them.mons.values()].filter(m => m.fainted).length);
@@ -278,18 +287,19 @@ export class HeuristicPlayer implements BattlePlayer {
     }
 
     if (dm.status) {
-      if (oppMon.status || subbed || statusBlocked(oppMon)) return 0;
+      const known = oppSetOf(ctx, oppMon);
+      if (oppMon.status || subbed || statusBlocked(oppMon, known)) return 0;
       if (!Dex.getImmunity(dm.status, oppTypes) || !Dex.getImmunity(dm.type, oppTypes)) return 0;
       if (dm.flags.powder && oppTypes.includes('Grass')) return 0;
       if ((dm.status === 'psn' || dm.status === 'tox') && (oppTypes.includes('Poison') || oppTypes.includes('Steel'))) return 0;
       // Sleep Clause: only one opposing mon asleep at a time.
       if (dm.status === 'slp' && [...them.mons.values()].some(m => m.status === 'slp')) return 0;
       const sp = Dex.species.get(oppMon.forme);
-      const physical = sp.exists && sp.baseStats.atk > sp.baseStats.spa;
+      const physical = known ? isPhysicalSet(known) : sp.exists && sp.baseStats.atk > sp.baseStats.spa;
       switch (dm.status) {
         case 'slp': return 65;
         case 'brn': return physical ? 55 : 22;
-        case 'par': return oppSpeed(oppMon, them.boosts.spe ?? 0) > (sit.active.stats?.spe ?? 0) ? 45 : 20;
+        case 'par': return oppSpeed(oppMon, them.boosts.spe ?? 0, oppReal) > (sit.active.stats?.spe ?? 0) ? 45 : 20;
         case 'tox': return 45;
         default: return 25;
       }
@@ -319,11 +329,12 @@ export class HeuristicPlayer implements BattlePlayer {
     const them = view.sides[ctx.side === 'p1' ? 'p2' : 'p1'];
     const boosts = entering ? {} : me.boosts;
     const ours = ownCalcMon(set, p, boosts, false, megaForme);
-    const opp = oppCalcMon(oppMon, them.boosts);
+    const oppSet = oppSetOf(ctx, oppMon);
+    const opp = oppCalcMon(oppMon, them.boosts, oppSet);
     if (!ours || !opp) return { value: -50, survives: false };
     let hp = hpOf(p);
     if (entering) hp -= hazardCost(me, ours, toID(p.item));
-    const incoming = Math.max(0, ...threatsAgainst(oppMon, opp, ours, makeField(view, them, me)).map(t => t.pct));
+    const incoming = Math.max(0, ...threatsAgainst(oppMon, opp, ours, makeField(view, them, me), oppSet).map(t => t.pct));
     const field = makeField(view, me, them);
     let out = 0;
     for (const name of set.moves) {
@@ -332,7 +343,7 @@ export class HeuristicPlayer implements BattlePlayer {
       out = Math.max(out, Math.min(damagePct(ours, opp, m.name, field).avg, oppMon.hpPct));
     }
     const ourSpe = effectiveSpeed(p.stats?.spe ?? 100, boosts.spe ?? 0, p.item, parseCondition(p.condition).status);
-    const theirSpe = oppSpeed(oppMon, them.boosts.spe ?? 0);
+    const theirSpe = oppSpeed(oppMon, them.boosts.spe ?? 0, oppSet && opp);
     const faster = view.trickRoom ? ourSpe < theirSpe : ourSpe > theirSpe;
     const survives = incoming < hp;
     // A mon switching in takes the hit before acting, so incoming damage weighs more.
@@ -392,13 +403,39 @@ function speciesOf(m: MonView) {
   return byForme.exists ? byForme : Dex.species.get(m.speciesId);
 }
 
-function oppCalcMon(m: MonView, boosts: Record<string, number>): Pokemon | undefined {
+/** The opponent's real set for a mon on the field, when this side knows it (stake rule aiKnowsSets). */
+function oppSetOf(ctx: PlayerContext, m: MonView): BattleSet | undefined {
+  const sets = ctx.opponentSets;
+  if (!sets) return undefined;
+  return sets.find(s => (s.name || s.species) === m.name) ?? sets.find(s => toID(s.species) === m.speciesId);
+}
+
+function isPhysicalSet(set: BattleSet): boolean {
+  let phys = 0;
+  let spec = 0;
+  for (const name of set.moves) {
+    const c = Dex.moves.get(name).category;
+    if (c === 'Physical') phys++;
+    else if (c === 'Special') spec++;
+  }
+  return phys >= spec;
+}
+
+/**
+ * Calc mon for the opponent's active. Without its set: 252 HP + its higher attacking stat, neutral nature, the revealed
+ * item and ability. With `set` (stake rule aiKnowsSets): the real spread, nature, item and ability.
+ */
+function oppCalcMon(m: MonView, boosts: Record<string, number>, set?: BattleSet): Pokemon | undefined {
   const sp = speciesOf(m);
   if (!sp.exists) return undefined;
-  const evs = sp.baseStats.atk >= sp.baseStats.spa ? { hp: 252, atk: 252 } : { hp: 252, spa: 252 };
+  const evs = set?.evs ?? (sp.baseStats.atk >= sp.baseStats.spa ? { hp: 252, atk: 252 } : { hp: 252, spa: 252 });
+  // A Mega's set lists its base species and ability; the Mega's own ability shows once it evolves.
+  const setAbility = set && toID(set.species) === toID(sp.name) ? set.ability : undefined;
+  const item = m.item !== undefined ? m.item || undefined : set?.item || undefined;
   try {
     const p = new Pokemon(GEN, sp.name, {
-      level: 100, evs, nature: 'Hardy', ability: m.ability ?? sp.abilities[0], item: m.item || undefined,
+      level: set?.level || 100, evs, ivs: set?.ivs, nature: set?.nature || 'Hardy',
+      ability: m.ability ?? setAbility ?? sp.abilities[0], item,
       boosts: calcBoosts(boosts), status: calcStatus(m.status), teraType: (m.teraType || undefined) as Pokemon['teraType'],
     });
     p.originalCurHP = Math.max(1, Math.round(p.maxHP() * m.hpPct / 100));
@@ -408,12 +445,14 @@ function oppCalcMon(m: MonView, boosts: Record<string, number>): Pokemon | undef
   }
 }
 
-function threatsAgainst(oppMon: MonView, oppCalc: Pokemon, ourMon: Pokemon, field: Field): Threat[] {
+/** The opponent's damaging moves against us: its real moves when its set is known, else revealed moves plus a STAB stand-in per type. */
+function threatsAgainst(oppMon: MonView, oppCalc: Pokemon, ourMon: Pokemon, field: Field, set?: BattleSet): Threat[] {
   const names = new Set<string>();
-  for (const id of oppMon.moves) {
+  for (const id of [...oppMon.moves, ...(set?.moves ?? [])]) {
     const m = Dex.moves.get(id);
     if (m.exists && m.category !== 'Status') names.add(m.name);
   }
+  if (set) return [...names].map(n => ({ pct: damagePct(oppCalc, ourMon, n, field).avg, prio: Dex.moves.get(n).priority }));
   const sp = speciesOf(oppMon);
   const physical = !sp.exists || sp.baseStats.atk >= sp.baseStats.spa;
   const types = new Set(viewTypes(oppMon));
@@ -457,8 +496,9 @@ function effectiveSpeed(stat: number, stage: number, item: string, status: strin
   return s;
 }
 
-function oppSpeed(m: MonView, stage: number): number {
-  return effectiveSpeed(stat100(speciesOf(m).baseStats.spe), stage, m.item ?? '', m.status);
+/** The opponent's effective speed: `real`'s stat when its set is known, else a max-speed guess. */
+function oppSpeed(m: MonView, stage: number, real?: Pokemon): number {
+  return effectiveSpeed(real?.rawStats.spe ?? stat100(speciesOf(m).baseStats.spe), stage, m.item ?? real?.item ?? '', m.status);
 }
 
 function mayAbilityImmune(m: MonView, type: string): boolean {
@@ -466,8 +506,9 @@ function mayAbilityImmune(m: MonView, type: string): boolean {
   return sp.exists && Object.values(sp.abilities).some(a => !!a && typeMultiplier(type, ['Normal'], a) === 0 && type !== 'Ghost');
 }
 
-function statusBlocked(m: MonView): boolean {
+function statusBlocked(m: MonView, set?: BattleSet): boolean {
   if (m.ability) return STATUS_BLOCKING_ABILITIES.has(toID(m.ability));
+  if (set) return STATUS_BLOCKING_ABILITIES.has(toID(set.ability));
   const sp = speciesOf(m);
   return sp.exists && Object.values(sp.abilities).some(a => STATUS_BLOCKING_ABILITIES.has(toID(a)));
 }

@@ -36,6 +36,15 @@ Each line is one job. Sessions are started from the top; three at a time at most
    `aiChoosePick` (fit scoring via `prep/draftHelper`); loss cap, AI budget, prep-doc gating, playoff size;
    stake picker on the setup screen; win at N unlocks N+1 in a profile store. Also answers "loss cap 4 vs
    equal-strength AI eliminates most runs".
+   SHIPPED 2026-11-02 (branch `claude/stakes-85a96b`): `data/stakes.ts` (10 levels), `applyStake`, save v4,
+   `DraftState.budgets`, fit-scored AI picks, `visibleRoster` fog, `pdc.profile.v1`, setup Stake panel, top bar /
+   end screen. Stake 4 is now "AI knows your sets" (`PlayerContext.opponentSets`): 116/200 and 118/200 wins vs
+   the default AI, against 96/200 and 104/200 for identical AIs (the first stake 4, switch on predicted KOs,
+   measured ~50% and was removed). Season weeks default to min(coaches − 1, 9). The prep threat summary says
+   "roster unknown under fog of war" for an empty fogged roster; `docs/ROGUELIKE.md` matches the shipped
+   ladder. Open: fog during the draft screen (all AI picks still shown; the mobile session owns that file);
+   `exportSave` leaves the profile out (item 6 covers profile export); with a partly scouted roster the threat
+   summary still reads absences ("opp has no hazard removal") from the mons seen so far.
 2. **Battle polish bundle.** SHIPPED 2026-11-02 (branch `claude/reverent-mirzakhani-692141`, see the done log). A Mega shows its base name in the lead picker / after fainting (map by roster id);
    weather label prints raw ids ("SunnyDay"); export writes a Tera Type line for non-captains.
 3. **Mobile bundle.** SHIPPED 2026-11-02 except the real-phone install check (see the done log). The "what everyone drafted" view cannot scroll all the way; landscape battle HP boxes

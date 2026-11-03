@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { Coach, Match, RunState, SpeciesId } from '@pdc/engine';
+import type { Coach, CoachId, Match, RosterEntry, RunState, SpeciesId } from '@pdc/engine';
 import {
   computeStandings, conflictsWithRoster, getDraftMon, humanCoach, nextHumanMatch, opponentOf, regularSeasonRecord,
+  rulesAt, visibleRoster,
 } from '@pdc/engine';
 import { useGame, weekLabel } from '../store/useGame';
 import { getBridge } from '../game/bridge';
@@ -10,14 +11,15 @@ import { StandingsTable } from '../components/StandingsTable';
 import { Bracket } from '../components/Bracket';
 import { CaptainPicker } from '../components/CaptainPicker';
 import { MonDetailButton, MonInfoButton } from '../components/MonDetail';
+import { FogNote } from '../components/FogNote';
 import { hasPlayedMatches } from '../analytics/useAnalytics';
 import { abbrevOf, coachName, displayName, rolesOf, scoreLine } from '../game/names';
 
-function RosterRow({ coach, tone }: { coach: Coach; tone: 'you' | 'opp' }) {
+function RosterRow({ roster, coachId, tone }: { roster: readonly RosterEntry[]; coachId: CoachId; tone: 'you' | 'opp' }) {
   return (
     <div className="flex flex-wrap gap-1">
-      {coach.roster.map((r) => (
-        <MonDetailButton key={r.species} species={r.species} coachId={coach.id}>
+      {roster.map((r) => (
+        <MonDetailButton key={r.species} species={r.species} coachId={coachId}>
           <IconBadge
             name={getDraftMon(r.species)?.name ?? r.species}
             tone={tone}
@@ -37,6 +39,7 @@ function recordText(run: RunState, id: string): string {
 function MatchupCard({ run, match }: { run: RunState; match: Match }) {
   const human = humanCoach(run);
   const opp = opponentOf(run, match);
+  const oppRoster = visibleRoster(run, opp.id, rulesAt(run.config.stake).fogOfWar ? getBridge().scout?.(run, opp.id) : undefined);
   const go = useGame((s) => s.go);
   const openOverlay = useGame((s) => s.openOverlay);
   return (
@@ -50,7 +53,7 @@ function MatchupCard({ run, match }: { run: RunState; match: Match }) {
               <div className="text-sm text-muted">{recordText(run, human.id)} · {human.pointsSpent} pts</div>
             </div>
           </div>
-          <RosterRow coach={human} tone="you" />
+          <RosterRow roster={human.roster} coachId={human.id} tone="you" />
         </div>
         <div className="flex items-center gap-3 self-center font-display text-3xl font-bold text-poke-yellow sm:block sm:text-center">
           <span className="h-1 flex-1 rounded-full bg-edge-dark sm:hidden" />
@@ -65,7 +68,8 @@ function MatchupCard({ run, match }: { run: RunState; match: Match }) {
               <div className="text-sm text-muted">{recordText(run, opp.id)} · {opp.pointsSpent} pts</div>
             </div>
           </div>
-          <div className="sm:flex sm:justify-end"><RosterRow coach={opp} tone="opp" /></div>
+          <div className="sm:flex sm:justify-end"><RosterRow roster={oppRoster} coachId={opp.id} tone="opp" /></div>
+          <FogNote shown={oppRoster.length} total={opp.roster.length} />
         </div>
       </div>
       <div className="mt-4 grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end">

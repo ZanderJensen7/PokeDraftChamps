@@ -3,6 +3,7 @@ import { Dex } from '@pkmn/dex';
 import type { CoachId, DraftMon, DraftState, LeagueConfig, SpeciesId, TypeName } from '../types';
 import type { Rng } from '../league/rng';
 import { buildDraftPool } from './pool';
+import { FIT_WEIGHTS, rankPool } from '../prep/draftHelper';
 
 type DraftConfig = Pick<LeagueConfig, 'budget' | 'rosterMin' | 'rosterMax'>;
 type Pool = readonly DraftMon[];
@@ -19,6 +20,7 @@ export const AI_DRAFT_DIALS = {
   wantFast: 3,
   wantBulky: 3,
   noise: 2,             // max random score added per candidate
+  fitWeight: 0.25,      // with the fit option (stake 3+): score += (fitScore - FIT_WEIGHTS.base) * fitWeight
 } as const;
 
 /**
@@ -101,6 +103,11 @@ export function coachPointsSpent(draft: DraftState, coach: CoachId): number {
   return draft.picks.reduce((s, p) => (p.coach === coach ? s + p.points : s), 0);
 }
 
+/** A coach's whole draft budget: draft.budgets[coach] when set (stake AI bonus), else config.budget. */
+export function budgetOf(draft: DraftState, coach: CoachId, config: Pick<LeagueConfig, 'budget'>): number {
+  return draft.budgets?.[coach] ?? config.budget;
+}
+
 /**
  * Points a coach must keep back per roster slot still to fill after this pick. It is the price of
  * the (remaining-draft-picks)-th cheapest available mon: even if every later pick took the cheapest
@@ -122,7 +129,7 @@ export function reservePerSlot(draft: DraftState, config: DraftConfig, pool: Poo
  */
 export function maxAffordable(draft: DraftState, coach: CoachId, config: DraftConfig, pool: Pool): number {
   const slotsAfter = Math.max(0, config.rosterMin - ownedCount(draft, coach) - 1);
-  return config.budget - coachPointsSpent(draft, coach) - slotsAfter * reservePerSlot(draft, config, pool);
+  return budgetOf(draft, coach, config) - coachPointsSpent(draft, coach) - slotsAfter * reservePerSlot(draft, config, pool);
 }
 
 function legalMons(draft: DraftState, coach: CoachId, config: DraftConfig, pool: Pool): DraftMon[] {
@@ -243,7 +250,7 @@ export function aiWantsToStop(draft: DraftState, coach: CoachId, config: DraftCo
   const owned = ownedCount(draft, coach);
   if (owned < config.rosterMin || owned >= config.rosterMax) return false;
   if (owned >= target) return true;
-  return (config.budget - coachPointsSpent(draft, coach)) / (target - owned) < AI_STOP_DIALS.minPointsPerOpenSlot;
+  return (budgetOf(draft, coach, config) - coachPointsSpent(draft, coach)) / (target - owned) < AI_STOP_DIALS.minPointsPerOpenSlot;
 }
 
 // ---- AI drafter ----
@@ -277,10 +284,12 @@ const isSpecial = (m: DraftMon): boolean => m.baseStats.spa > m.baseStats.atk + 
  * (early rounds aim high, late rounds fill cheap; overshooting costs more than undershooting),
  * plus role needs (a few fast mons, a few bulky ones, physical/special balance), a type-diversity
  * bonus, a penalty for stacking a shared weakness, a bonus for patching one, and seeded noise.
- * Prices are planned for a roster of `aim` mons (aiRosterTarget; default rosterMax).
+ * Prices are planned for a roster of `aim` mons (aiRosterTarget; default rosterMax). With `opts.fit` (stake 3+)
+ * each candidate also gets the draft helper's fit score (rankPool) above its base, times AI_DRAFT_DIALS.fitWeight.
  */
 export function aiChoosePick(
   draft: DraftState, coach: CoachId, config: DraftConfig, pool: Pool, rng: Rng, aim: number = config.rosterMax,
+  opts: { fit?: boolean } = {},
 ): SpeciesId {
   const legal = legalMons(draft, coach, config, pool);
   if (legal.length === 0) throw new Error(`${coach} has no legal pick`);
@@ -288,7 +297,7 @@ export function aiChoosePick(
   const roster = coachPicks(draft, coach).map((id) => byId.get(id)).filter((m): m is DraftMon => !!m);
   const plan = Math.max(roster.length + 1, Math.min(config.rosterMax, aim));
   const slotsLeft = plan - roster.length; // including this pick
-  const budgetLeft = config.budget - coachPointsSpent(draft, coach);
+  const budgetLeft = budgetOf(draft, coach, config) - coachPointsSpent(draft, coach);
   const cap = maxAffordable(draft, coach, config, pool);
   const earlyBoost = 1 + 0.5 * (slotsLeft - 1) / Math.max(1, plan - 1);
   const target = Math.min(cap, (budgetLeft / slotsLeft) * earlyBoost);
@@ -304,10 +313,17 @@ export function aiChoosePick(
     for (const t of matchupOf(m).weak) weakCount.set(t, (weakCount.get(t) ?? 0) + 1);
   }
 
+  const fit = new Map<SpeciesId, number>();
+  if (opts.fit) {
+    for (const r of rankPool(roster.map((m) => m.id), legal.map((m) => m.id), budgetLeft)) fit.set(r.species, r.fitScore);
+  }
+
   let best: DraftMon | undefined;
   let bestScore = -Infinity;
   for (const m of legal) {
     let s = m.points + (m.bst - 500) / 100;
+    const f = fit.get(m.id);
+    if (f !== undefined) s += (f - FIT_WEIGHTS.base) * AI_DRAFT_DIALS.fitWeight;
     const diff = m.points - target;
     s -= diff > 0 ? diff * 1.3 : -diff * 0.5;
     if (isFast(m)) s += fast < AI_DRAFT_DIALS.wantFast ? 2.5 : fast < AI_DRAFT_DIALS.wantFast + 1 ? 1 : 0;

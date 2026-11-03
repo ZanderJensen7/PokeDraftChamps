@@ -26,11 +26,13 @@ export interface LeagueConfig {
   captainMaxPoints: number;
   lossCap: number;          // regular-season losses allowed before the run ends, default 4
   freeAgencyMoves: number;  // per season, default 2
+  /** Difficulty ladder level, 1..MAX_STAKE (data/stakes.ts). Default 1 = the base game. */
+  stake: number;
 }
 
 export const DEFAULT_LEAGUE_CONFIG: LeagueConfig = {
   teams: 16, weeks: 9, playoffTeams: 8, budget: 120, rosterMin: 9, rosterMax: 11,
-  teraCaptains: 2, zCaptains: 0, megas: false, captainMaxPoints: 14, lossCap: 4, freeAgencyMoves: 2,
+  teraCaptains: 2, zCaptains: 0, megas: false, captainMaxPoints: 14, lossCap: 4, freeAgencyMoves: 2, stake: 1,
 };
 
 /** One draftable species as it appears in the pool / on a roster card. */
@@ -219,6 +221,8 @@ export interface DraftState {
   /** Species still undrafted (also the free-agent pool after the draft). */
   available: SpeciesId[];
   complete: boolean;
+  /** Per-coach draft budgets where they differ from config.budget (stake AI bonus). Absent coach = config.budget. */
+  budgets?: Record<CoachId, number>;
 }
 
 /** The whole run (one league). JSON-friendly; every run function returns a new object. */

@@ -8,13 +8,14 @@ import type {
 import {
   buildPrepDoc, computeStandings, createRun, dailyDate, dailyInfo, deserializeRun, draftPick, draftStop,
   finishDraft, freeAgency, humanCoach, nextHumanMatch, opponentOf, playoffRoundName, resolveWeek, resultLabel,
-  runAiDraftUntilHuman, serializeRun, setCaptains, summarizeRun,
+  runAiDraftUntilHuman, serializeRun, setCaptains, summarizeRun, visibleRoster,
 } from '@pdc/engine';
 import { downloadText } from '../game/download';
 import { getBridge, type PlayHumanMatchArgs } from '../game/bridge';
 import { isZCrystal, updateHumanSet } from '../game/sets';
 import { apiEnabled, postDailyScore, postRunSummary } from '../game/api';
 import { cleanNickname, motionReduced, useSettings } from './settings';
+import { useProfile } from './profile';
 
 export type Screen =
   | 'title' | 'setup' | 'draft' | 'hub' | 'team' | 'prep' | 'battle' | 'recap' | 'end' | 'settings' | 'analytics'
@@ -491,7 +492,8 @@ export const useGame = create<GameStore>((set, get) => ({
     set({ prepLoading: true });
     try {
       const scout = getBridge().scout?.(run, opp.id);
-      const doc = await buildPrepDoc({ you: human.roster, opp: opp.roster, scout });
+      // Fog of war (stake 7+): the doc only covers the opposing mons already seen in a stored battle.
+      const doc = await buildPrepDoc({ you: human.roster, opp: visibleRoster(run, opp.id, scout), scout });
       set({ prep: doc, prepKey: key, prepLoading: false });
     } catch (e) {
       set({ prepLoading: false, toast: `Prep failed: ${errText(e)}` });
@@ -610,7 +612,8 @@ export const useGame = create<GameStore>((set, get) => ({
   },
 }));
 
-// Persist the run on every change, in its slot (daily or league); a run that just ended may upload its summary.
+// Persist the run on every change, in its slot (daily or league); a run that just ended may upload its summary
+// and may unlock the next stake.
 useGame.subscribe((s, prev) => {
   if (s.run === prev.run || !s.run) return;
   const run = s.run;
@@ -625,4 +628,5 @@ useGame.subscribe((s, prev) => {
     useGame.setState({ toast: 'Could not save to this browser (storage full or blocked). Use Export save.' });
   }
   maybeUploadSummary(run);
+  useProfile.getState().recordRunEnd(run);
 });
