@@ -12,6 +12,11 @@ every package.json. The build stamp shows the version and short commit in the co
   of the same species (a Mega pick by its Mega name or its stone). Illegal moves, over-cap EVs, Z-Crystals on
   non-Z captains and stray Mega Stones are skipped and listed by name; level is forced to 100; a Tera Type on a
   non-captain is kept but flagged. "Export all" copies the whole roster as Showdown text.
+- Team editor, Showdown-teambuilder style: recommended sets open up front (Smogon's first, then the randoms
+  roles; "Use this set" or "Merge moves only"); a sortable, filterable move table with type, category, power,
+  accuracy, PP and effect, STAB marked and the full description, priority and flags one tap away (a list with a
+  bottom sheet on phones); ability and item effects shown, the item picker searchable; and a live Level 100 stats
+  panel with the nature's +/-, the EVs left and where your Speed lands against the league.
 - Team editor: sample sets per Pokemon (Smogon's Gen 9 sets when online, the randoms role sets always), a searchable
   legal-move picker, EV presets by role with the EVs left to spend, the nature's +/- stats, and common
   competitive items first in the item list.

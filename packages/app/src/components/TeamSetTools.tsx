@@ -1,65 +1,80 @@
-// Team editor extras: the legal-move picker, sample sets, and whole-roster Showdown import / export.
+// Team editor extras: recommended (sample) sets and whole-roster Showdown import / export.
 import { useEffect, useMemo, useState } from 'react';
-import type { BattleSet, ImportReport, RosterEntry, SampleSet } from '@pdc/engine';
-import { exportSetText, getDraftMon, importRosterSets, loadSampleSets, setRulesFor } from '@pdc/engine';
+import type { BattleSet, ImportReport, RosterEntry, SampleSet, StatsTable } from '@pdc/engine';
+import { exportSetText, getDraftMon, importRosterSets, loadSampleSets, randomsSampleSets, setRulesFor } from '@pdc/engine';
 import { useGame } from '../store/useGame';
-import { GameButton, ResponsiveDialog, TypePill } from './ui';
+import { GameButton, ItemIcon, ResponsiveDialog, TypePill, typeColor } from './ui';
 import { displayName } from '../game/names';
-import { moveInfo } from '../game/sets';
+import { STAT_LABEL, STAT_NAMES, moveInfo } from '../game/sets';
 
-/** Search box + every legal move of the mon (type, category, power); picking one fills the slot. */
-export function MovePickerDialog({ moves, taken, onPick, onClose }: {
-  moves: string[] | null; taken: string[]; onPick: (move: string) => void; onClose: () => void;
-}) {
-  const [query, setQuery] = useState('');
-  const rows = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return (moves ?? [])
-      .filter((m) => !taken.some((t) => t.toLowerCase() === m.toLowerCase()))
-      .map((m) => ({ name: m, info: moveInfo(m) }))
-      .filter((r) => !q || r.name.toLowerCase().includes(q) || r.info?.type.toLowerCase().startsWith(q) || r.info?.category.toLowerCase().startsWith(q));
-  }, [moves, taken, query]);
+const OPEN_KEY = 'pdc.sampleSetsOpen';
+let openPref: boolean | null = null;
+
+/** The panel's last open / closed choice this browser session (sessionStorage, with a module copy when it is blocked). */
+function readOpenPref(): boolean | null {
+  if (openPref !== null) return openPref;
+  try {
+    const v = sessionStorage.getItem(OPEN_KEY);
+    return v === null ? null : v === '1';
+  } catch {
+    return null;
+  }
+}
+
+function writeOpenPref(open: boolean): void {
+  openPref = open;
+  try { sessionStorage.setItem(OPEN_KEY, open ? '1' : '0'); } catch { /* storage blocked: the module copy still holds */ }
+}
+
+function evSummary(evs: Partial<StatsTable> | undefined): string {
+  return STAT_NAMES.filter((k) => (evs?.[k] ?? 0) > 0).map((k) => `${evs![k]} ${STAT_LABEL[k]}`).join(' / ') || 'no EVs';
+}
+
+function SampleCard({ sample, showTera, onUse, onMerge }: { sample: SampleSet; showTera: boolean; onUse: () => void; onMerge: () => void }) {
+  const s = sample.set;
   return (
-    <ResponsiveDialog title="Pick a move" onClose={onClose} full>
-      <input
-        autoFocus
-        type="search"
-        className="field mb-2 w-full"
-        placeholder="Search by name, type or Physical / Special / Status"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        aria-label="Search moves"
-      />
-      {moves === null ? <p className="text-sm text-muted">Loading moves…</p> : (
-        <ul className="max-h-[55vh] space-y-1 overflow-y-auto" aria-label="Legal moves">
-          {rows.map(({ name, info }) => (
-            <li key={name}>
-              <button
-                type="button"
-                onClick={() => onPick(name)}
-                className="focus-ring flex min-h-11 w-full items-center gap-2 rounded-lg border-2 border-transparent bg-panel-inset px-2 text-left hover:border-edge"
-              >
-                <span className="flex-1 font-semibold">{name}</span>
-                {info && (
-                  <>
-                    <TypePill type={info.type} size="xs" />
-                    <span className="w-20 text-right text-xs text-muted">{info.category === 'Status' ? 'Status' : `${info.power || '—'} ${info.category.slice(0, 4)}`}</span>
-                  </>
-                )}
-              </button>
+    <li className="rounded-lg border-2 border-edge bg-panel-inset p-2 max-md:w-[82%] max-md:shrink-0 max-md:snap-start">
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <span className="font-display text-base font-bold">{sample.label}</span>
+        <span className="text-xs font-bold uppercase tracking-wide text-muted">{sample.source}</span>
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+        {s.item && <span className="flex items-center gap-1"><ItemIcon name={s.item} /><span className="font-semibold">{s.item}</span></span>}
+        {s.ability && <span><span className="text-muted">Ability</span> <span className="font-semibold">{s.ability}</span></span>}
+        {s.nature && <span><span className="text-muted">Nature</span> <span className="font-semibold">{s.nature}</span></span>}
+        {showTera && s.teraType && <span className="flex items-center gap-1"><span className="text-muted">Tera</span><TypePill type={s.teraType} size="xs" /></span>}
+      </div>
+      <div className="mt-0.5 text-xs"><span className="text-muted">EVs</span> <span className="font-semibold">{evSummary(s.evs)}</span></div>
+      <ul className="mt-1.5 flex flex-wrap gap-1" aria-label="Moves">
+        {(s.moves ?? []).map((m) => {
+          const info = moveInfo(m);
+          return (
+            <li key={m} className="flex items-center gap-1 rounded-full bg-panel-hi px-2 py-0.5 text-xs font-semibold">
+              {info && <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: typeColor(info.type) }} />}
+              {m}
             </li>
-          ))}
-          {!rows.length && <li className="py-3 text-center text-sm text-muted">{query ? 'No legal move matches.' : 'No moves left to pick.'}</li>}
-        </ul>
-      )}
-    </ResponsiveDialog>
+          );
+        })}
+      </ul>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <GameButton size="sm" onClick={onUse}>Use this set</GameButton>
+        <GameButton size="sm" variant="ghost" onClick={onMerge} title="Keep your set; fill empty move slots with this set's moves">Merge moves only</GameButton>
+      </div>
+    </li>
   );
 }
 
-/** Smogon + randoms sample sets for a mon; picking one hands the partial set to the editor. */
-export function SampleSets({ entry, onPick }: { entry: RosterEntry; onPick: (s: SampleSet) => void }) {
-  const [open, setOpen] = useState(false);
+/**
+ * Recommended sets for a mon: the randoms role sets at once, Smogon's when they arrive (listed first). Every mon starts
+ * on a generated default set, so the panel is open until the player closes it; that choice sticks for the session.
+ */
+export function SampleSets({ entry, showTera, onPick, onMerge }: {
+  entry: RosterEntry; showTera: boolean; onPick: (s: SampleSet) => void; onMerge: (s: SampleSet) => void;
+}) {
+  const [open, setOpenState] = useState(() => readOpenPref() ?? true);
   const [sets, setSets] = useState<SampleSet[] | null>(null);
+  const randoms = useMemo(() => randomsSampleSets(entry.species), [entry.species]);
+  const setOpen = (v: boolean) => { writeOpenPref(v); setOpenState(v); };
 
   useEffect(() => {
     if (!open) return;
@@ -69,31 +84,26 @@ export function SampleSets({ entry, onPick }: { entry: RosterEntry; onPick: (s: 
     return () => { live = false; };
   }, [open, entry.species]);
 
+  const shown = sets ?? randoms;
   return (
-    <div>
-      <GameButton variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {open ? 'Hide sample sets' : 'Sample sets'}
-      </GameButton>
+    <section aria-label="Recommended sets">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-bold uppercase tracking-wide text-muted">Recommended sets</h3>
+        <GameButton variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? 'Hide' : 'Show'}
+        </GameButton>
+      </div>
       {open && (
-        <div className="mt-2 space-y-1">
-          {sets === null && <p className="text-sm text-muted">Loading sample sets…</p>}
-          {sets?.length === 0 && <p className="text-sm text-muted">No sample sets available.</p>}
-          {sets?.map((s) => (
-            <div key={s.id} className="flex items-center gap-2 rounded-lg bg-panel-inset px-2 py-1">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="truncate font-semibold">{s.label}</span>
-                  <span className="shrink-0 text-xs font-bold uppercase tracking-wide text-muted">{s.source}</span>
-                </div>
-                <div className="truncate text-xs text-muted">{[s.set.item, ...(s.set.moves ?? [])].filter(Boolean).join(' · ')}</div>
-              </div>
-              <GameButton size="sm" variant="secondary" onClick={() => onPick(s)}>Use</GameButton>
-            </div>
-          ))}
-          {sets && <p className="text-xs text-muted">Smogon sets come from data.pkmn.cc when online. Picking one only fills the editor; save to keep it.</p>}
+        <div className="mt-2 space-y-2">
+          {sets === null && <p className="text-sm text-muted" role="status">Loading Smogon sets… the randoms sets are ready below.</p>}
+          {sets !== null && shown.length === 0 && <p className="text-sm text-muted">No sample sets available.</p>}
+          <ul className="grid gap-2 md:grid-cols-2 max-md:no-scrollbar max-md:flex max-md:snap-x max-md:overflow-x-auto max-md:overscroll-x-contain max-md:pb-1" aria-label="Sample sets">
+            {shown.map((s) => <SampleCard key={s.id} sample={s} showTera={showTera} onUse={() => onPick(s)} onMerge={() => onMerge(s)} />)}
+          </ul>
+          <p className="text-xs text-muted">Smogon sets come from data.pkmn.cc when online. Picking one only fills the editor; save to keep it.</p>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 

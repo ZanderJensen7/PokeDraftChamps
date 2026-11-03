@@ -96,30 +96,30 @@ export function natureSummary(name: string): string {
   return n ? `+${STAT_LABEL[n.plus]} −${STAT_LABEL[n.minus]}` : 'neutral';
 }
 
+/** One-line effect of an item ("" for none or unknown). */
+export function itemShortDesc(name: string): string {
+  const i = dex9.items.get(name);
+  return i.exists ? i.shortDesc : '';
+}
+
+/** One-line effect of an ability ("" for none or unknown). */
+export function abilityShortDesc(name: string): string {
+  const a = dex9.abilities.get(name);
+  return a.exists ? a.shortDesc : '';
+}
+
+/** Items a held-item picker offers: no Mega Stones or Z-Crystals (those follow the roster rules, not the picker). */
+export function pickableItems(): { common: string[]; rest: string[] } {
+  const keep = (n: string) => { const i = dex9.items.get(n); return !i.megaStone && !i.zMove; };
+  const g = itemGroups();
+  return { common: g.common.filter(keep), rest: g.rest.filter(keep) };
+}
+
 export function speciesAbilities(species: SpeciesId): string[] {
   return Object.values(dex9.species.get(battleSpecies(species)).abilities).filter((a): a is string => !!a);
 }
 
 export const TERA_TYPES: string[] = [...ALL_TYPES, 'Stellar'];
-
-const learnCache = new Map<SpeciesId, Promise<string[]>>();
-/** Display names of every Gen 9 move the species can learn (incl. prevos), sorted. */
-export function learnableMoves(id: SpeciesId): Promise<string[]> {
-  const species = battleSpecies(id);
-  let p = learnCache.get(species);
-  if (!p) {
-    p = gen9.learnsets.learnable(species).then((ls) => {
-      if (!ls) return [];
-      return Object.keys(ls)
-        .map((id) => gen9.moves.get(id))
-        .filter((m): m is NonNullable<typeof m> => !!m)
-        .map((m) => m.name)
-        .sort();
-    });
-    learnCache.set(species, p);
-  }
-  return p;
-}
 
 export function moveInfo(name: string): { type: string; category: string; power: number } | null {
   const m = dex9.moves.get(name);

@@ -1,18 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Sets } from '@pkmn/sets';
 import { toID } from '@pkmn/dex';
-import type { BattleSet, RosterEntry, SampleSet, SpeciesId, StatsTable } from '@pdc/engine';
-import { SPREAD_PRESETS, exportSetText, fillSet, getDraftMon, humanCoach, spreadFor } from '@pdc/engine';
+import type { BattleSet, MoveRow, RosterEntry, SampleSet, SpeciesId, StatsTable } from '@pdc/engine';
+import { SPREAD_PRESETS, exportSetText, fillSet, getDraftMon, humanCoach, moveRows, spreadFor } from '@pdc/engine';
 import { useGame } from '../store/useGame';
 import {
   DialogueBox, GameButton, IconBadge, ItemIcon, ResponsiveDialog, Panel, PokeSprite, PriceBadge, RoleTags, StatBlock, TypePill, TypePills,
 } from '../components/ui';
 import { displayName, rolesOf } from '../game/names';
 import { MonDetailButton } from '../components/MonDetail';
-import { ExportRosterDialog, ImportRosterDialog, MovePickerDialog, SampleSets, rosterExportText } from '../components/TeamSetTools';
+import { ExportRosterDialog, ImportRosterDialog, SampleSets, rosterExportText } from '../components/TeamSetTools';
+import { MoveTable } from '../components/MoveTable';
+import { ItemPicker } from '../components/ItemPicker';
+import { TeamStats } from '../components/TeamStats';
 import { useMonDetail } from '../store/monDetail';
 import {
-  EV_STAT_CAP, EV_TOTAL_CAP, STAT_LABEL, STAT_NAMES, TERA_TYPES, Z_CRYSTALS, blankSet, itemGroups, learnableMoves,
+  EV_STAT_CAP, EV_TOTAL_CAP, STAT_LABEL, STAT_NAMES, TERA_TYPES, Z_CRYSTALS, abilityShortDesc, battleSpecies, blankSet, dex9, itemShortDesc,
   lockedStone, moveInfo, natureNames, natureStats, natureSummary, speciesAbilities, zCrystalType,
 } from '../game/sets';
 
@@ -22,41 +25,8 @@ function spreadText(evs: StatsTable): string {
   return STAT_NAMES.filter((k) => (evs[k] ?? 0) > 0).map((k) => `${evs[k]} ${STAT_LABEL[k]}`).join(' / ') || 'no EVs';
 }
 
-function evTotal(evs: StatsTable): number {
-  return STAT_NAMES.reduce((s, k) => s + (evs[k] ?? 0), 0);
-}
-
-function MoveField({ index, value, options, onChange, onBrowse }: {
-  index: number; value: string; options: string[] | null; onChange: (v: string) => void; onBrowse: () => void;
-}) {
-  const info = value ? moveInfo(value) : null;
-  const legal = !value || !options || options.some((o) => o.toLowerCase() === value.toLowerCase());
-  return (
-    <div className="flex items-center gap-2">
-      <input
-        className={`field min-w-0 flex-1 ${legal ? '' : 'border-loss'}`}
-        list="pdc-moves"
-        placeholder={`Move ${index + 1}`}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={`Move ${index + 1}`}
-        aria-invalid={!legal}
-      />
-      <GameButton variant="ghost" size="sm" onClick={onBrowse} aria-label={`Browse moves for slot ${index + 1}`} title="Browse legal moves">▾</GameButton>
-      {info ? (
-        <span className="flex w-24 shrink-0 items-center gap-1 text-xs text-muted">
-          <TypePill type={info.type} size="xs" />
-          <span>{info.category === 'Status' ? 'Status' : `${info.power || '—'} ${info.category.slice(0, 4)}`}</span>
-        </span>
-      ) : (
-        <span className="w-24 shrink-0 text-xs text-loss">{value && !legal ? 'Not learnable' : ''}</span>
-      )}
-    </div>
-  );
-}
-
-function SetEditor({ entry, saved, showTera }: {
-  entry: RosterEntry; saved: BattleSet | undefined; showTera: boolean;
+function SetEditor({ entry, saved, showTera, opponents }: {
+  entry: RosterEntry; saved: BattleSet | undefined; showTera: boolean; opponents: SpeciesId[];
 }) {
   const species = entry.species;
   const isZCaptain = !!entry.isZCaptain;
@@ -66,10 +36,9 @@ function SetEditor({ entry, saved, showTera }: {
   const name = displayName(mon?.name ?? species);
   const stone = lockedStone(species);
   const [draft, setDraft] = useState<BattleSet | null>(saved ?? null);
-  const [moves, setMoves] = useState<string[] | null>(null);
+  const [rows, setRows] = useState<MoveRow[] | null>(null);
   const [io, setIo] = useState<'import' | 'export' | null>(null);
   const [ioText, setIoText] = useState('');
-  const [picking, setPicking] = useState<number | null>(null);
 
   useEffect(() => {
     setDraft(saved ?? null);
@@ -77,23 +46,40 @@ function SetEditor({ entry, saved, showTera }: {
 
   useEffect(() => {
     let live = true;
-    setMoves(null);
-    learnableMoves(species).then((m) => { if (live) setMoves(m); }).catch(() => { if (live) setMoves([]); });
+    setRows(null);
+    moveRows(species).then((r) => { if (live) setRows(r); }).catch(() => { if (live) setRows([]); });
     return () => { live = false; };
   }, [species]);
 
-  const itemList = useMemo(() => itemGroups(), []);
+  const moves = useMemo(() => (rows ? rows.map((r) => r.name) : null), [rows]);
   const natures = useMemo(() => natureNames(), []);
   const abilities = speciesAbilities(species);
+  const battleSp = dex9.species.get(battleSpecies(species));
   const useSample = (sample: SampleSet) => {
     setDraft(fillSet(entry, sample.set));
     useGame.getState().setToast(`Filled in ${name}'s ${sample.label} set (${sample.source}). Save to keep it.`);
+  };
+  /** Keep the current set; the sample's legal moves fill the empty move slots. */
+  const mergeMoves = (sample: SampleSet) => {
+    const base = draft ?? fillSet(entry, {});
+    const have = base.moves.filter(Boolean);
+    if (have.length >= 4) {
+      setToast('All four move slots are full. Remove a move first.');
+      return;
+    }
+    const legal = (m: string) => !moves || moves.some((o) => o.toLowerCase() === m.toLowerCase());
+    const add = (sample.set.moves ?? [])
+      .filter((m) => legal(m) && !have.some((h) => h.toLowerCase() === m.toLowerCase()))
+      .slice(0, 4 - have.length);
+    setDraft({ ...base, moves: [...have, ...add] });
+    setToast(add.length ? `Added ${add.join(', ')} from the ${sample.label} set. Save to keep it.` : 'Those moves are already in the set.');
   };
 
   if (!draft) {
     return (
       <div className="space-y-3">
-        <DialogueBox>No set yet for {name}. Build one from scratch or paste a Showdown set.</DialogueBox>
+        <DialogueBox>No set yet for {name}. Pick a recommended set, build one from scratch or paste a Showdown set.</DialogueBox>
+        <SampleSets entry={entry} showTera={showTera} onPick={useSample} onMerge={mergeMoves} />
         <div className="flex flex-wrap gap-2">
           <GameButton
             onClick={() => {
@@ -106,7 +92,6 @@ function SetEditor({ entry, saved, showTera }: {
           </GameButton>
           <GameButton variant="secondary" onClick={() => { setIoText(''); setIo('import'); }}>Import Showdown text</GameButton>
         </div>
-        <SampleSets entry={entry} onPick={useSample} />
         {io === 'import' && (
           <ImportModal
             text={ioText}
@@ -123,7 +108,7 @@ function SetEditor({ entry, saved, showTera }: {
   }
 
   const patch = (p: Partial<BattleSet>) => setDraft({ ...draft, ...p });
-  const total = evTotal(draft.evs);
+  const total = STAT_NAMES.reduce((sum, k) => sum + (draft.evs[k] ?? 0), 0);
   const setEv = (k: StatName, v: number) => {
     const others = total - (draft.evs[k] ?? 0);
     const clamped = Math.max(0, Math.min(v, EV_STAT_CAP, EV_TOTAL_CAP - others));
@@ -141,6 +126,8 @@ function SetEditor({ entry, saved, showTera }: {
     useGame.getState().setToast(`${label}: ${spreadText(sp.evs)}, ${sp.nature}.`);
   };
   const zMoves = zType ? moveList.filter((m) => m && moveInfo(m)?.type === zType && moveInfo(m)?.category !== 'Status') : [];
+  const abilityDesc = abilityShortDesc(draft.ability);
+  const nat = natureStats(draft.nature);
 
   const save = () => {
     if (illegal.length) {
@@ -154,51 +141,31 @@ function SetEditor({ entry, saved, showTera }: {
 
   return (
     <div className="space-y-4">
-      <datalist id="pdc-moves">{(moves ?? []).map((m) => <option key={m} value={m} />)}</datalist>
+      <SampleSets entry={entry} showTera={showTera} onPick={useSample} onMerge={mergeMoves} />
 
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <div className="text-sm font-bold uppercase tracking-wide text-muted">Moves {moves === null && '(loading…)'}</div>
-          {moveList.map((m, i) => (
-            <MoveField
-              key={i}
-              index={i}
-              value={m}
-              options={moves}
-              onChange={(v) => {
-                const next = [...moveList];
-                next[i] = v;
-                patch({ moves: next });
-              }}
-              onBrowse={() => setPicking(i)}
-            />
-          ))}
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="col-span-2 flex flex-col gap-1">
+        <div className="grid grid-cols-2 content-start gap-3">
+          <div className="col-span-2 flex flex-col gap-1">
             <span className="text-sm font-bold uppercase tracking-wide text-muted">Item</span>
             <div className="flex items-center gap-2">
-              {draft.item && <ItemIcon name={draft.item} />}
               {stone ? (
-                <input className="field min-w-0 flex-1 opacity-80" value={stone} readOnly aria-readonly="true" aria-describedby="pdc-item-note" />
+                <>
+                  <ItemIcon name={stone} />
+                  <input className="field min-w-0 flex-1 opacity-80" value={stone} readOnly aria-label="Item" aria-readonly="true" aria-describedby="pdc-item-note" />
+                </>
               ) : isZCaptain ? (
-                <select className="field min-w-0 flex-1" value={Z_CRYSTALS.includes(draft.item) ? draft.item : ''} onChange={(e) => patch({ item: e.target.value })} aria-describedby="pdc-item-note">
-                  {!Z_CRYSTALS.includes(draft.item) && <option value="">Pick a Z-Crystal</option>}
-                  {Z_CRYSTALS.map((z) => <option key={z} value={z}>{z} ({zCrystalType(z)})</option>)}
-                </select>
+                <>
+                  {draft.item && <ItemIcon name={draft.item} />}
+                  <select className="field min-w-0 flex-1" value={Z_CRYSTALS.includes(draft.item) ? draft.item : ''} onChange={(e) => patch({ item: e.target.value })} aria-label="Item" aria-describedby="pdc-item-note">
+                    {!Z_CRYSTALS.includes(draft.item) && <option value="">Pick a Z-Crystal</option>}
+                    {Z_CRYSTALS.map((z) => <option key={z} value={z}>{z} ({zCrystalType(z)})</option>)}
+                  </select>
+                </>
               ) : (
-                <select className="field min-w-0 flex-1" value={draft.item} onChange={(e) => patch({ item: e.target.value })} aria-label="Item">
-                  <option value="">No item</option>
-                  {draft.item && !itemList.common.includes(draft.item) && !itemList.rest.includes(draft.item) && <option value={draft.item}>{draft.item}</option>}
-                  <optgroup label="Common">
-                    {itemList.common.map((m) => <option key={m} value={m}>{m}</option>)}
-                  </optgroup>
-                  <optgroup label="All items">
-                    {itemList.rest.map((m) => <option key={m} value={m}>{m}</option>)}
-                  </optgroup>
-                </select>
+                <ItemPicker value={draft.item} onChange={(item) => patch({ item })} />
               )}
             </div>
+            {!isZCaptain && !stone && draft.item && <span className="text-xs text-muted">{itemShortDesc(draft.item)}</span>}
             {stone && (
               <span id="pdc-item-note" className="text-xs text-muted">Locked: {name} holds its {stone} and Mega Evolves in battle.</span>
             )}
@@ -208,21 +175,22 @@ function SetEditor({ entry, saved, showTera }: {
                 {zType && (zMoves.length ? `Powers ${zMoves.join(', ')}.` : `No ${zType} attack in this moveset yet.`)}
               </span>
             )}
-          </label>
-          <label className="flex flex-col gap-1">
+          </div>
+          <label className="col-span-2 flex flex-col gap-1 xl:col-span-1">
             <span className="text-sm font-bold uppercase tracking-wide text-muted">Ability</span>
             <select className="field" value={draft.ability} onChange={(e) => patch({ ability: e.target.value })}>
               {abilities.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
+            {abilityDesc && <span className="text-xs text-muted">{abilityDesc}</span>}
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="col-span-2 flex flex-col gap-1 xl:col-span-1">
             <span className="text-sm font-bold uppercase tracking-wide text-muted">Nature</span>
             <select className="field" value={draft.nature} onChange={(e) => patch({ nature: e.target.value })}>
               {natures.map((n) => <option key={n} value={n}>{n} ({natureSummary(n)})</option>)}
             </select>
             <span className="text-xs">
-              {natureStats(draft.nature)
-                ? <><span className="font-bold text-win">+{STAT_LABEL[natureStats(draft.nature)!.plus]}</span>{' '}<span className="font-bold text-loss">−{STAT_LABEL[natureStats(draft.nature)!.minus]}</span></>
+              {nat
+                ? <><span className="font-bold text-win">+{STAT_LABEL[nat.plus]}</span>{' '}<span className="font-bold text-loss">−{STAT_LABEL[nat.minus]}</span></>
                 : <span className="text-muted">No stat changes</span>}
             </span>
           </label>
@@ -236,33 +204,29 @@ function SetEditor({ entry, saved, showTera }: {
             </div>
           </label>}
         </div>
-      </div>
 
-      <div>
-        <div className="mb-1 flex items-baseline justify-between">
-          <span className="text-sm font-bold uppercase tracking-wide text-muted">Effort values</span>
-          <span className={`font-display font-bold tabular-nums ${total > EV_TOTAL_CAP ? 'text-loss' : 'text-poke-yellow'}`}>
-            {total} / {EV_TOTAL_CAP} <span className="text-sm font-semibold text-muted">({EV_TOTAL_CAP - total} left)</span>
-          </span>
-        </div>
-        <div className="mb-2 flex flex-wrap gap-1.5" role="group" aria-label="EV presets">
-          {SPREAD_PRESETS.map((p) => (
-            <GameButton key={p.role} variant="ghost" size="sm" onClick={() => applyPreset(p.role, p.label)}>{p.label}</GameButton>
-          ))}
-          <GameButton variant="ghost" size="sm" disabled={total === 0} onClick={() => patch({ evs: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 } })}>Clear</GameButton>
-        </div>
-        <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
-          {STAT_NAMES.map((k) => (
-            <label key={k} className="flex items-center gap-2">
-              <span className="w-9 text-sm font-bold">{STAT_LABEL[k]}</span>
-              <input type="range" min={0} max={EV_STAT_CAP} step={4} value={draft.evs[k] ?? 0} onChange={(e) => setEv(k, Number(e.target.value))} className="min-w-0 flex-1" aria-label={`${STAT_LABEL[k]} EVs`} />
-              <span className="w-9 text-right font-semibold tabular-nums">{draft.evs[k] ?? 0}</span>
-            </label>
-          ))}
+        <div>
+          <TeamStats
+            base={battleSp.baseStats as StatsTable}
+            evs={draft.evs}
+            ivs={draft.ivs}
+            nature={draft.nature}
+            opponents={opponents}
+            onEv={setEv}
+            presets={(
+              <>
+                {SPREAD_PRESETS.map((p) => (
+                  <GameButton key={p.role} variant="ghost" size="sm" onClick={() => applyPreset(p.role, p.label)}>{p.label}</GameButton>
+                ))}
+                <GameButton variant="ghost" size="sm" disabled={total === 0} onClick={() => patch({ evs: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 } })}>Clear</GameButton>
+              </>
+            )}
+          />
+          {stone && <p className="mt-1 text-xs text-muted">Stats shown for {battleSp.name}, before it Mega Evolves.</p>}
         </div>
       </div>
 
-      <SampleSets entry={entry} onPick={useSample} />
+      <MoveTable rows={rows} chosen={moveList} types={battleSp.types} onChange={(m) => patch({ moves: m })} />
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
         <div className="flex flex-wrap gap-2">
@@ -273,19 +237,6 @@ function SetEditor({ entry, saved, showTera }: {
         <GameButton disabled={!dirty} onClick={save}>Save set</GameButton>
       </div>
 
-      {picking !== null && (
-        <MovePickerDialog
-          moves={moves}
-          taken={moveList}
-          onClose={() => setPicking(null)}
-          onPick={(m) => {
-            const next = [...moveList];
-            next[picking] = m;
-            patch({ moves: next });
-            setPicking(null);
-          }}
-        />
-      )}
       {io === 'import' && (
         <ImportModal
           text={ioText}
@@ -331,6 +282,7 @@ export function TeamScreen() {
   const current = human.roster.find((r) => r.species === sel) ?? human.roster[0];
   const mon = current ? getDraftMon(current.species) : undefined;
   const teraEnabled = run.config.teraCaptains > 0;
+  const opponents = run.coaches.filter((c) => c.id !== human.id).flatMap((c) => c.roster.map((r) => r.species));
 
   return (
     <div className="space-y-4">
@@ -398,6 +350,7 @@ export function TeamScreen() {
               entry={current}
               saved={human.sets[current.species]}
               showTera={teraEnabled && current.isTeraCaptain}
+              opponents={opponents}
             />
           </Panel>
         )}
