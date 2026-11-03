@@ -78,7 +78,6 @@ function TopBar() {
             PokeDraft<span className="text-ink">Champs</span>
           </span>
         </button>
-        <span className="hidden shrink-0 text-xs font-semibold uppercase tracking-wide text-faint md:inline">{APP_VERSION.channel}</span>
         {run && (
           <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
             <span className="hidden truncate text-muted md:inline">{run.config.teams}-team league · code {leagueCode(run.seed)}</span>
@@ -133,6 +132,27 @@ function Toast() {
   );
 }
 
+/** Tiny version string in the bottom-right corner of every screen; tapping it opens Settings (About). */
+function VersionBadge() {
+  const screen = useGame((s) => s.screen);
+  const openOverlay = useGame((s) => s.openOverlay);
+  const navShown = useShowBottomNav();
+  // Phones: sit above the bottom nav when it is shown; in battle the action panel is pinned, so hide the badge there.
+  if (screen === 'battle') return null;
+  const place = navShown ? 'bottom-[calc(5.5rem+env(safe-area-inset-bottom))] md:bottom-1' : 'bottom-[calc(0.25rem+env(safe-area-inset-bottom))]';
+  return (
+    <button
+      type="button"
+      onClick={() => { if (screen !== 'settings') openOverlay('settings'); }}
+      title={`${APP_VERSION.label} · built ${APP_VERSION.builtAt}`}
+      aria-label={`Version ${APP_VERSION.version}, open settings`}
+      className={`fixed right-2 ${place} z-30 rounded px-1 font-mono text-[10px] leading-4 text-faint opacity-70 hover:opacity-100 focus-visible:opacity-100`}
+    >
+      v{APP_VERSION.version} · {APP_VERSION.commit}
+    </button>
+  );
+}
+
 /** Shown when the player tries to leave a live battle: leaving forfeits it, so playMatch never hangs. */
 function LeaveBattleConfirm() {
   const to = useGame((s) => s.leaveBattleTo);
@@ -169,6 +189,7 @@ export function App() {
         <Current />
       </main>
       {navShown && <BottomNav />}
+      <VersionBadge />
       <LeaveBattleConfirm />
       <Toast />
     </div>

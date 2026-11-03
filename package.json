@@ -1,16 +1,21 @@
 {
   "name": "pokedraftchamps",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "PokeDraftChamps - a solo roguelike Pokemon draft league",
   "license": "MIT",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "npm run dev -w @pdc/app",
     "build": "npm run build -w @pdc/engine && npm run build -w @pdc/app",
     "test": "npm run test -w @pdc/engine",
     "typecheck": "npm run typecheck --workspaces",
-    "balance": "npm run balance -w @pdc/engine --"
+    "balance": "npm run balance -w @pdc/engine --",
+    "bump": "node scripts/bump.mjs"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

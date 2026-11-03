@@ -51,3 +51,8 @@
   tables (`app/src/battle/vfx.ts`); the Showdown client and PokeRogue animation code are AGPL and are never
   copied. Sounds are synthesized with Web Audio (no audio files); cries are hot-linked from the same Showdown
   host as the sprites. Both are settings (Attack effects, Sound) and reduced motion turns the visuals off.
+- **2026-11-02 — Versioning.** Semantic versions while in 0.x: minor for new player-visible things, patch for
+  fixes and tuning. One command, `npm run bump -- minor|patch`, moves every package.json (root, app, engine)
+  and the lockfile together and dates the Unreleased section of `CHANGELOG.md`; the user commits and tags
+  (`git tag vX.Y.Z`). The build stamp (version · short commit) sits as a tiny string in the bottom-right corner
+  of every screen except the live battle, where the action panel owns the bottom edge.

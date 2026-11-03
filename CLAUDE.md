@@ -10,7 +10,9 @@ no accounts, never monetized). Design source of truth: `docs/DESIGN.md`. Decisio
   `@pkmn/dex` + `@pkmn/data` (Gen 9 data, learnsets), `@smogon/calc` (damage), `@pkmn/randoms`
   (509 species with role-based sets: the AI's set source and the draft pool filter), `@pkmn/sets`
   (team import/export), `@pkmn/img` (sprites). All MIT. The Showdown client is AGPL: never copy its code.
-- Commands: `npm run dev` (app on :5173), `npm test` (engine), `npm run typecheck`, `npm run build`.
+- Commands: `npm run dev` (app on :5173), `npm test` (engine), `npm run typecheck`, `npm run build`,
+  `npm run bump -- patch|minor|major` (bumps every package.json + lockfile, dates the Unreleased section of
+  `CHANGELOG.md`; then commit and `git tag vX.Y.Z`). Player-visible changes get a line under Unreleased.
 
 ## Engine layout (`packages/engine/src/`)
 - Engine entries: `@pdc/engine` (`src/index.ts`) is sim-free (@pkmn/dex/@pkmn/data only) so the app's first load
@@ -40,7 +42,7 @@ no accounts, never monetized). Design source of truth: `docs/DESIGN.md`. Decisio
   (the canvas inside `.battle-field`; sprites to hit carry `data-fx="p1|p2"`). Effects never move a sprite beyond
   the hit shudder (user ruling); Showdown / PokeRogue animation code is AGPL, so all of it is our own.
 
-- App build stamp + bug reports: `packages/app/src/app/version.ts` (`APP_VERSION`, values injected by `define` in `vite.config.ts` via `scripts/build-stamp.mjs`; bump the package.json versions together), `src/app/errorLog.ts` (last 5 uncaught errors), `src/components/BugReport.tsx` (prefilled GitHub issue / copy, never auto-sends); template in `.github/ISSUE_TEMPLATE/`.
+- App build stamp + bug reports: `packages/app/src/app/version.ts` (`APP_VERSION`, values injected by `define` in `vite.config.ts` via `scripts/build-stamp.mjs`; versions move together through `npm run bump`), shown as the `VersionBadge` corner string in `App.tsx`, on the title screen and in Settings About; `src/app/errorLog.ts` (last 5 uncaught errors), `src/components/BugReport.tsx` (prefilled GitHub issue / copy, never auto-sends); template in `.github/ISSUE_TEMPLATE/`.
 
 ## Rules of the house
 - Pure functions, seeded randomness (`league/rng.ts`, sim seeds), JSON-friendly state (arrays, not Set/Map)
