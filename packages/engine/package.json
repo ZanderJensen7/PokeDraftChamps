@@ -15,6 +15,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "build": "tsc --noEmit -p tsconfig.json",
     "balance": "vite-node --script scripts/balance.ts",
+    "arena": "vite-node --script scripts/arena.ts",
+    "draft-arena": "vite-node --script scripts/draft-arena.ts",
+    "prices": "vite-node --script scripts/prices.ts",
     "gen:randoms": "vite-node --script scripts/gen-randoms.ts"
   },
   "dependencies": {
