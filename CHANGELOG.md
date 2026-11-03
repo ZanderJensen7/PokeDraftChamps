@@ -6,6 +6,8 @@ every package.json. The build stamp shows the version and short commit in the co
 
 ## Unreleased
 
+- Free agency: a coach under the roster maximum can sign a free agent without dropping anyone ("Keep everyone" at
+  the top of the drop list; it still counts as a move and must fit the budget). The dialog shows the roster count.
 - Daily League: one seeded league per UTC day (8 coaches, 7 weeks, top 4), the same AI picks for everyone, one
   attempt, a score and a share line on the run-end screen, and a leaderboard when the build has a backend.
 - Settings > Online: a nickname for the leaderboard and an off-by-default switch to share anonymous run

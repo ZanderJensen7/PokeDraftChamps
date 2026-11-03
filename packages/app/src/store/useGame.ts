@@ -112,7 +112,7 @@ interface GameActions {
   setLineup(lineup: SpeciesId[]): void;
   playMatch(): Promise<void>;
   /** Async like setCaptainsWith (the new mon's set comes from the lazily loaded set builder). */
-  doFreeAgency(drop: SpeciesId, add: SpeciesId): Promise<boolean>;
+  doFreeAgency(drop: SpeciesId | null, add: SpeciesId): Promise<boolean>;
   saveSet(species: SpeciesId, set: BattleSet): void;
   exportSave(): void;
   importSave(file: File): Promise<void>;

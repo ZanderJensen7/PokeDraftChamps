@@ -440,36 +440,42 @@ export async function resolveWeek(
 
 /**
  * Human-only move between weeks in the regular season: drop a roster mon, add an undrafted one
- * (it must be in draft.available). Checks the move budget (config.freeAgencyMoves) and the point budget.
+ * (it must be in draft.available). With `dropSpecies === null` nobody is dropped: a coach under
+ * config.rosterMax signs a free agent outright (a full roster must drop). Either way it is one move
+ * (config.freeAgencyMoves) and must fit the point budget.
  * The added mon inherits the dropped mon's Tera / Z captain flags unless it may not be a captain (a Mega, or
  * priced over config.captainMaxPoints); that can leave the human a captain short, which is allowed until
- * setCaptains fills the role.
+ * setCaptains fills the role. A plain add never takes captain flags (captainQuota may now allow more, and
+ * setCaptains fills them).
  * The dropped mon returns to the pool.
  * With deps.buildSets the coach's sets are rebuilt and only the new mon's set is taken; without it the
  * dropped mon's set is removed and the new mon has none.
  */
 export function freeAgency(
-  run: RunState, dropSpecies: SpeciesId, addSpecies: SpeciesId, deps: { buildSets?: BuildSets } = {},
+  run: RunState, dropSpecies: SpeciesId | null, addSpecies: SpeciesId, deps: { buildSets?: BuildSets } = {},
 ): RunState {
   if (run.phase !== 'season') throw new Error('free agency is only open during the regular season');
   if (run.freeAgencyUsed >= run.config.freeAgencyMoves) throw new Error('no free-agency moves left this season');
   const human = humanCoach(run);
-  const dropIdx = human.roster.findIndex((r) => r.species === dropSpecies);
-  if (dropIdx < 0) throw new Error(`${dropSpecies} is not on your roster`);
+  const dropIdx = dropSpecies === null ? -1 : human.roster.findIndex((r) => r.species === dropSpecies);
+  if (dropSpecies === null) {
+    if (human.roster.length >= run.config.rosterMax) throw new Error(`your roster is full (${human.roster.length}/${run.config.rosterMax}): drop someone to sign`);
+  } else if (dropIdx < 0) throw new Error(`${dropSpecies} is not on your roster`);
   if (!run.draft.available.includes(addSpecies)) throw new Error(`${addSpecies} is not a free agent`);
-  const drop = monOf(dropSpecies);
+  const drop = dropSpecies === null ? undefined : monOf(dropSpecies);
   const add = monOf(addSpecies);
   const kept = human.roster.filter((_, i) => i !== dropIdx).map((r) => r.species);
   if (conflictsWithRoster(kept, addSpecies, runPool(run))) throw new Error(`${add.name} is another form of a species you already own`);
-  const spent = human.pointsSpent - drop.points + add.points;
+  const spent = human.pointsSpent - (drop?.points ?? 0) + add.points;
   if (spent > run.config.budget) throw new Error(`${add.name} (${add.points}) puts you over budget (${spent}/${run.config.budget})`);
 
   const canCaptain = !captainBlock(run.config, addSpecies);
-  const roster = human.roster.map((r, i): RosterEntry => (i === dropIdx
-    ? { species: addSpecies, isTeraCaptain: canCaptain && r.isTeraCaptain, isZCaptain: canCaptain && !!r.isZCaptain }
-    : r));
+  const signed = (r?: RosterEntry): RosterEntry => ({ species: addSpecies, isTeraCaptain: canCaptain && !!r?.isTeraCaptain, isZCaptain: canCaptain && !!r?.isZCaptain });
+  const roster = dropSpecies === null
+    ? [...human.roster, signed()]
+    : human.roster.map((r, i): RosterEntry => (i === dropIdx ? signed(r) : r));
   const sets = { ...human.sets };
-  delete sets[dropSpecies];
+  if (dropSpecies !== null) delete sets[dropSpecies];
   let updated: Coach = { ...human, roster, pointsSpent: spent, sets };
   if (deps.buildSets) {
     const built = deps.buildSets(updated, deriveSeed(run.seed, 'fa', run.freeAgencyUsed));
@@ -479,9 +485,9 @@ export function freeAgency(
   return {
     ...run,
     coaches: run.coaches.map((c) => (c.id === human.id ? updated : c)),
-    draft: { ...run.draft, available: [...run.draft.available.filter((id) => id !== addSpecies), dropSpecies] },
+    draft: { ...run.draft, available: [...run.draft.available.filter((id) => id !== addSpecies), ...(dropSpecies === null ? [] : [dropSpecies])] },
     freeAgencyUsed: run.freeAgencyUsed + 1,
-    log: [...run.log, `Week ${run.week} free agency: ${human.abbrev} dropped ${drop.name}, signed ${add.name}.`],
+    log: [...run.log, `Week ${run.week} free agency: ${human.abbrev} ${drop ? `dropped ${drop.name}, ` : ''}signed ${add.name}.`],
   };
 }
 
