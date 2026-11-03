@@ -9,3 +9,4 @@ export * from './forms';
 export * from './setText';
 export * from './logs';
 export * from './stats';
+export * from './profile';

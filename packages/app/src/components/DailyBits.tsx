@@ -33,7 +33,7 @@ export function NicknameField({ hint = 'Shown on the daily leaderboard.' }: { hi
   );
 }
 
-async function copyText(text: string, toast: (t: string) => void): Promise<void> {
+export async function copyText(text: string, toast: (t: string) => void): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
     toast('Copied to the clipboard.');

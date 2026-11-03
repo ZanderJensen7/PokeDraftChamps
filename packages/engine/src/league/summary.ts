@@ -1,6 +1,6 @@
 // A run boiled down: the score, the RunSummary the run-end screen / daily leaderboard / opt-in upload use,
 // and the share string. Sim-free; reads stored results and the stats module only.
-import type { RunState, RunSummary } from '../types';
+import type { Match, RunState, RunSummary } from '../types';
 import { runSpeciesStats, topPerformers } from '../stats/aggregate';
 import { computeStandings } from './standings';
 import { humanCoach, regularSeasonRecord } from './run';
@@ -69,6 +69,19 @@ export function summarizeRun(run: RunState, finishedAt: number = Date.now()): Ru
     createdAt: run.createdAt,
     finishedAt,
   };
+}
+
+/**
+ * The match that decided a finished run: the final for a champion, the playoff loss, the loss that crossed the
+ * cap, or the last regular-season match for a coach who missed the playoffs. All four are the human's last
+ * played match. Undefined before the human has played.
+ */
+export function decisiveMatch(run: RunState): Match | undefined {
+  let last: Match | undefined;
+  for (const m of run.matches) {
+    if (m.result && (m.home === run.humanId || m.away === run.humanId) && (!last || m.week >= last.week)) last = m;
+  }
+  return last;
 }
 
 /** "6-1, champion" / "3-4, out at the loss cap" / "5-2, lost in the playoffs" / "2-1, in progress". */

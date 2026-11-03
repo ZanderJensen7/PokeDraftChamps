@@ -61,6 +61,13 @@ Each line is one job. Sessions are started from the top; three at a time at most
 6. **Career profile + Hall of Fame.** `engine/src/profile.ts` (`Profile`, `recordRunEnd` over `summarizeRun`),
    `pdc.profile.v1` beside the saves, export/import with them; career record, titles per stake, trophy case;
    the run-end screen gains the decisive match and the perks taken (`docs/ROGUELIKE.md`).
+   SHIPPED 2026-11-02 (branch `claude/career-profile-522c7c`): `profile.ts` (`Profile` v2 with `runs` capped at
+   200 and per-species `trophies`; `recordRunEnd` idempotent by run id; `mergeProfiles`; `careerStats`;
+   v1 migration), `decisiveMatch` in `league/summary.ts`, the app store over it (same `pdc.profile.v1` key),
+   `exportSave` writes `{ run, profile }` once the career has runs and `importSave` takes both shapes,
+   `screens/HallOfFameScreen.tsx` (route `hall`, title-screen button), end-screen decisive match + career strip.
+   Open: the perks taken (no perks exist yet); pool, achievements and seasonal objectives from the ROGUELIKE
+   profile sketch.
 7. **Draft helper follow-ups.** FIT badge uses the quick score (roles excluded) while the hover note uses the
    full one; hover popover covers the next card row; resistances table scrolls sideways in the narrow rail.
 8. **Replay viewer** for stored logs (watch any league match); the tape-room perk needs it.

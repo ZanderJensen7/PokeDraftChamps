@@ -1,9 +1,11 @@
-import type { EliminationReason } from '@pdc/engine';
-import { computeStandings, humanCoach, regularSeasonRecord, runScore } from '@pdc/engine';
-import { useGame } from '../store/useGame';
+import { useEffect } from 'react';
+import type { EliminationReason, RunState, SpeciesId } from '@pdc/engine';
+import { computeStandings, decisiveMatch, humanCoach, opponentOf, regularSeasonRecord, runScore } from '@pdc/engine';
+import { useGame, weekLabel } from '../store/useGame';
 import { useProfile } from '../store/profile';
 import { PostScoreButton, ShareLine } from '../components/DailyBits';
-import { Crest, DialogueBox, GameButton, Panel } from '../components/ui';
+import { Crest, DialogueBox, GameButton, Panel, PokeIcon } from '../components/ui';
+import { scoreLine, speciesName, spriteName } from '../game/names';
 import { StandingsTable } from '../components/StandingsTable';
 import { Bracket } from '../components/Bracket';
 import { MvpStrip } from '../components/MvpStrip';
@@ -26,10 +28,84 @@ function Trophy() {
   );
 }
 
+const DECIDER_TITLE: Record<EliminationReason | 'champion', string> = {
+  champion: 'The final',
+  playoffLoss: 'The match that knocked you out',
+  lossCap: 'The loss that ended it',
+  missedPlayoffs: 'Your last regular-season match',
+};
+
+function LineupIcons({ ids, label }: { ids: SpeciesId[]; label: string }) {
+  if (ids.length === 0) return <span className="text-sm text-faint">No lineup recorded</span>;
+  return (
+    <span className="flex flex-wrap gap-0.5" aria-label={label}>
+      {ids.map((id) => <PokeIcon key={id} name={spriteName(id)} title={speciesName(id)} />)}
+    </span>
+  );
+}
+
+/** The match that decided the run: crests, score, both lineups. */
+function DecisiveMatch({ run }: { run: RunState }) {
+  const m = decisiveMatch(run);
+  if (!m?.result) return null;
+  const human = humanCoach(run);
+  const opp = opponentOf(run, m);
+  const won = m.result.winner === human.id;
+  const title = DECIDER_TITLE[run.phase === 'champion' ? 'champion' : run.eliminationReason ?? 'lossCap'];
+  return (
+    <Panel title={title} aside={<span>{weekLabel(run, m.week, m)}</span>}>
+      <div className="flex items-center justify-center gap-3 sm:gap-6">
+        <Crest abbrev={human.abbrev} size={48} side="you" />
+        <div className="flex flex-col items-center">
+          <span className="font-display text-3xl font-bold tabular-nums">{scoreLine(m, human.id)}</span>
+          <span className={`font-display font-bold uppercase ${won ? 'text-poke-yellow' : 'text-opp'}`}>{won ? 'Won' : 'Lost'}</span>
+        </div>
+        <Crest abbrev={opp.abbrev} size={48} side="opp" />
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div className="rounded-lg border-2 border-you bg-you-soft px-3 py-2">
+          <div className="mb-1 truncate font-display font-bold">{human.name}</div>
+          <LineupIcons ids={m.result.lineups[human.id] ?? []} label={`${human.name} lineup`} />
+        </div>
+        <div className="rounded-lg border-2 border-opp bg-opp-soft px-3 py-2">
+          <div className="mb-1 truncate font-display font-bold">{opp.name}</div>
+          <LineupIcons ids={m.result.lineups[opp.id] ?? []} label={`${opp.name} lineup`} />
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+/** Runs, titles and the stake ladder so far, with the way into the Hall of Fame. */
+function CareerStrip({ onOpen }: { onOpen: () => void }) {
+  const runs = useProfile((s) => s.runs);
+  const stakeUnlocked = useProfile((s) => s.stakeUnlocked);
+  const titles = runs.filter((r) => r.phase === 'champion').length;
+  const cells: [string, number][] = [['Runs', runs.length], ['Titles', titles], ['Stake unlocked', stakeUnlocked]];
+  return (
+    <Panel title="Career so far">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <dl className="grid flex-1 grid-cols-3 gap-2">
+          {cells.map(([label, n]) => (
+            <div key={label} className="game-inset flex flex-col-reverse items-center px-2 py-2 text-center">
+              <dt className="text-sm font-bold uppercase tracking-wide text-muted">{label}</dt>
+              <dd className="font-display text-2xl font-bold leading-none text-poke-yellow tabular-nums">{n}</dd>
+            </div>
+          ))}
+        </dl>
+        <GameButton variant="secondary" onClick={onOpen}>Hall of Fame</GameButton>
+      </div>
+    </Panel>
+  );
+}
+
 export function EndScreen() {
   const run = useGame((s) => s.run);
   const go = useGame((s) => s.go);
   const justUnlockedBy = useProfile((s) => s.justUnlockedBy);
+  const recordRunEnd = useProfile((s) => s.recordRunEnd);
+  // The save subscription records a run as it ends; this covers a finished run loaded before the career existed.
+  useEffect(() => { if (run) recordRunEnd(run); }, [run, recordRunEnd]);
   if (!run) return null;
   const human = humanCoach(run);
   const rec = regularSeasonRecord(run, human.id);
@@ -71,6 +147,8 @@ export function EndScreen() {
         <ShareLine run={run} />
         {daily && <div className="mt-3 flex justify-center"><PostScoreButton run={run} /></div>}
       </Panel>
+      <DecisiveMatch run={run} />
+      <CareerStrip onOpen={() => go('hall')} />
       {hadPlayoffs && (
         <Panel title="Playoffs"><Bracket run={run} /></Panel>
       )}

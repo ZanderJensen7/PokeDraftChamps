@@ -1,76 +1,60 @@
-// The player's profile across runs: how far up the stakes ladder they have unlocked. Lives in its own
-// localStorage key so a new league, an import or a daily run never touches it.
+// The player's career across runs (engine `Profile`): the stakes ladder, every finished run's summary and the
+// trophy case. Lives in its own localStorage key so a new league, an import or a daily run never touches it;
+// the engine's recordRunEnd is idempotent by run id, so a reload of a finished run never counts twice.
 import { create } from 'zustand';
-import { MAX_STAKE, type RunState } from '@pdc/engine';
-
-export interface Profile {
-  version: 1;
-  /** Highest stake the setup screen offers (1 = only the base game). */
-  stakeUnlocked: number;
-}
+import { mergeProfiles, migrateProfile, recordRunEnd, type Profile, type RunState } from '@pdc/engine';
 
 const KEY = 'pdc.profile.v1';
-/** Run ids already counted, so a reload of a finished run never unlocks twice. */
-const SEEN_KEY = 'pdc.profileSeen.v1';
-const SEEN_CAP = 200;
-const DEFAULTS: Profile = { version: 1, stakeUnlocked: 1 };
-
-const clampStake = (n: unknown): number =>
-  typeof n === 'number' && Number.isInteger(n) ? Math.max(1, Math.min(MAX_STAKE, n)) : 1;
 
 function load(): Profile {
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return DEFAULTS;
-    const parsed = JSON.parse(raw) as Partial<Profile>;
-    return { version: 1, stakeUnlocked: clampStake(parsed.stakeUnlocked) };
+    return migrateProfile(raw ? JSON.parse(raw) : null);
   } catch {
-    return DEFAULTS;
+    return migrateProfile(null);
   }
 }
 
-function readSeen(): string[] {
+function save(p: Profile): void {
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(SEEN_KEY) ?? '[]');
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
-function save(key: string, value: unknown): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
+    localStorage.setItem(KEY, JSON.stringify(p));
   } catch {
     /* storage full or blocked: the profile stays in memory */
   }
 }
 
+const pick = (p: Profile): Profile => ({ version: p.version, stakeUnlocked: p.stakeUnlocked, runs: p.runs, trophies: p.trophies });
+
 interface ProfileStore extends Profile {
   /** The run id whose title unlocked a stake this session (the end screen says so). */
   justUnlockedBy: string | null;
-  /** Counts a finished league run once: a title at the highest unlocked stake opens the next one. */
+  /** Counts a finished run once (league or daily): career list, trophies, and the next stake on a title. */
   recordRunEnd(run: RunState): void;
+  /** Folds an imported profile in by run id; returns how many runs it added. */
+  mergeImported(raw: unknown): number;
+  /** The plain profile, for export. */
+  snapshot(): Profile;
 }
-
-/** Run ids counted this session (storage may be blocked). */
-const counted = new Set<string>();
 
 export const useProfile = create<ProfileStore>((set, get) => ({
   ...load(),
   justUnlockedBy: null,
   recordRunEnd(run) {
-    if (run.daily || (run.phase !== 'champion' && run.phase !== 'eliminated')) return;
-    if (counted.has(run.id)) return;
-    counted.add(run.id);
-    const seen = readSeen();
-    if (seen.includes(run.id)) return;
-    save(SEEN_KEY, [...seen, run.id].slice(-SEEN_CAP));
-    const { stakeUnlocked } = get();
-    const stake = run.config.stake;
-    if (run.phase !== 'champion' || stake < stakeUnlocked || stake >= MAX_STAKE) return;
-    const next: Profile = { version: 1, stakeUnlocked: stake + 1 };
-    set({ ...next, justUnlockedBy: run.id });
-    save(KEY, next);
+    const before = pick(get());
+    const next = recordRunEnd(before, run);
+    if (next === before) return;
+    set({ ...next, ...(next.stakeUnlocked > before.stakeUnlocked ? { justUnlockedBy: run.id } : {}) });
+    save(next);
+  },
+  mergeImported(raw) {
+    const before = pick(get());
+    const next = mergeProfiles(before, migrateProfile(raw));
+    if (next === before) return 0;
+    set(next);
+    save(next);
+    return next.runs.length - before.runs.length;
+  },
+  snapshot() {
+    return pick(get());
   },
 }));
