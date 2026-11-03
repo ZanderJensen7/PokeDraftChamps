@@ -45,6 +45,12 @@ sends on purpose). Design source of truth: `docs/DESIGN.md`
   `battle/sound.ts` (synthesized per-type and per-event blips, Showdown-hosted cries), `components/battle/FxLayer.tsx`
   (the canvas inside `.battle-field`; sprites to hit carry `data-fx="p1|p2"`). Effects never move a sprite beyond
   the hit shudder (user ruling); Showdown / PokeRogue animation code is AGPL, so all of it is our own.
+- Persistent field effects (drawn for as long as they last, from the battle view not the log): `battle/fieldFx.ts`
+  (pure: `fieldState(view)` -> weather / terrain / Trick Room / per-side screens, Tailwind, hazards / per-mon
+  volatiles, the `FIELD_LOOKS` table, `FIELD_SLOTS` / `activeSlots`; the view tracks `MonView.volatiles` for
+  `TRACKED_VOLATILES`), `battle/fieldCanvas.ts` (`FieldPainter`: fades slots in and out, draws each style under the
+  one-shot particles, allocation-free per frame; modes off / static (reduced motion) / full), `battle/glyphs.ts`
+  (shared glyph drawing). Platforms carry `data-fx-ground="p1|p2"`; a Substitute dims its sprite with `.fx-subbed`.
 
 - App build stamp + bug reports: `packages/app/src/app/version.ts` (`APP_VERSION`, values injected by `define` in `vite.config.ts` via `scripts/build-stamp.mjs`; versions move together through `npm run bump`), shown as the `VersionBadge` corner string in `App.tsx`, on the title screen and in Settings About; `src/app/errorLog.ts` (last 5 uncaught errors), `src/components/BugReport.tsx` (prefilled GitHub issue / copy, never auto-sends); template in `.github/ISSUE_TEMPLATE/`.
 

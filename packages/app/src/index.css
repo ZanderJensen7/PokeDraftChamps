@@ -297,6 +297,9 @@ input[type="range"] {
 }
 .fx-shake { animation: fx-shake 280ms ease-out; }
 .fx-shake-strong { --fx-amp: 8px; animation: fx-shake 400ms ease-out; }
+/* A mon behind its Substitute: the sprite dims (the doll is drawn on the canvas, in front of it). */
+[data-fx] { transition: opacity 250ms ease-out; }
+.fx-subbed { opacity: 0.38; }
 .fx-glow {
   filter: drop-shadow(0 0 10px var(--fx-color, #fff)) drop-shadow(0 0 24px var(--fx-color, #fff)) brightness(1.25);
   transition: filter 250ms ease-out;

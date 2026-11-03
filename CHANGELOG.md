@@ -6,6 +6,14 @@ every package.json. The build stamp shows the version and short commit in the co
 
 ## Unreleased
 
+- Battle: effects that last now stay on the field for as long as they last. Weather tints the field and brings
+  sun rays, rain, sand, snow, hail or wind; terrains glow under both platforms; Trick Room shows its room outline;
+  Reflect, Light Screen and Aurora Veil shimmer around the side that has them, Tailwind blows across it; Stealth
+  Rock, Spikes layers, Toxic Spikes layers and Sticky Web sit on the ground of the side they are on and drop in when
+  set. A Substitute is a plush in front of its dimmed mon, Leech Seed a vine and bulb at its feet, confusion circles
+  the head, and Taunt, Encore, Torment, Yawn, Curse, Ingrain, Aqua Ring and Attract get a badge at the feet.
+  Substitute and Leech Seed starts have their own effect now. Reduced motion keeps the still parts (tints, glows,
+  hazards, markers, the doll) and drops the particles; turning Attack effects off hides all of it.
 - Free agency: a coach under the roster maximum can sign a free agent without dropping anyone ("Keep everyone" at
   the top of the drop list; it still counts as a move and must fit the budget). The dialog shows the roster count.
 - Team editor: "Import sets" takes Showdown text for one or many Pokemon and applies each set to the roster Pokemon

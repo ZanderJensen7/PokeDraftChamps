@@ -416,7 +416,7 @@ function Field({ view, names, bind, fx, effectsOn, phone, landscape, exactHp, si
   ].filter((c): c is string => !!c);
   return (
     <div className="battle-field">
-      <FxLayer handle={fx} visual={effectsOn} />
+      <FxLayer handle={fx} visual={effectsOn} view={view} />
       {view.turn > 0 && (
         <div className="absolute left-1/2 top-2 -translate-x-1/2 rounded-full bg-cream-ink/80 px-2 py-0.5 font-display text-xs font-bold text-poke-yellow">
           TURN {view.turn}
@@ -434,7 +434,7 @@ function Field({ view, names, bind, fx, effectsOn, phone, landscape, exactHp, si
           <HpBox mon={foe} name={monName(foe, 'p2', names)} mine={!!exactHp} compact={landscape} />
         </div>
       )}
-      <div className={`battle-platform h-[15%] w-[36%] ${landscape ? 'right-[4%] top-[43%]' : 'right-[6%] top-[40%]'}`} />
+      <div data-fx-ground="p2" className={`battle-platform h-[15%] w-[36%] ${landscape ? 'right-[4%] top-[43%]' : 'right-[6%] top-[40%]'}`} />
       {/* The sprite scales from its bottom edge, so the landscape slot is anchored by its bottom (58% down the field). */}
       <div className={`absolute flex w-[24%] justify-center ${landscape ? 'right-[10%] bottom-[42%]' : 'right-[12%] top-[8%]'}`}>
         {foe && (
@@ -444,7 +444,7 @@ function Field({ view, names, bind, fx, effectsOn, phone, landscape, exactHp, si
         )}
       </div>
       {/* you: back sprite bottom-left, HP box bottom-right */}
-      <div className="battle-platform -bottom-[6%] left-[2%] h-[20%] w-[44%]" />
+      <div data-fx-ground="p1" className="battle-platform -bottom-[6%] left-[2%] h-[20%] w-[44%]" />
       <div className={`absolute bottom-0 flex w-[36%] justify-center ${landscape ? 'left-[4%]' : 'left-[6%]'}`}>
         {me && (
           <SpriteHit mon={me} side="p1" index={view.sides.p1.active} bind={bind}>
