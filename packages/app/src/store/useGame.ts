@@ -19,7 +19,7 @@ import { useProfile } from './profile';
 
 export type Screen =
   | 'title' | 'setup' | 'draft' | 'hub' | 'team' | 'prep' | 'battle' | 'recap' | 'end' | 'settings' | 'analytics'
-  | 'daily' | 'hall';
+  | 'daily' | 'hall' | 'replay';
 
 /** The league slot (any run without `daily`). */
 export const RUN_KEY = 'pdc.run.v1';
@@ -81,11 +81,16 @@ interface GameState {
   /** True while the rest of the week's matches simulate after the human match resolves. */
   simulatingWeek: boolean;
   lastWeekResults: WeekRecap | null;
+  /** The match the replay screen shows, and the screen its Back button returns to. */
+  replayMatchId: string | null;
+  replayFrom: Screen;
   toast: string | null;
 }
 
 interface GameActions {
   go(screen: Screen): void;
+  /** Opens the replay of a played match; Back returns to the current screen. */
+  watch(matchId: string): void;
   openOverlay(screen: 'settings' | 'team'): void;
   closeOverlay(): void;
   newLeague(opts: NewLeagueOptions): void;
@@ -300,6 +305,8 @@ export const useGame = create<GameStore>((set, get) => ({
   leaveBattleTo: null,
   simulatingWeek: false,
   lastWeekResults: null,
+  replayMatchId: null,
+  replayFrom: 'hub',
   toast: null,
 
   go(screen) {
@@ -311,6 +318,10 @@ export const useGame = create<GameStore>((set, get) => ({
       return;
     }
     set({ screen });
+  },
+
+  watch(matchId) {
+    set({ replayMatchId: matchId, replayFrom: get().screen, screen: 'replay' });
   },
 
   confirmLeaveBattle(leave) {

@@ -43,6 +43,9 @@ every package.json. The build stamp shows the version and short commit in the co
   on desktop and phone.
 - Fixed: Report a bug opened behind the draft screen (and could not be used); dialogs and sheets now open above
   every screen.
+- Replays: WATCH any played league match (your schedule, the rest of the league, the week recap, a playoff
+  bracket game) on the battle field with the log open: play / pause, step, step back, 1x / 2x / 4x, a turn
+  slider and restart. Both sides' HP is exact; on phones the controls sit at the bottom.
 
 ## v0.3.1 — 2026-11-02
 

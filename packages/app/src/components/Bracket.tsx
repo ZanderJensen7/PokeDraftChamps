@@ -2,6 +2,8 @@ import type { Match, RunState } from '@pdc/engine';
 import { playoffRoundCount, playoffRoundName } from '@pdc/engine';
 import { Crest } from './ui';
 import { abbrevOf } from '../game/names';
+import { useGame } from '../store/useGame';
+import { canWatch } from './WatchButton';
 
 function Slot({ run, coach, score, won }: { run: RunState; coach?: string; score?: number; won?: boolean }) {
   const you = coach === run.humanId;
@@ -14,14 +16,20 @@ function Slot({ run, coach, score, won }: { run: RunState; coach?: string; score
   );
 }
 
+/** A played game opens its replay. */
 function MatchBox({ run, m }: { run: RunState; m?: Match }) {
   const r = m?.result;
+  const watch = useGame((s) => s.watch);
+  const Box = canWatch(m) ? 'button' : 'div';
   return (
-    <div className="w-36 overflow-hidden rounded-lg border-2 border-edge bg-panel-inset text-sm">
+    <Box
+      {...(Box === 'button' ? { type: 'button' as const, onClick: () => watch(m!.id), title: 'Watch the replay' } : {})}
+      className={`block w-36 overflow-hidden rounded-lg border-2 border-edge bg-panel-inset text-left text-sm ${Box === 'button' ? 'hover:border-poke-yellow' : ''}`}
+    >
       <Slot run={run} coach={m?.home} score={r ? r.remaining[m!.home] ?? 0 : undefined} won={r ? r.winner === m!.home : undefined} />
       <div className="h-px bg-edge" />
       <Slot run={run} coach={m?.away} score={r ? r.remaining[m!.away] ?? 0 : undefined} won={r ? r.winner === m!.away : undefined} />
-    </div>
+    </Box>
   );
 }
 

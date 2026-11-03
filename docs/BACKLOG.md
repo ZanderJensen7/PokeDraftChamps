@@ -70,7 +70,11 @@ Each line is one job. Sessions are started from the top; three at a time at most
    profile sketch.
 7. **Draft helper follow-ups.** FIT badge uses the quick score (roles excluded) while the hover note uses the
    full one; hover popover covers the next card row; resistances table scrolls sideways in the narrow rail.
-8. **Replay viewer** for stored logs (watch any league match); the tape-room perk needs it.
+8. **Replay viewer** for stored logs (watch any league match); the tape-room perk needs it. SHIPPED 2026-11-02
+   (branch `claude/replay-viewer-0db5c4`): `app/src/battle/replay.ts` (log cut into the live battle's beats,
+   `useReplay` transport), `screens/ReplayScreen.tsx` (route `replay`, `watch(matchId)` in the store), the field +
+   log + hover cards shared with the live battle as `BattleStage`; WATCH in the hub schedule (yours and the rest of
+   the league), the week recap and the bracket.
 9. **Set editor polish.** Showdown text import/export (`@pkmn/sets`), sample sets from `@pkmn/smogon`.
 10. **AI quality + pricing.** Draft AI (role coverage, not overpaying), battle AI strength (vs random, vs itself
     across seeds), prep threat summary wording; rerun the lab with Megas on for the next outlier after Mega

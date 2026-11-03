@@ -5,11 +5,10 @@ import { deriveSeed, humanCoach, nextHumanMatch, opponentOf, rulesAt } from '@pd
 import type { InteractiveBattle } from '@pdc/engine/battle';
 import { BattleRng, buildSetFor, chooseLineup, createInteractiveBattle, humanMatchResult } from '@pdc/engine/battle';
 import type { PlayHumanMatchArgs } from '../game/bridge';
-import { speciesName } from '../game/names';
 import { useGame } from '../store/useGame';
+import { namesFor, type BattleNames } from './battleNames';
 
-/** Protocol nickname -> roster display name, per side ("Charizard" -> "Mega Charizard X" for a Mega pick). */
-export type BattleNames = Record<'p1' | 'p2', Record<string, string>>;
+export { namesFor, type BattleNames };
 
 export interface LiveBattle {
   battle: InteractiveBattle;
@@ -34,24 +33,6 @@ function teamFor(coach: Coach, lineup: SpeciesId[], seed: number): BattleSet[] {
     const entry = coach.roster.find((r) => r.species === id);
     return buildSetFor(id, { seed, isTeraCaptain: !!entry?.isTeraCaptain, isZCaptain: !!entry?.isZCaptain });
   });
-}
-
-/**
- * Nicknames the sim will print for a team mapped to the roster entry's display name. A nickname two roster
- * entries share (Mega X and Y of one base) is left out so neither claims it.
- */
-export function namesFor(lineup: SpeciesId[], team: BattleSet[]): Record<string, string> {
-  const out: Record<string, string> = {};
-  const seen = new Set<string>();
-  team.forEach((set, i) => {
-    const id = lineup[i];
-    const nick = set.name || set.species;
-    if (!id || !nick) return;
-    if (seen.has(nick)) { delete out[nick]; return; }
-    seen.add(nick);
-    out[nick] = speciesName(id);
-  });
-  return out;
 }
 
 function captainsIn(coach: Coach, lineup: SpeciesId[]): SpeciesId[] {
