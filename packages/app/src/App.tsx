@@ -1,7 +1,9 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { humanCoach } from '@pdc/engine';
 import { useGame, weekLabel, type Screen } from './store/useGame';
 import { useSettings } from './store/settings';
+import { APP_VERSION } from './app/version';
+import { BugReport } from './components/BugReport';
 import { GameButton, ResponsiveDialog, PokeBallLogo } from './components/ui';
 import { leagueCode } from './game/names';
 import { TitleScreen } from './screens/TitleScreen';
@@ -47,6 +49,7 @@ function TopBar() {
   const go = useGame((s) => s.go);
   const openOverlay = useGame((s) => s.openOverlay);
   const navShown = useShowBottomNav();
+  const [bug, setBug] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
   // Publish the bar's height so phone screens can stick their own bars right under it.
   useLayoutEffect(() => {
@@ -75,6 +78,7 @@ function TopBar() {
             PokeDraft<span className="text-ink">Champs</span>
           </span>
         </button>
+        <span className="hidden shrink-0 text-xs font-semibold uppercase tracking-wide text-faint md:inline">{APP_VERSION.channel}</span>
         {run && (
           <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
             <span className="hidden truncate text-muted md:inline">{run.config.teams}-team league · code {leagueCode(run.seed)}</span>
@@ -83,6 +87,9 @@ function TopBar() {
           </div>
         )}
         {!run && <div className="flex-1" />}
+        <GameButton variant="ghost" size="sm" onClick={() => setBug(true)} aria-label="Report a bug" title="Report a bug" className="min-h-11 min-w-11 md:min-h-0 md:min-w-0">
+          🐞
+        </GameButton>
         {screen !== 'settings' && (
           <GameButton
             variant="ghost"
@@ -95,6 +102,7 @@ function TopBar() {
           </GameButton>
         )}
       </div>
+      {bug && <BugReport onClose={() => setBug(false)} />}
     </header>
   );
 }

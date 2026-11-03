@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { appVersion, commit } from './scripts/build-stamp.mjs';
 
 export default defineConfig({
   plugins: [
@@ -51,6 +52,12 @@ export default defineConfig({
       },
     }),
   ],
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion()),
+    __APP_COMMIT__: JSON.stringify(commit()),
+    __APP_BUILT_AT__: JSON.stringify(new Date().toISOString().slice(0, 10)),
+    __APP_CHANNEL__: JSON.stringify('early build'),
+  },
   base: './',
   worker: { format: 'es' },
   build: { target: 'es2022', sourcemap: false },

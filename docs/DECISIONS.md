@@ -44,3 +44,10 @@
   captain is a mid-price pick made scary, not a top pick made scarier; the captain count drops when a
   roster has too few eligible mons. Saves bumped to v3; v2 saves migrate as min = max = their old size with
   no cap, so an old league keeps its rules.
+- **2026-11-02 — Attack effects, not Pokemon animations.** User ruling: the `ani` sprites already move, so the
+  battle gets effects for the attacks only (a template per shape: contact / projectile / beam / self / status /
+  field, colored and glyphed per type) plus a hit flash and a small shudder on the sprite that was hit, field
+  shake on crits / super-effective hits, and Tera / Mega / Z flashes. All of it is our own canvas code with data
+  tables (`app/src/battle/vfx.ts`); the Showdown client and PokeRogue animation code are AGPL and are never
+  copied. Sounds are synthesized with Web Audio (no audio files); cries are hot-linked from the same Showdown
+  host as the sprites. Both are settings (Attack effects, Sound) and reduced motion turns the visuals off.

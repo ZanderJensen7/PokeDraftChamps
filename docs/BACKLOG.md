@@ -29,6 +29,13 @@ Status: TODO · RUNNING · DONE. Keep this short; details live in the job report
     needs) and a "what this adds" line + fit badge on pool cards, with a "Sort by fit" option.
 
 ## Next
+- User notes 2026-11-02 (evening):
+  - Draft: a toggle for the draft recommendations (FIT badges, needs panel); no fit score before the first pick
+    (nothing to fit yet). Keep the line between hand-holding and the prep/draft being part of the fun.
+  - League setup: options for the number of free-agency moves and the total point budget (tier prices unchanged).
+  - Mobile: the "what everyone drafted" view is rough, it cannot scroll all the way.
+  - Traffic: a way to see how many people play (privacy-respecting analytics on the static site; decide what, see
+    DECISIONS on no telemetry leaving the browser without opt-in).
 - Roster range follow-ups (2026-11-02): free agency is still drop-one/add-one, so a coach under `rosterMax`
   cannot pick up a mon without dropping one; decide whether to allow a plain add (counts as a move, within
   budget). The AI may also end a little below its rolled aim when its budget runs thin after the minimum.
@@ -72,13 +79,22 @@ Status: TODO · RUNNING · DONE. Keep this short; details live in the job report
   carries PP for the active mon); the phone tap-sheet is unchecked by hand.
 - DONE 2026-11-02: "Edit sets" button in the prep screen's lineup panel header (both layouts) opens the Team
   editor; discoverability note from the user not finding the set editor.
+- DONE 2026-11-02: Early-build stamp (v0.2.0 · early build · short SHA, Vite `define`) on title, header and Settings About, plus an in-game "Report a bug" dialog that prefills a GitHub issue (never auto-sends) and a bug issue template.
 - Roster range: the "Done drafting" button was not seen by hand (the test draft auto-finished at 9 with 1 point
   left); covered by run.test.ts. Check it in a league with points to spare.
-- Attack VFX (user ruling 2026-11-02: no mon animation needed, the `ani` sprites already move; effects for
-  the attacks only): template system keyed by move type x shape (contact / projectile / beam / self / status /
-  field) drawn over the battle view, plus a hit flash and smooth HP drain so a hit visibly lands; Tera/Mega/Z
-  flash; cries on switch-in/faint and a type-to-SFX table. Own code (Showdown + PokeRogue animation code is
-  AGPL). 1-3 days. Bespoke top-100 move effects only if replay/watch time proves worth it.
+- DONE 2026-11-02: attack effects (user ruling: no mon animation, the `ani` sprites already move; effects for the
+  attacks only). `app/src/battle/vfx.ts` (pure) turns each narrated protocol line into an effect event with
+  data tables for the shape per move (contact / projectile / beam / self / status / field from dex flags +
+  `MOVE_SHAPE_OVERRIDES`), the glyph + color per type (`TYPE_FX`), and the type each weather / terrain / hazard /
+  status / chip-damage source borrows; `fxCanvas.ts` draws them as particles and overlays on a canvas over the
+  field (`components/battle/FxLayer.tsx`), with a white hit flash + small shudder on the sprite, field shake on
+  crits / super-effective hits, Tera / Mega / Z-Power washes and glows, cries (Showdown audio host, like the
+  sprites) on switch-in and faint, and synthesized Web Audio blips per type and event (`sound.ts`, no audio
+  files). The move line gets its own 520 ms beat so the attack crosses before the HP drains; your HP number
+  counts down with the bar. Settings: Attack effects, Sound; reduced motion turns the visuals off. Checked in
+  the built-in browser by sampling the effect canvas (the pane was hidden, so animation frames were sparse):
+  open: look at it live and tune sizes / sound levels by feel; the phone layout was not seen. Bespoke top-100
+  move effects only if replay / watch time proves worth it.
 - Draft AI quality pass (role coverage, not overpaying), battle AI strength tuning (measure vs random and
   vs itself across seeds), prep threat summary wording.
 - Replay viewer for stored logs (watch any league match).

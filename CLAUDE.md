@@ -34,6 +34,13 @@ no accounts, never monetized). Design source of truth: `docs/DESIGN.md`. Decisio
   typed Showdown-style log entries for `components/battle/BattleLog.tsx`; `battle/monInfo.ts` builds the
   hover-card data (seen / scouted / likely moves, speed tiers vs your active mon) for
   `components/battle/MonHoverCard.tsx`. The engine's `MatchResult.log` stays raw protocol.
+- Attack effects: `battle/vfx.ts` (pure: protocol line -> `FxEvent`, plus the shape / type / weather / status
+  tables), `battle/fxCanvas.ts` (the particle stage: six shape templates, glyph drawing, overlays),
+  `battle/sound.ts` (synthesized per-type and per-event blips, Showdown-hosted cries), `components/battle/FxLayer.tsx`
+  (the canvas inside `.battle-field`; sprites to hit carry `data-fx="p1|p2"`). Effects never move a sprite beyond
+  the hit shudder (user ruling); Showdown / PokeRogue animation code is AGPL, so all of it is our own.
+
+- App build stamp + bug reports: `packages/app/src/app/version.ts` (`APP_VERSION`, values injected by `define` in `vite.config.ts` via `scripts/build-stamp.mjs`; bump the package.json versions together), `src/app/errorLog.ts` (last 5 uncaught errors), `src/components/BugReport.tsx` (prefilled GitHub issue / copy, never auto-sends); template in `.github/ISSUE_TEMPLATE/`.
 
 ## Rules of the house
 - Pure functions, seeded randomness (`league/rng.ts`, sim seeds), JSON-friendly state (arrays, not Set/Map)

@@ -8,11 +8,15 @@ export interface Settings {
   reducedMotion: boolean;
   /** Battle log panel open (desktop, tablet, landscape phone). Portrait phones open it as a sheet on demand. */
   battleLogOpen: boolean;
+  /** Attack effects over the battle field (always off under reduced motion). */
+  battleEffects: boolean;
+  /** Cries and battle sound effects. */
+  sound: boolean;
 }
 
 const KEY = 'pdc.settings.v2';
 const OLD_KEY = 'pdc.settings.v1';
-const DEFAULTS: Settings = { spriteSet: 'ani', reducedMotion: false, battleLogOpen: true };
+const DEFAULTS: Settings = { spriteSet: 'ani', reducedMotion: false, battleLogOpen: true, battleEffects: true, sound: true };
 
 function load(): Settings {
   try {
@@ -28,6 +32,8 @@ function load(): Settings {
       spriteSet: parsed.spriteSet === 'gen5ani' ? 'gen5ani' : 'ani',
       reducedMotion: parsed.reducedMotion === true,
       battleLogOpen: parsed.battleLogOpen !== false,
+      battleEffects: parsed.battleEffects !== false,
+      sound: parsed.sound !== false,
     };
   } catch {
     return DEFAULTS;
@@ -42,9 +48,9 @@ export const useSettings = create<SettingsStore>((set, get) => ({
   ...load(),
   update(patch) {
     set(patch);
-    const { spriteSet, reducedMotion, battleLogOpen } = get();
+    const { spriteSet, reducedMotion, battleLogOpen, battleEffects, sound } = get();
     try {
-      localStorage.setItem(KEY, JSON.stringify({ spriteSet, reducedMotion, battleLogOpen }));
+      localStorage.setItem(KEY, JSON.stringify({ spriteSet, reducedMotion, battleLogOpen, battleEffects, sound }));
     } catch {
       /* storage full or blocked: settings stay in memory */
     }

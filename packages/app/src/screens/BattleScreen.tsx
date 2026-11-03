@@ -1,6 +1,6 @@
 // The live battle: the human (p1) against the league AI (p2), driven by the engine's interactive battle.
 // Protocol lines are narrated one sentence at a time; the action panel appears once narration catches up.
-import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode, type Ref } from 'react';
 import type { MatchResult } from '@pdc/engine';
 import type { ParsedRequest, RequestPokemon } from '@pdc/engine/battle';
 import { useGame } from '../store/useGame';
@@ -14,11 +14,13 @@ import { displayName } from '../game/names';
 import { dex9 } from '../game/sets';
 import type { LiveBattle } from '../battle/session';
 import {
-  activeMon, battleViewReducer, initialBattleView, parseCondition, parseDetails,
+  activeMon, battleViewReducer, initialBattleView, parseCondition, parseDetails, parseIdent,
   type FieldView, type MonView, type Side, type SideView,
 } from '../battle/battleView';
 import { isHpLine, narrate, parseLog, type Narration } from '../battle/narrate';
+import { fxEvents } from '../battle/vfx';
 import { BattleLog } from '../components/battle/BattleLog';
+import { FxLayer, type FxHandle } from '../components/battle/FxLayer';
 
 export function BattleScreen() {
   const battle = useGame((s) => s.battle);
@@ -41,8 +43,11 @@ const SAY_MS = 360;
 const HP_MS = 400;
 const TURN_MS = 300;
 const BEAT_MS = 300;
+/** With attack effects on, "X used Y!" holds long enough for the attack to cross the field before the hit lands. */
+const MOVE_MS = 520;
 
-function delayFor(line: string, n: Narration | null, reduced: boolean): number {
+function delayFor(line: string, n: Narration | null, reduced: boolean, effects: boolean): number {
+  if (effects && line.startsWith('|move|')) return MOVE_MS;
   if (n?.kind === 'say' || n?.kind === 'end') return SAY_MS;
   if (n?.kind === 'turn') return reduced ? 0 : TURN_MS;
   if (isHpLine(line)) return reduced ? 0 : HP_MS;
@@ -56,6 +61,8 @@ function errorText(line: string): string {
 function LiveBattleView({ live }: { live: LiveBattle }) {
   const { battle, opp } = live;
   const reduced = useSettings((s) => s.reducedMotion);
+  const effectsOn = useSettings((s) => s.battleEffects) && !reduced;
+  const fx = useRef<FxHandle>(null);
   const ctx = useMemo(() => ({ oppName: opp.name }), [opp.name]);
   const [state, dispatch] = useReducer(battleViewReducer, 'The battle is about to begin…', initialBattleView);
   const linesRef = useRef<string[]>([]);
@@ -108,14 +115,20 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
         batch.push(line);
         const n = narrate(line, ctx);
         if (n && n.kind !== 'turn') say = n.text;
-        delay = delayFor(line, n, reduced);
+        delay = delayFor(line, n, reduced, effectsOn);
         if (delay > 0) break;
       }
       lastDelay.current = delay;
+      // Effects (and cries) fire as the lines are narrated; a fainting mon is looked up in the view before it leaves.
+      const view = state.view;
+      fx.current?.play(fxEvents(batch, (ident) => {
+        const id = parseIdent(ident);
+        return id ? view.sides[id.side].team.find((m) => m.nick === id.name)?.species : undefined;
+      }));
       dispatch({ type: 'advance', lines: batch, say });
     }, lastDelay.current);
     return () => clearTimeout(t);
-  }, [state.shown, caughtUp, ctx, reduced]);
+  }, [state.shown, state.view, caughtUp, ctx, reduced, effectsOn]);
 
   /** Click on the dialogue: show everything received so far at once. */
   const skip = () => {
@@ -203,7 +216,7 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
   const fieldStack = (
     <>
       <TeamStrip side={view.sides.p2} sideId="p2" bind={hover.bind} tone="opp" label={opp.name} />
-      <Field view={view} bind={hover.bind} />
+      <Field view={view} bind={hover.bind} fx={fx} effectsOn={effectsOn} />
       <TeamStrip side={view.sides.p1} sideId="p1" bind={hover.bind} tone="you" label={live.human.name} extra={phone ? logToggle : undefined} />
     </>
   );
@@ -277,10 +290,34 @@ function HpBox({ mon, mine }: { mon: MonView; mine: boolean }) {
         {mon.tera && <TypePill type={mon.tera} size="xs" />}
       </div>
       <HpBar value={mon.hp} max={mon.maxhp} />
-      {mine && <div className="mt-0.5 text-right font-display text-sm font-bold tabular-nums">{mon.hp}/{mon.maxhp}</div>}
+      {/* Keyed by the mon so a switch-in shows its HP at once instead of counting up from the last mon's. */}
+      {mine && <div className="mt-0.5 text-right font-display text-sm font-bold tabular-nums"><TweenNumber key={mon.nick ?? mon.species} value={mon.hp} />/{mon.maxhp}</div>}
       <BoostChips boosts={mon.boosts} className="mt-1" />
     </div>
   );
+}
+
+/** Your HP number counts down (or up) over the same 400 ms the bar takes, so a hit reads as one motion. */
+function TweenNumber({ value, ms = 400 }: { value: number; ms?: number }) {
+  const [shown, setShown] = useState(value);
+  const fromRef = useRef(value);
+  useEffect(() => {
+    const from = fromRef.current;
+    if (from === value) return;
+    let raf = 0;
+    const t0 = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - t0) / ms);
+      const eased = 1 - (1 - t) * (1 - t);
+      const v = Math.round(from + (value - from) * eased);
+      setShown(v);
+      if (t < 1) raf = requestAnimationFrame(step);
+      else fromRef.current = value;
+    };
+    raf = requestAnimationFrame(step);
+    return () => { cancelAnimationFrame(raf); fromRef.current = value; };
+  }, [value, ms]);
+  return <>{shown}</>;
 }
 
 function FieldSprite({ mon, side, size }: { mon: MonView; side: 'p1' | 'p2'; size: number }) {
@@ -288,7 +325,10 @@ function FieldSprite({ mon, side, size }: { mon: MonView; side: 'p1' | 'p2'; siz
   const phoneScale = side === 'p2' ? 'scale-[0.62]' : 'scale-[0.54]';
   return (
     <div className={`battle-sprite anim-pick-in origin-bottom ${phoneScale} sm:scale-90 lg:scale-100 ${mon.fainted ? 'is-fainted' : ''}`}>
-      <PokeSprite name={mon.species} side={side} size={size} />
+      {/* The inner wrapper takes the hit flash / glow classes, so they never fight the scale transform above. */}
+      <div data-fx={side}>
+        <PokeSprite name={mon.species} side={side} size={size} />
+      </div>
     </div>
   );
 }
@@ -304,7 +344,7 @@ function SpriteHit({ mon, side, index, bind, children }: { mon: MonView; side: S
   );
 }
 
-function Field({ view, bind }: { view: FieldView; bind: BindFn }) {
+function Field({ view, bind, fx, effectsOn }: { view: FieldView; bind: BindFn; fx: Ref<FxHandle>; effectsOn: boolean }) {
   const foe = activeMon(view, 'p2');
   const me = activeMon(view, 'p1');
   const chips = [
@@ -315,6 +355,7 @@ function Field({ view, bind }: { view: FieldView; bind: BindFn }) {
   ].filter((c): c is string => !!c);
   return (
     <div className="battle-field">
+      <FxLayer handle={fx} visual={effectsOn} />
       {view.turn > 0 && (
         <div className="absolute left-1/2 top-2 -translate-x-1/2 rounded-full bg-cream-ink/80 px-2 py-0.5 font-display text-xs font-bold text-poke-yellow">
           TURN {view.turn}

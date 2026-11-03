@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react';
 import { useGame } from '../store/useGame';
+import { APP_VERSION } from '../app/version';
+import { BugReport } from '../components/BugReport';
 import { DialogueBox, GameButton, ResponsiveDialog, PokeBallLogo, PokeSprite } from '../components/ui';
 
 const PARADE = ['Great Tusk', 'Dragapult', 'Gholdengo', 'Kingambit', 'Iron Valiant', 'Meowscarada'];
@@ -27,6 +29,7 @@ export function TitleScreen() {
   const importSave = useGame((s) => s.importSave);
   const openOverlay = useGame((s) => s.openOverlay);
   const [howTo, setHowTo] = useState(false);
+  const [bug, setBug] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -37,6 +40,7 @@ export function TitleScreen() {
           PokeDraft<span className="text-ink">Champs</span>
         </h1>
         <p className="max-w-md text-lg font-semibold text-muted">Draft a roster. Survive the season. Win the league.</p>
+        <span className="rounded-full border-2 border-poke-yellow-dark bg-panel-inset px-3 py-0.5 font-display text-sm font-bold uppercase tracking-wide text-poke-yellow">Early build</span>
       </div>
 
       <div className="flex flex-wrap items-end justify-center gap-1 opacity-90" aria-hidden="true">
@@ -51,6 +55,7 @@ export function TitleScreen() {
         )}
         <GameButton size="lg" block variant={hasSave ? 'secondary' : 'primary'} onClick={() => go('setup')}>New League</GameButton>
         <GameButton block variant="ghost" onClick={() => setHowTo(true)}>How to Play</GameButton>
+        <GameButton block variant="ghost" onClick={() => setBug(true)}>Report a bug</GameButton>
         <GameButton block variant="ghost" onClick={() => fileRef.current?.click()}>Import Save</GameButton>
         <GameButton block variant="ghost" onClick={() => openOverlay('settings')}>Settings</GameButton>
         <input
@@ -67,8 +72,11 @@ export function TitleScreen() {
       </nav>
       <p className="max-w-md text-xs text-faint">
         Free fan project. Pokemon and sprites belong to Nintendo, Game Freak and The Pokemon Company; sprites via Pokemon Showdown.
+        <br />
+        {APP_VERSION.label} · built {APP_VERSION.builtAt}
       </p>
       {howTo && <HowToPlay onClose={() => setHowTo(false)} />}
+      {bug && <BugReport onClose={() => setBug(false)} />}
     </div>
   );
 }

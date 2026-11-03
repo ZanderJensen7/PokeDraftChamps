@@ -262,6 +262,32 @@ input[type="range"] {
 .battle-sprite { transition: opacity 500ms ease-out, transform 500ms ease-out; }
 .battle-sprite.is-fainted { opacity: 0; transform: translateY(24px); }
 
+/* Attack effects (drawn by FxLayer's canvas): the sprite flashes white and shudders when hit, the whole field
+   shakes on crits / super-effective hits, and Tera / Mega / Z light the sprite up in their color. */
+@keyframes fx-hit {
+  0% { filter: brightness(1); transform: none; }
+  12% { filter: brightness(3) saturate(0.2); transform: translateX(calc(-1 * var(--fx-amp, 3px))); }
+  30% { filter: brightness(1.5); transform: translateX(var(--fx-amp, 3px)); }
+  50% { filter: brightness(1); transform: translateX(calc(-0.6 * var(--fx-amp, 3px))); }
+  70% { transform: translateX(calc(0.4 * var(--fx-amp, 3px))); }
+  100% { transform: none; }
+}
+.fx-hit { animation: fx-hit 320ms ease-out; }
+.fx-hit-strong { --fx-amp: 6px; animation-duration: 420ms; }
+@keyframes fx-shake {
+  0%, 100% { transform: none; }
+  20% { transform: translate(calc(-1 * var(--fx-amp, 4px)), calc(0.5 * var(--fx-amp, 4px))); }
+  40% { transform: translate(var(--fx-amp, 4px), calc(-0.5 * var(--fx-amp, 4px))); }
+  60% { transform: translate(calc(-0.7 * var(--fx-amp, 4px)), calc(0.3 * var(--fx-amp, 4px))); }
+  80% { transform: translate(calc(0.4 * var(--fx-amp, 4px)), 0); }
+}
+.fx-shake { animation: fx-shake 280ms ease-out; }
+.fx-shake-strong { --fx-amp: 8px; animation: fx-shake 400ms ease-out; }
+.fx-glow {
+  filter: drop-shadow(0 0 10px var(--fx-color, #fff)) drop-shadow(0 0 24px var(--fx-color, #fff)) brightness(1.25);
+  transition: filter 250ms ease-out;
+}
+
 /* ---------- Touch + phone layer ---------- */
 
 /* No 300ms tap delay, no text selection or grey tap flash on game controls. */
