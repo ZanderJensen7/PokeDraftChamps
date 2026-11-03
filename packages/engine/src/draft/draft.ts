@@ -113,7 +113,7 @@ export function budgetOf(draft: DraftState, coach: CoachId, config: Pick<LeagueC
  * the (remaining-draft-picks)-th cheapest available mon: even if every later pick took the cheapest
  * mons, one at this price stays available, so a legal pick always exists (the draft can never strand
  * a coach). "Remaining picks" counts every open slot up to rosterMax (maxPicksLeft), an upper bound, so the
- * guarantee holds however many coaches stop early. At the start of a 16x11 draft this is 5 (ZU).
+ * guarantee holds however many coaches stop early. At the start of a 16x11 draft this is 5 (the 177th cheapest mon); it falls as the cheap end of the pool is picked over and fewer picks remain.
  */
 export function reservePerSlot(draft: DraftState, config: DraftConfig, pool: Pool): number {
   const byId = indexPool(pool);

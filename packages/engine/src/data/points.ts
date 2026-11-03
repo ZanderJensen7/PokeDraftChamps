@@ -3,7 +3,7 @@
 /** Smogon singles tier -> draft points. Unknown tiers cost UNKNOWN_TIER_POINTS. */
 export const POINTS_BY_TIER: Record<string, number> = {
   Uber: 20, OU: 18, UUBL: 16, UU: 15, RUBL: 14, RU: 12, NUBL: 11, NU: 10,
-  PUBL: 9, PU: 8, ZUBL: 7, ZU: 5, NFE: 3, LC: 1,
+  PUBL: 9, PU: 5, ZUBL: 7, ZU: 3, NFE: 3, LC: 1,
 };
 export const UNKNOWN_TIER_POINTS = 5;
 export const MAX_POINTS = 20;

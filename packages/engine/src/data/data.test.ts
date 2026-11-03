@@ -16,6 +16,20 @@ describe('draft pool', () => {
     }
   });
 
+  it('runs the cheapest price at 3, with the floor tiers cheaper than PUBL', () => {
+    expect(Math.min(...pool.map((m) => m.points))).toBe(3);
+    const price = (t: string): number[] => pool.filter((m) => m.tier === t).map((m) => m.points);
+    for (const tier of ['ZU', 'PU']) {
+      const ps = price(tier);
+      expect(ps.length).toBeGreaterThan(0);
+      expect(Math.max(...ps)).toBeLessThan(priceOf({ tier: 'PUBL', bst: 0 }));
+    }
+    expect(priceOf({ tier: 'ZU', bst: 400 })).toBe(3);
+    expect(priceOf({ tier: 'ZU', bst: 520 })).toBe(5);
+    expect(priceOf({ tier: 'PU', bst: 400 })).toBe(5);
+    expect(priceOf({ tier: 'PU', bst: 520 })).toBe(7);
+  });
+
   it('contains no banned species', () => {
     const ids = new Set(pool.map((m) => m.id));
     for (const b of BANNED_SPECIES) expect(ids.has(b)).toBe(false);
