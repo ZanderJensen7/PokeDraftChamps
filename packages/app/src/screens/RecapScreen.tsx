@@ -1,6 +1,7 @@
 import { useGame } from '../store/useGame';
 import { Crest, DialogueBox, GameButton, Panel } from '../components/ui';
 import { StandingsTable } from '../components/StandingsTable';
+import { WatchButton } from '../components/WatchButton';
 import { abbrevOf, coachName, scoreLine } from '../game/names';
 
 export function RecapScreen() {
@@ -64,6 +65,7 @@ export function RecapScreen() {
                   <Crest abbrev={abbrevOf(run, res.loser)} size={20} />
                   <span className="font-display font-bold">{abbrevOf(run, res.loser)}</span>
                   <span className="ml-auto font-bold tabular-nums">{scoreLine(m)}</span>
+                  <WatchButton match={m} />
                 </li>
               );
             })}

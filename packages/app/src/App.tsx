@@ -33,6 +33,17 @@ function BattleRoute() {
   );
 }
 
+// Replays share the battle stage, so they load with it (the sim itself stays out: a replay only reads the log).
+const LazyReplayScreen = lazy(() => import('./screens/ReplayScreen').then((m) => ({ default: m.ReplayScreen })));
+
+function ReplayRoute() {
+  return (
+    <Suspense fallback={<div className="dialogue mx-auto max-w-2xl px-5 py-4 font-display text-xl font-bold">Loading replay…</div>}>
+      <LazyReplayScreen />
+    </Suspense>
+  );
+}
+
 const SCREENS: Record<Screen, () => React.JSX.Element | null> = {
   title: TitleScreen,
   setup: SetupScreen,
@@ -46,6 +57,7 @@ const SCREENS: Record<Screen, () => React.JSX.Element | null> = {
   settings: SettingsScreen,
   analytics: AnalyticsScreen,
   daily: DailyScreen,
+  replay: ReplayRoute,
 };
 
 function TopBar() {
@@ -120,7 +132,7 @@ function Toast() {
   // Phones: clear the bottom nav; in battle and draft drop from the top so the pinned controls stay tappable.
   const place = navShown
     ? 'bottom-[calc(5.5rem+env(safe-area-inset-bottom))] md:bottom-4'
-    : screen === 'battle' || screen === 'draft'
+    : screen === 'battle' || screen === 'replay' || screen === 'draft'
       ? 'top-[calc(4rem+env(safe-area-inset-top))] md:top-auto md:bottom-4'
       : 'bottom-[calc(1rem+env(safe-area-inset-bottom))]';
   return (
@@ -137,8 +149,8 @@ function VersionBadge() {
   const screen = useGame((s) => s.screen);
   const openOverlay = useGame((s) => s.openOverlay);
   const navShown = useShowBottomNav();
-  // Phones: sit above the bottom nav when it is shown; in battle the action panel is pinned, so hide the badge there.
-  if (screen === 'battle') return null;
+  // Phones: sit above the bottom nav when it is shown; in battle (and replays) the bottom bar is pinned, so hide the badge there.
+  if (screen === 'battle' || screen === 'replay') return null;
   const place = navShown ? 'bottom-[calc(5.5rem+env(safe-area-inset-bottom))] md:bottom-1' : 'bottom-[calc(0.25rem+env(safe-area-inset-bottom))]';
   return (
     <button

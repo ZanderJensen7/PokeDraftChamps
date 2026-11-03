@@ -12,6 +12,7 @@ import { Bracket } from '../components/Bracket';
 import { CaptainPicker } from '../components/CaptainPicker';
 import { MonDetailButton, MonInfoButton } from '../components/MonDetail';
 import { FogNote } from '../components/FogNote';
+import { WatchButton } from '../components/WatchButton';
 import { hasPlayedMatches } from '../analytics/useAnalytics';
 import { abbrevOf, coachName, displayName, rolesOf, scoreLine } from '../game/names';
 
@@ -189,6 +190,7 @@ function FreeAgency({ run, onClose }: { run: RunState; onClose: () => void }) {
 
 function Schedule({ run, onClose }: { run: RunState; onClose: () => void }) {
   const mine = run.matches.filter((m) => m.home === run.humanId || m.away === run.humanId);
+  const others = run.matches.filter((m) => m.result && m.home !== run.humanId && m.away !== run.humanId).reverse();
   return (
     <ResponsiveDialog title="Your schedule" onClose={onClose}>
       <ul className="space-y-1">
@@ -207,10 +209,28 @@ function Schedule({ run, onClose }: { run: RunState; onClose: () => void }) {
               ) : (
                 <span className="text-sm font-bold">{current ? 'NEXT' : '—'}</span>
               )}
+              <WatchButton match={m} />
             </li>
           );
         })}
       </ul>
+      {others.length > 0 && (
+        <>
+          <h3 className="mb-1 mt-4 font-display text-sm font-bold uppercase tracking-wider text-muted">Around the league</h3>
+          <ul className="space-y-1">
+            {others.map((m) => (
+              <li key={m.id} className="flex min-h-11 items-center gap-2 rounded-lg bg-panel-inset px-2.5 py-1.5 sm:gap-3 sm:px-3">
+                <span className="w-24 shrink-0 text-sm font-bold sm:w-28">{weekLabel(run, m.week, m)}</span>
+                <span className="flex-1 truncate font-display font-bold">
+                  {abbrevOf(run, m.result!.winner)} <span className="font-sans font-normal text-muted">beat</span> {abbrevOf(run, m.result!.loser)}
+                </span>
+                <span className="font-bold tabular-nums">{scoreLine(m)}</span>
+                <WatchButton match={m} />
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </ResponsiveDialog>
   );
 }

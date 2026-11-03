@@ -30,6 +30,9 @@ every package.json. The build stamp shows the version and short commit in the co
   last); winning the title at a stake unlocks the next.
 - The season length now follows the league size: 7 weeks with 8 coaches, 9 with 12 or 16, and never more weeks
   than there are other coaches, so nobody plays the same coach twice in the regular season.
+- Replays: WATCH any played league match (your schedule, the rest of the league, the week recap, a playoff
+  bracket game) on the battle field with the log open: play / pause, step, step back, 1x / 2x / 4x, a turn
+  slider and restart. Both sides' HP is exact; on phones the controls sit at the bottom.
 
 ## v0.3.1 — 2026-11-02
 

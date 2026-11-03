@@ -18,7 +18,8 @@ import {
   activeMon, battleViewReducer, initialBattleView, parseCondition, parseDetails, parseIdent,
   type FieldView, type MonView, type Side, type SideView,
 } from '../battle/battleView';
-import { isHpLine, narrate, parseLog, type Narration } from '../battle/narrate';
+import { narrate, parseLog, type LogEntry } from '../battle/narrate';
+import { delayFor } from '../battle/pacing';
 import { fxEvents } from '../battle/vfx';
 import { BattleLog } from '../components/battle/BattleLog';
 import { FxLayer, type FxHandle } from '../components/battle/FxLayer';
@@ -40,20 +41,7 @@ function Waiting({ text }: { text: string }) {
   );
 }
 
-const SAY_MS = 360;
-const HP_MS = 400;
-const TURN_MS = 300;
 const BEAT_MS = 300;
-/** With attack effects on, "X used Y!" holds long enough for the attack to cross the field before the hit lands. */
-const MOVE_MS = 520;
-
-function delayFor(line: string, n: Narration | null, reduced: boolean, effects: boolean): number {
-  if (effects && line.startsWith('|move|')) return MOVE_MS;
-  if (n?.kind === 'say' || n?.kind === 'end') return SAY_MS;
-  if (n?.kind === 'turn') return reduced ? 0 : TURN_MS;
-  if (isHpLine(line)) return reduced ? 0 : HP_MS;
-  return 0;
-}
 
 function errorText(line: string): string {
   return line.replace(/^\|error\|/, '').replace(/^\[[^\]]+\]\s*/, '') || 'That choice was rejected.';
@@ -75,16 +63,6 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
   const [beatDone, setBeatDone] = useState(false);
   const [forfeitOpen, setForfeitOpen] = useState(false);
   const lastDelay = useRef(0);
-  const isMobile = useIsMobile();
-  const landscape = useIsLandscapePhone();
-  const phone = isMobile || landscape;
-  // The log is open by default and remembered, except on portrait phones where it is a sheet opened on demand.
-  const portrait = isMobile && !landscape;
-  const logPref = useSettings((s) => s.battleLogOpen);
-  const updateSettings = useSettings((s) => s.update);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const logOpen = portrait ? sheetOpen : logPref;
-  const toggleLog = () => (portrait ? setSheetOpen((o) => !o) : updateSettings({ battleLogOpen: !logPref }));
 
   // Subscribe to the battle. onLine/onRequest replay history, so StrictMode's double effect is harmless.
   useEffect(() => {
@@ -169,7 +147,6 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
   // Hover / tap info card. Scouting comes from the prep doc (already built for this opponent) or, failing
   // that, one scout pass per battle; the field view tracks revealed moves/items/abilities as lines apply.
   const prep = useGame((s) => s.prep);
-  const hover = useMonHover(phone);
   const scouted = useMemo(() => {
     const oppIds = new Set(live.opp.roster.map((r) => r.species));
     if (prep && prep.opp.length > 0 && prep.opp.every((c) => oppIds.has(c.species))) return prep.scouted;
@@ -184,20 +161,10 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
     },
     scouted,
   }), [live, scouted]);
-  const openCard = hover.open;
-  const cardInfo = useMemo(
-    () => (openCard ? buildMonInfo(view, openCard.target, { ...infoCtx, request: lastRequest }) : null),
-    [openCard, view, infoCtx, lastRequest],
-  );
   const showResult = !!result && caughtUp;
   const showActions = ready && beatDone && !showResult;
   const shown = state.shown;
   const logEntries = useMemo(() => parseLog(linesRef.current.slice(0, shown), ctx), [shown, ctx]);
-  const logToggle = (
-    <GameButton size="sm" variant="ghost" onClick={toggleLog} aria-pressed={logOpen} className={phone ? 'min-h-9 !px-2.5 !py-0.5' : ''}>
-      {logOpen ? 'HIDE LOG' : 'LOG'}
-    </GameButton>
-  );
   const actionArea = showResult && result ? (
     <ResultBanner result={result} live={live} />
   ) : showActions && request ? (
@@ -214,11 +181,87 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
       {!caughtUp && <span className="ml-2 align-middle text-sm text-poke-red">▼</span>}
     </button>
   );
+
+  return (
+    <BattleStage
+      view={view}
+      names={live.names}
+      labels={{ p1: live.human.name, p2: opp.name }}
+      fx={fx}
+      effectsOn={effectsOn}
+      logEntries={logEntries}
+      actionArea={actionArea}
+      info={infoCtx}
+      request={lastRequest}
+    >
+      {forfeitOpen && (
+        <ResponsiveDialog
+          title="Forfeit this battle?"
+          onClose={() => setForfeitOpen(false)}
+          footer={(
+            <>
+              <GameButton variant="secondary" onClick={() => setForfeitOpen(false)}>KEEP FIGHTING</GameButton>
+              <GameButton variant="danger" onClick={forfeit}>FORFEIT</GameButton>
+            </>
+          )}
+        >
+          <p>The match counts as a loss.</p>
+        </ResponsiveDialog>
+      )}
+    </BattleStage>
+  );
+}
+
+// ---------------------------------------------------------------- stage (shared with the replay screen)
+
+export interface BattleStageProps {
+  view: FieldView;
+  names: BattleNames;
+  /** Coach names on the team strips: p1 (blue, bottom) and p2 (red, top). */
+  labels: Record<Side, string>;
+  fx: Ref<FxHandle>;
+  effectsOn: boolean;
+  logEntries: LogEntry[];
+  /** What sits under the field: the dialogue, the action panel or the result banner (a replay's transport bar). */
+  actionArea: ReactNode;
+  info: Omit<MonInfoContext, 'request'>;
+  request: ParsedRequest | null;
+  /** Both HP boxes print exact HP (replays read the omniscient log); live battles only show your own. */
+  exactHp?: boolean;
+  /** Field chip prefixes for side conditions; defaults to "You" / "Foe". */
+  sideTags?: Record<Side, string>;
+  /** Dialogs rendered over the stage. */
+  children?: ReactNode;
+}
+
+/** The field between the two team strips, the battle log (side panel, inline or a sheet) and the mon hover card. */
+export function BattleStage({ view, names, labels, fx, effectsOn, logEntries, actionArea, info, request, exactHp, sideTags, children }: BattleStageProps) {
+  const isMobile = useIsMobile();
+  const landscape = useIsLandscapePhone();
+  const phone = isMobile || landscape;
+  // The log is open by default and remembered, except on portrait phones where it is a sheet opened on demand.
+  const portrait = isMobile && !landscape;
+  const logPref = useSettings((s) => s.battleLogOpen);
+  const updateSettings = useSettings((s) => s.update);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const logOpen = portrait ? sheetOpen : logPref;
+  const toggleLog = () => (portrait ? setSheetOpen((o) => !o) : updateSettings({ battleLogOpen: !logPref }));
+  const hover = useMonHover(phone);
+  const openCard = hover.open;
+  const cardInfo = useMemo(
+    () => (openCard ? buildMonInfo(view, openCard.target, { ...info, request }) : null),
+    [openCard, view, info, request],
+  );
+  const logToggle = (
+    <GameButton size="sm" variant="ghost" onClick={toggleLog} aria-pressed={logOpen} className={phone ? 'min-h-9 !px-2.5 !py-0.5' : ''}>
+      {logOpen ? 'HIDE LOG' : 'LOG'}
+    </GameButton>
+  );
   const fieldStack = (
     <>
-      <TeamStrip side={view.sides.p2} sideId="p2" bind={hover.bind} tone="opp" label={opp.name} />
-      <Field view={view} names={live.names} bind={hover.bind} fx={fx} effectsOn={effectsOn} phone={phone} landscape={landscape} />
-      <TeamStrip side={view.sides.p1} sideId="p1" bind={hover.bind} tone="you" label={live.human.name} extra={phone ? logToggle : undefined} />
+      <TeamStrip side={view.sides.p2} sideId="p2" bind={hover.bind} tone="opp" label={labels.p2} />
+      <Field view={view} names={names} bind={hover.bind} fx={fx} effectsOn={effectsOn} phone={phone} landscape={landscape} exactHp={exactHp} sideTags={sideTags} />
+      <TeamStrip side={view.sides.p1} sideId="p1" bind={hover.bind} tone="you" label={labels.p1} extra={phone ? logToggle : undefined} />
     </>
   );
 
@@ -258,20 +301,7 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
         </Sheet>
       )}
       {openCard && cardInfo && <MonHoverLayer info={cardInfo} rect={openCard.rect} mobile={phone} onClose={hover.close} />}
-      {forfeitOpen && (
-        <ResponsiveDialog
-          title="Forfeit this battle?"
-          onClose={() => setForfeitOpen(false)}
-          footer={(
-            <>
-              <GameButton variant="secondary" onClick={() => setForfeitOpen(false)}>KEEP FIGHTING</GameButton>
-              <GameButton variant="danger" onClick={forfeit}>FORFEIT</GameButton>
-            </>
-          )}
-        >
-          <p>The match counts as a loss.</p>
-        </ResponsiveDialog>
-      )}
+      {children}
     </div>
   );
 }
@@ -372,16 +402,17 @@ function SpriteHit({ mon, side, index, bind, children }: { mon: MonView; side: S
   );
 }
 
-function Field({ view, names, bind, fx, effectsOn, phone, landscape }: {
+function Field({ view, names, bind, fx, effectsOn, phone, landscape, exactHp, sideTags = { p1: 'You', p2: 'Foe' } }: {
   view: FieldView; names: BattleNames; bind: BindFn; fx: Ref<FxHandle>; effectsOn: boolean; phone: boolean; landscape: boolean;
+  exactHp?: boolean; sideTags?: Record<Side, string>;
 }) {
   const foe = activeMon(view, 'p2');
   const me = activeMon(view, 'p1');
   const chips = [
     view.weather && conditionName(view.weather),
     ...view.fields.map(conditionName),
-    ...Object.keys(view.sides.p2.conditions).map((c) => `Foe: ${c}`),
-    ...Object.keys(view.sides.p1.conditions).map((c) => `You: ${c}`),
+    ...Object.keys(view.sides.p2.conditions).map((c) => `${sideTags.p2}: ${c}`),
+    ...Object.keys(view.sides.p1.conditions).map((c) => `${sideTags.p1}: ${c}`),
   ].filter((c): c is string => !!c);
   return (
     <div className="battle-field">
@@ -400,7 +431,7 @@ function Field({ view, names, bind, fx, effectsOn, phone, landscape }: {
           short, so the boxes are compact and the sprites sit further out, clear of the opposite box. */}
       {foe && (
         <div className={`absolute z-10 ${landscape ? 'left-2 top-2 w-[40%] max-w-[13rem]' : 'left-3 top-3 w-[42%] max-w-[15rem] phone:left-2 phone:top-2 phone:w-[46%]'}`}>
-          <HpBox mon={foe} name={monName(foe, 'p2', names)} mine={false} compact={landscape} />
+          <HpBox mon={foe} name={monName(foe, 'p2', names)} mine={!!exactHp} compact={landscape} />
         </div>
       )}
       <div className={`battle-platform h-[15%] w-[36%] ${landscape ? 'right-[4%] top-[43%]' : 'right-[6%] top-[40%]'}`} />
