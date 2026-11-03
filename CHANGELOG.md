@@ -28,6 +28,11 @@ every package.json. The build stamp shows the version and short commit in the co
 - Stakes: ten difficulty levels on the setup screen, one added rule each (loss cap, smarter AI drafts, an AI
   that knows your sets in battle, no Likely sets tab, +5 AI budget, fog of war, smaller playoffs, drafting
   last); winning the title at a stake unlocks the next.
+- Hall of Fame (title screen): your career across runs (runs, titles, best stake won, win rate, best score,
+  longest title streak, a badge per stake you have won), every finished league and daily run newest first with
+  its record, score, MVP and share line, and a trophy case of every species you finished a run with (titles,
+  MVPs, playoff wins). The run-end screen adds the match that decided the run and a career-so-far strip.
+  Export save now carries the career too, and importing merges it run by run (older bare-run saves still import).
 - The season length now follows the league size: 7 weeks with 8 coaches, 9 with 12 or 16, and never more weeks
   than there are other coaches, so nobody plays the same coach twice in the regular season.
 

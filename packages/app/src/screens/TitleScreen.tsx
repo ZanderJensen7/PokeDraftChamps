@@ -56,6 +56,7 @@ export function TitleScreen() {
         )}
         <GameButton size="lg" block variant={hasSave ? 'secondary' : 'primary'} onClick={() => go('setup')}>New League</GameButton>
         <GameButton size="lg" block variant="secondary" onClick={() => go('daily')}>Daily League</GameButton>
+        <GameButton block variant="secondary" onClick={() => go('hall')}>Hall of Fame</GameButton>
         <GameButton block variant="ghost" onClick={() => setHowTo(true)}>How to Play</GameButton>
         <GameButton block variant="ghost" onClick={() => setBug(true)}>Report a bug</GameButton>
         <GameButton block variant="ghost" onClick={() => fileRef.current?.click()}>Import Save</GameButton>

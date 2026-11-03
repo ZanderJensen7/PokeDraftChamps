@@ -5,6 +5,7 @@ import { exportAnalyticsJson } from '../analytics/exportAnalytics';
 import { APP_VERSION, REPO_URL } from '../app/version';
 import { BugReport } from '../components/BugReport';
 import { NicknameField } from '../components/DailyBits';
+import { useProfile } from '../store/profile';
 import { apiEnabled, apiHost } from '../game/api';
 import { DialogueBox, GameButton, ResponsiveDialog, Panel, PokeSprite, Segmented } from '../components/ui';
 
@@ -15,6 +16,7 @@ export function SettingsScreen() {
   const run = useGame((s) => s.run);
   const hasSave = useGame((s) => s.hasSave);
   const hasDaily = useGame((s) => s.hasDaily);
+  const careerRuns = useProfile((s) => s.runs.length);
   const spriteSet = useSettings((s) => s.spriteSet);
   const reducedMotion = useSettings((s) => s.reducedMotion);
   const battleEffects = useSettings((s) => s.battleEffects);
@@ -64,9 +66,9 @@ export function SettingsScreen() {
         </label>
       </Panel>
       <Panel title="Save data">
-        <p className="mb-3 text-sm text-muted">Your run saves in this browser after every change.</p>
+        <p className="mb-3 text-sm text-muted">Your run saves in this browser after every change. Export save also carries your career (Hall of Fame).</p>
         <div className="flex flex-wrap gap-2">
-          <GameButton variant="secondary" disabled={!run && !hasSave} onClick={exportSave}>Export save</GameButton>
+          <GameButton variant="secondary" disabled={!run && !hasSave && careerRuns === 0} onClick={exportSave}>Export save</GameButton>
           <GameButton variant="secondary" disabled={!run} onClick={() => run && exportAnalyticsJson(run)}>Export analytics JSON</GameButton>
           <GameButton variant="danger" disabled={!canClear} onClick={() => setConfirm(true)}>{clearLabel}</GameButton>
         </div>

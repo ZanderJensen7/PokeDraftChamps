@@ -18,6 +18,7 @@ import { EndScreen } from './screens/EndScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { AnalyticsScreen } from './screens/AnalyticsScreen';
 import { DailyScreen } from './screens/DailyScreen';
+import { HallOfFameScreen } from './screens/HallOfFameScreen';
 import { BottomNav, useShowBottomNav } from './components/BottomNav';
 import { useHeightVar } from './hooks/useHeightVar';
 import { useIsLandscapePhone } from './hooks/useIsMobile';
@@ -46,6 +47,7 @@ const SCREENS: Record<Screen, () => React.JSX.Element | null> = {
   settings: SettingsScreen,
   analytics: AnalyticsScreen,
   daily: DailyScreen,
+  hall: HallOfFameScreen,
 };
 
 function TopBar() {

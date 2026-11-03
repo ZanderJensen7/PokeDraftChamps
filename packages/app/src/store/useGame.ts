@@ -19,7 +19,7 @@ import { useProfile } from './profile';
 
 export type Screen =
   | 'title' | 'setup' | 'draft' | 'hub' | 'team' | 'prep' | 'battle' | 'recap' | 'end' | 'settings' | 'analytics'
-  | 'daily';
+  | 'daily' | 'hall';
 
 /** The league slot (any run without `daily`). */
 export const RUN_KEY = 'pdc.run.v1';
@@ -578,15 +578,31 @@ export const useGame = create<GameStore>((set, get) => ({
   exportSave() {
     const { run } = get();
     const raw = run ? serializeRun(run) : readSave();
-    if (!raw) return;
-    const tag = run ? (run.daily ? `daily-${run.daily.date}` : humanCoach(run).abbrev) : 'run';
-    downloadText(`pokedraftchamps-${tag}-week${run?.week ?? 0}.json`, raw);
+    const profile = useProfile.getState().snapshot();
+    const withCareer = profile.runs.length > 0;
+    if (!raw && !withCareer) return;
+    const tag = run ? (run.daily ? `daily-${run.daily.date}` : humanCoach(run).abbrev) : raw ? 'run' : 'career';
+    // With a career to keep, the file carries both: { run, profile }. Otherwise the bare run, as before.
+    const text = withCareer ? JSON.stringify({ run: raw ? JSON.parse(raw) as unknown : null, profile }) : raw!;
+    downloadText(`pokedraftchamps-${tag}-week${run?.week ?? 0}.json`, text);
   },
 
   async importSave(file) {
     try {
-      const run = deserializeRun(await file.text());
-      set({ ...freshRunState(run), toast: 'Save imported.' });
+      const parsed: unknown = JSON.parse(await file.text());
+      // New files are { run, profile }; older ones are the bare run.
+      const bundle = parsed && typeof parsed === 'object' && 'profile' in parsed
+        ? parsed as { run?: unknown; profile: unknown }
+        : null;
+      const added = bundle ? useProfile.getState().mergeImported(bundle.profile) : 0;
+      const career = added > 0 ? ` ${added} run${added === 1 ? '' : 's'} added to your career.` : '';
+      const runJson = bundle ? bundle.run : parsed;
+      if (bundle && runJson == null) {
+        set({ toast: `Career imported.${career || ' Nothing new to add.'}` });
+        return;
+      }
+      const run = deserializeRun(JSON.stringify(runJson));
+      set({ ...freshRunState(run), toast: `Save imported.${career}` });
     } catch (e) {
       set({ toast: `Import failed: ${errText(e)}` });
     }
@@ -613,7 +629,7 @@ export const useGame = create<GameStore>((set, get) => ({
 }));
 
 // Persist the run on every change, in its slot (daily or league); a run that just ended may upload its summary
-// and may unlock the next stake.
+// and goes into the career profile (once per run id), which may unlock the next stake.
 useGame.subscribe((s, prev) => {
   if (s.run === prev.run || !s.run) return;
   const run = s.run;
