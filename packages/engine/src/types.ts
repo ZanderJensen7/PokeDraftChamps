@@ -369,12 +369,13 @@ export interface PickImpactSync {
   newStab: TypeName[];
   speedSlot: 'fast' | 'mid' | 'slow';
   outspeeds: number;
-  /** 0-100, roles not included (see PickImpact). */
+  /** 0-100. Roles are included only when `newRoles` is present (the learnset cache was warm). */
   fitScore: number;
   note: string;
+  /** Categories the candidate can cover that no roster mon can; absent while learnsets are unread. */
+  newRoles?: PrepMoveCategory[];
 }
 
 export interface PickImpact extends PickImpactSync {
-  /** Categories the candidate can cover that no roster mon can. */
   newRoles: PrepMoveCategory[];
 }

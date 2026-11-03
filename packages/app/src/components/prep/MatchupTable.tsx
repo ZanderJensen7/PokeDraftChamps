@@ -38,7 +38,7 @@ interface MatchupTableProps {
   title?: string;
   side?: 'you' | 'opp';
   table: PrepTeamMatchup;
-  /** Narrow-rail version (draft screen): icon-only rows, vertical type headers, tight cells. */
+  /** Narrow-rail version (draft screen): a two-row type grid with the team's weak score under each type. */
   compact?: boolean;
   /** The team's coach: the detail sheet opened from a row shows their scouting. */
   coachId?: CoachId;
@@ -55,7 +55,7 @@ function ImmunityNotes({ table }: { table: PrepTeamMatchup }) {
 
 /** Damage-taken type chart for one team: rows = mons, 18 type columns, STAB and Weak rows at the bottom. */
 export function MatchupTable({ title, side = 'you', table, compact, coachId }: MatchupTableProps) {
-  if (compact) return <CompactMatchupTable table={table} coachId={coachId} />;
+  if (compact) return <CompactMatchupTable table={table} />;
   return (
     <div>
       {title && <div className={`mb-1 font-display font-bold uppercase tracking-wide ${side === 'you' ? 'text-you' : 'text-opp'}`}>{title}: damage taken</div>}
@@ -102,54 +102,42 @@ export function MatchupTable({ title, side = 'you', table, compact, coachId }: M
   );
 }
 
-function CompactMatchupTable({ table, coachId }: { table: PrepTeamMatchup; coachId?: CoachId }) {
+/** Types per row of the compact grid: 9 + 9, so it fits the narrow draft rail without scrolling. */
+const GRID_COLS = 9;
+
+/** Draft-rail version: the team's weak score under each type pill, two rows of nine. The full table lives in the prep doc. */
+function CompactMatchupTable({ table }: { table: PrepTeamMatchup }) {
+  const rows = [ALL_TYPES.slice(0, GRID_COLS), ALL_TYPES.slice(GRID_COLS)];
   return (
     <div>
-      <div className="overflow-x-auto overscroll-x-contain rounded-lg border-2 border-edge-dark">
-        <table className="w-full border-collapse text-center text-[11px] leading-none">
-          <thead>
-            <tr className="bg-panel-inset">
-              <th className="sticky left-0 z-10 bg-panel-inset"><span className="sr-only">Pokemon</span></th>
-              {ALL_TYPES.map((t) => (
-                <th key={t} className="p-px" title={t} scope="col">
+      <div className="space-y-1.5 rounded-lg border-2 border-edge-dark bg-panel-inset p-1.5">
+        {rows.map((types, i) => (
+          <ul key={i} className="grid grid-cols-9 gap-1">
+            {types.map((t) => {
+              const w = table.weak[t] ?? 0;
+              const n = table.rows.length;
+              const resist = table.rows.filter((r) => (r.byType[t] ?? 1) < 1).length;
+              const weak = table.rows.filter((r) => (r.byType[t] ?? 1) > 1).length;
+              return (
+                <li
+                  key={t}
+                  className="min-w-0 text-center"
+                  title={`${t}: weak score ${w} (${weak} of ${n} weak, ${resist} resist or immune); ${table.stab[t] ?? 0} STAB users`}
+                >
                   <span
-                    className="mx-auto flex h-8 w-4 items-center justify-center rounded-sm text-[9px] font-extrabold text-ink [text-shadow:0_1px_0_rgb(0_0_0/0.6)] [writing-mode:vertical-rl]"
+                    className="block rounded-sm py-0.5 text-[9px] font-extrabold leading-none text-ink [text-shadow:0_1px_0_rgb(0_0_0/0.6)]"
                     style={{ background: `var(--color-type-${t.toLowerCase()})` }}
                   >
                     {TYPE_ABBR(t)}
                   </span>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {table.rows.map((r) => (
-              <tr key={r.species} className="border-t border-edge-dark">
-                <th scope="row" className="sticky left-0 z-10 w-10 bg-panel p-0 text-left">
-                  <MonDetailButton species={r.species} coachId={coachId} className="block">
-                    <PokeIcon name={spriteName(r.species)} title={speciesName(r.species)} className="block" />
-                  </MonDetailButton>
-                </th>
-                {ALL_TYPES.map((t) => {
-                  const m = r.byType[t] ?? 1;
-                  return <td key={t} className={`min-w-[18px] tabular-nums ${multClass(m)}`} title={`${speciesName(r.species)} takes ×${m} from ${t}`}>{multText(m)}</td>;
-                })}
-              </tr>
-            ))}
-            <tr className="border-t-2 border-edge bg-panel-inset font-bold">
-              <th scope="row" className="sticky left-0 z-10 bg-panel-inset px-1 py-1.5 text-left text-[10px] uppercase text-muted">STAB</th>
-              {ALL_TYPES.map((t) => <td key={t} className="tabular-nums" title={`${t} STAB users: ${table.stab[t] ?? 0}`}>{table.stab[t] || ''}</td>)}
-            </tr>
-            <tr className="bg-panel-inset font-bold">
-              <th scope="row" className="sticky left-0 z-10 bg-panel-inset px-1 py-1.5 text-left text-[10px] uppercase text-muted">Weak</th>
-              {ALL_TYPES.map((t) => {
-                const w = table.weak[t] ?? 0;
-                return <td key={t} className={`py-1.5 tabular-nums ${weakCell(w)}`} title={`${t} weak score: ${w}`}>{w || ''}</td>;
-              })}
-            </tr>
-          </tbody>
-        </table>
+                  <span className={`mt-0.5 block rounded-sm py-1 text-[11px] leading-none font-bold tabular-nums ${weakCell(w)}`}>{w || '·'}</span>
+                </li>
+              );
+            })}
+          </ul>
+        ))}
       </div>
+      <p className="mt-1 text-[11px] text-faint">Team weak score per type: red is a hole, green is a wall.</p>
       <ImmunityNotes table={table} />
     </div>
   );

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import type { DraftMon, PickImpact, PickImpactSync, PrepMoveCategory, SpeciesId, TeamNeeds } from '@pdc/engine';
-import { pickImpact, pickImpactSync, rankPool, teamNeeds } from '@pdc/engine';
+import { pickImpact, pickImpactSync, rankPool, teamNeeds, warmRoleCategories } from '@pdc/engine';
 
 // teamNeeds / pickImpact read learnsets (async); results are kept per roster snapshot so a revisit is instant.
 const needsCache = new Map<string, Promise<TeamNeeds>>();
@@ -35,14 +35,47 @@ export function useTeamNeeds(rosterIds: readonly SpeciesId[]): { needs: TeamNeed
   return { needs: state?.needs ?? null, loading: state?.key !== key };
 }
 
-/** FIT score (0-100) for every pool mon against the current roster. Sync; recomputed once per roster snapshot. */
-export function useFitScores(rosterIds: readonly SpeciesId[], pool: readonly DraftMon[]): Map<SpeciesId, number> {
+// Learnset categories for the whole pool are read once, in chunks, right after first paint; every chunk bumps
+// `roleVersion` so the FIT badges recompute with the move roles that are known by then.
+let roleVersion = 0;
+const roleListeners = new Set<() => void>();
+const warmed = new Set<string>();
+const subscribeRoles = (fn: () => void) => { roleListeners.add(fn); return () => { roleListeners.delete(fn); }; };
+const getRoleVersion = () => roleVersion;
+const bumpRoles = () => { roleVersion++; roleListeners.forEach((fn) => fn()); };
+
+function warmPool(ids: readonly SpeciesId[]): void {
+  if (!ids.length) return;
+  const sig = `${ids.length}:${ids[0] ?? ''}:${ids[ids.length - 1] ?? ''}`;
+  if (warmed.has(sig)) return;
+  warmed.add(sig);
+  // Past first paint: the badges render with the quick score and fill in as chunks land.
+  setTimeout(() => { void warmRoleCategories(ids, { onProgress: bumpRoles }); }, 0);
+}
+
+export interface FitScores {
+  scores: Map<SpeciesId, number>;
+  /** True while this mon's score still leaves move roles out (the badge shows "…"). */
+  pending: (id: SpeciesId) => boolean;
+}
+
+/**
+ * FIT score (0-100) for every pool mon against the current roster. Sync; the quick score at once, the full one
+ * (with move roles, matching the hover note) as the learnset categories load.
+ */
+export function useFitScores(rosterIds: readonly SpeciesId[], pool: readonly DraftMon[]): FitScores {
   const key = rosterKey(rosterIds);
   const ids = useMemo(() => pool.map((m) => m.id), [pool]);
-  return useMemo(
-    () => new Map(rankPool([...rosterIds], ids).map((r) => [r.species, r.fitScore])),
-    [key, ids],
-  );
+  const version = useSyncExternalStore(subscribeRoles, getRoleVersion);
+  useEffect(() => { warmPool(ids); }, [ids]);
+  return useMemo(() => {
+    const ranked = rankPool([...rosterIds], ids, undefined, { roles: true });
+    const known = new Map(ranked.map((r) => [r.species, r.rolesKnown]));
+    return {
+      scores: new Map(ranked.map((r) => [r.species, r.fitScore])),
+      pending: (id) => known.get(id) === false,
+    };
+  }, [key, ids, version]);
 }
 
 /**

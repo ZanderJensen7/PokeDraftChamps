@@ -14,6 +14,7 @@ import { useHeightVar } from '../hooks/useHeightVar';
 import { CaptainPicker } from '../components/CaptainPicker';
 import { MonDetailButton } from '../components/MonDetail';
 import { useMonDetail } from '../store/monDetail';
+import { CardPeek } from '../components/draft/CardPeek';
 import { FitBadge } from '../components/draft/FitBadge';
 import { MyTeamPanel } from '../components/draft/MyTeamPanel';
 import { PickImpactSummary } from '../components/draft/PickImpactSummary';
@@ -111,7 +112,7 @@ export function DraftScreen() {
   const pool = run ? runPool(run) : [];
   const ownedIds = useMemo<SpeciesId[]>(() => (run ? humanCoach(run).roster.map((r) => r.species) : []), [run]);
   const { needs, loading: needsLoading } = useTeamNeeds(ownedIds);
-  const fit = useFitScores(ownedIds, pool);
+  const { scores: fit, pending: fitPending } = useFitScores(ownedIds, pool);
   const totalPicks = run ? run.draft.picks.length : 0;
   const animating = draftShown < totalPicks;
   const noCaptains = !!run && run.config.teraCaptains === 0 && (run.config.zCaptains ?? 0) === 0;
@@ -273,7 +274,7 @@ export function DraftScreen() {
           return (
             <div
               key={m.id}
-              className={`relative min-w-0 ${peek ? 'z-20' : ''}`}
+              className="relative min-w-0"
               onMouseEnter={isMobile ? undefined : () => setHovered(m.id)}
               onMouseLeave={isMobile ? undefined : leave}
               onFocus={isMobile ? undefined : () => setHovered(m.id)}
@@ -285,7 +286,7 @@ export function DraftScreen() {
                 badge={<PriceBadge points={m.points} />}
                 marker={(
                   <span className="flex flex-col items-start gap-1">
-                    <FitBadge score={score} />
+                    <FitBadge score={score} pending={fitPending(m.id)} />
                     {m.isMega && <RoleTag role="mega" />}
                   </span>
                 )}
@@ -305,9 +306,9 @@ export function DraftScreen() {
                 )}
               </SpriteCard>
               {peek && (
-                <div className="pointer-events-none absolute inset-x-0 top-full -mt-1 rounded-lg border-2 border-b-4 border-poke-yellow bg-panel-hi p-2 shadow-lg shadow-black/40">
+                <CardPeek onDismiss={leave}>
                   <PickImpactSummary rosterIds={ownedIds} candidate={m.id} pool={pool} />
-                </div>
+                </CardPeek>
               )}
             </div>
           );
@@ -448,7 +449,7 @@ export function DraftScreen() {
           reason={reasonFor(detail)}
           impact={available.has(detail.id) ? (
             <span className="flex flex-col gap-1.5">
-              <FitBadge score={fit.get(detail.id) ?? 0} />
+              <FitBadge score={fit.get(detail.id) ?? 0} pending={fitPending(detail.id)} />
               <PickImpactSummary rosterIds={ownedIds} candidate={detail.id} pool={pool} />
             </span>
           ) : undefined}

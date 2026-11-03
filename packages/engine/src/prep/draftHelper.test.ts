@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildDraftPool } from '../draft/pool';
-import { pickImpact, pickImpactSync, rankPool, teamMatchupTable, teamNeeds } from './index';
+import {
+  pickImpact, pickImpactSync, rankPool, roleCategoriesReady, teamMatchupTable, teamNeeds, warmRoleCategories,
+} from './index';
 
 const WATER = ['vaporeon', 'milotic', 'blastoise'];
 
@@ -83,8 +85,34 @@ describe('pickImpact', () => {
     const r = await pickImpact(roster, 'greattusk');
     expect(r.newRoles).toContain('Entry Hazards');
     expect(r.newRoles).toContain('Hazard Removal');
-    expect(r.fitScore).toBeGreaterThan(pickImpactSync(roster, 'greattusk').fitScore);
+    expect(r.fitScore).toBeGreaterThan(pickImpactSync(roster, 'greattusk', undefined, { roles: false }).fitScore);
     expect(r.note.length).toBeGreaterThan(0);
+  });
+
+  it('sync and async agree once the role categories are cached', async () => {
+    const roster = ['tyranitar', 'rotom'];
+    const cands = ['corviknight', 'greattusk', 'charizardmegax', 'garchomp'];
+    const quick = cands.map((c) => pickImpactSync(roster, c, undefined, { roles: false }));
+    for (const q of quick) expect(q.newRoles).toBeUndefined();
+    await warmRoleCategories([...roster, ...cands]);
+    expect(roleCategoriesReady([...roster, ...cands])).toBe(true);
+    const ranked = rankPool(roster, cands, undefined, { roles: true });
+    for (const c of cands) {
+      const full = await pickImpact(roster, c);
+      const sync = pickImpactSync(roster, c);
+      expect(sync).toEqual(full);
+      expect(sync.newRoles).toBeDefined();
+      const r = ranked.find((x) => x.species === c)!;
+      expect(r.rolesKnown).toBe(true);
+      expect(r.fitScore).toBe(full.fitScore);
+    }
+  });
+
+  it('leaves roles out of rankPool by default so AI picks do not depend on the cache', async () => {
+    await warmRoleCategories(['vaporeon', 'greattusk']);
+    const [r] = rankPool(['vaporeon'], ['greattusk']);
+    expect(r!.rolesKnown).toBe(false);
+    expect(r!.fitScore).toBe(pickImpactSync(['vaporeon'], 'greattusk', undefined, { roles: false }).fitScore);
   });
 
   it('handles Mega candidates (base-species learnset) and an empty roster', async () => {
