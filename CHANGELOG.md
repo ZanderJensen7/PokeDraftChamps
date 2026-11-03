@@ -6,6 +6,12 @@ every package.json. The build stamp shows the version and short commit in the co
 
 ## Unreleased
 
+- League setup: the point budget is a slider (steps of 5, from the least that fills your roster minimum up to 200;
+  the hint says how many points a roster of cheapest mons needs) and free-agency moves a stepper (0 to 6). Tier
+  prices are unchanged, presets leave both alone, and stake 6 shows what the AI coaches get on top of your budget.
+- Draft: a "Recommendations" switch (draft header, and Settings > Draft) hides the FIT badges, the needs sentences,
+  "Sort by fit" and the "what this adds" note. Your team's resistances, speed tiers and roles stay. Before your
+  first pick there is nothing to fit, so no fit score shows and "Sort by fit" waits for it.
 - Free agency: a coach under the roster maximum can sign a free agent without dropping anyone ("Keep everyone" at
   the top of the drop list; it still counts as a move and must fit the budget). The dialog shows the roster count.
 - Team editor: "Import sets" takes Showdown text for one or many Pokemon and applies each set to the roster Pokemon

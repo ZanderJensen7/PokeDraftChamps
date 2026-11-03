@@ -50,7 +50,10 @@ Each line is one job. Sessions are started from the top; three at a time at most
 3. **Mobile bundle.** SHIPPED 2026-11-02 except the real-phone install check (see the done log). The "what everyone drafted" view cannot scroll all the way; landscape battle HP boxes
    overlap the sprites; lineup reorder on phones is tap-to-swap (no drag); AI-pick ticker lags the header during
    the draft animation; prove home-screen install on a real phone.
-4. **Setup + draft options (user notes).** League setup: number of free-agency moves and total point budget
+4. **Setup + draft options (user notes).** SHIPPED 2026-11-02 (branch `claude/setup-options-b227b9`): budget slider
+   (step 5, floor = `minBudget(rosterMin, megas)` rounded up, max 200) and free-agency stepper (0..6) on the setup
+   screen; `draftHelper` setting (default on) with a switch in the draft header and Settings > Draft; no fit score
+   before the human's first pick. Original note: League setup: number of free-agency moves and total point budget
    (tier prices unchanged). Draft: a toggle for the recommendations (FIT badges, needs panel); no fit score
    before the first pick. Keep the line between hand-holding and the prep/draft being part of the fun.
 5. **Free agency plain add.** SHIPPED 2026-11-02 (branch `claude/stakes-85a96b`): `freeAgency(run, null, add)` signs

@@ -22,6 +22,7 @@ export function SettingsScreen() {
   const battleEffects = useSettings((s) => s.battleEffects);
   const sound = useSettings((s) => s.sound);
   const shareRuns = useSettings((s) => s.shareRuns);
+  const draftHelper = useSettings((s) => s.draftHelper);
   const update = useSettings((s) => s.update);
   // Clear save acts on the active run's slot (the league slot when no run is loaded).
   const clearsDaily = run?.daily !== undefined;
@@ -58,6 +59,13 @@ export function SettingsScreen() {
             Sound (cries and battle effects)
           </label>
         </div>
+      </Panel>
+      <Panel title="Draft">
+        <label className="flex items-center gap-3 font-semibold">
+          <input type="checkbox" className="h-5 w-5 accent-poke-yellow" checked={draftHelper} onChange={(e) => update({ draftHelper: e.target.checked })} />
+          Recommendations (FIT badges, what your team needs, sort by fit)
+        </label>
+        <p className="mt-1 text-sm text-muted">Off: you read the pool yourself. Your team's resistances and speed tiers stay.</p>
       </Panel>
       <Panel title="Motion">
         <label className="flex items-center gap-3 font-semibold">
