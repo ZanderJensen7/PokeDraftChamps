@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { DraftMon, RunState, SpeciesId } from '@pdc/engine';
 import {
-  ALL_TYPES, conflictsWithRoster, currentPicker, getDraftMon, humanCoach, isDoneDrafting, legalPicks, runPool,
+  ALL_TYPES, conflictsWithRoster, currentPicker, getDraftMon, humanCoach, isDoneDrafting, legalPicks, maxAffordable, reservePerSlot,
+  runPool,
 } from '@pdc/engine';
 import { useGame } from '../store/useGame';
 import {
@@ -162,6 +163,15 @@ export function DraftScreen() {
     ? `${human.roster.length}/${run.config.rosterMax}`
     : `${human.roster.length}/${run.config.rosterMin}–${run.config.rosterMax}`;
   const owned = human.roster.map((r) => r.species);
+  // Why the cap on this pick is what it is: points are held back for the picks still required after this one, at the
+  // cheapest price left in the pool (see reservePerSlot / maxAffordable).
+  let budgetHint = '';
+  if (myTurn) {
+    const after = Math.max(0, required - 1);
+    const reserve = reservePerSlot(run.draft, run.config, pool);
+    const cap = maxAffordable(run.draft, run.humanId, run.config, pool);
+    budgetHint = after > 0 ? `${after} more required after this at ${reserve}+ → up to ${cap} now` : `up to ${cap} now`;
+  }
 
   const q = search.trim().toLowerCase();
   const filtered = pool
@@ -476,6 +486,9 @@ export function DraftScreen() {
               <GameButton variant="secondary" size="sm" onClick={skip} className="min-h-9 shrink-0 !px-2 !py-1 text-xs">Skip</GameButton>
             )}
           </div>
+          {myTurn && (
+            <p className="truncate px-0.5 text-xs font-bold text-muted" title={budgetHint}>{budgetHint}</p>
+          )}
           {myTurn && needsLine && (
             <p className="truncate px-0.5 text-xs font-bold text-poke-yellow" title={needsLine}>{needsLine}</p>
           )}
@@ -594,6 +607,7 @@ export function DraftScreen() {
           <div>
             <div className="font-display text-2xl font-bold uppercase leading-none">You're on the clock!</div>
             <div className="font-semibold">Round {round} · pick #{overall} · {left} points left · {picksText}</div>
+            <div className="truncate text-sm font-bold" title={budgetHint}>{left} left · {budgetHint}</div>
             {needsLine && <div className="mt-0.5 text-sm font-bold">{needsLine}</div>}
           </div>
           {canStop ? (

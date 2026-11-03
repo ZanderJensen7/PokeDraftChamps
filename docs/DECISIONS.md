@@ -79,3 +79,10 @@
   stand-ins and a guessed set. Measured 116/200 and 118/200 wins against the default AI over two seed ranges (sides alternated, identical teams), against
   96/200 and 104/200 for two identical AIs. Dropping the AI's random-move epsilon on top added little
   (119/200), so it stays at the default. It never changes the sim, only what the AI knows.
+- **2026-11-03 — Cheaper floor prices.** User ruling 2026-11-03: a budget should stretch to a late star. With a
+  5-point floor, 20 points left and 2 more slots required capped a pick at 10, which read as arbitrary. ZU is now
+  3 base and PU 5 base (the +1 at BST ≥ 470 and +2 at ≥ 520 spread is unchanged), so the bottom of the pool runs
+  3–5 (ZU) and 5–7 (PU); ZUBL, PUBL and everything above are unchanged. Pool by price after the change (458
+  species, no Megas): 3:72 4:84 5:36 6:23 7:20 9:5 10:36 11:15 12:39 14:16 15:36 16:19 18:28 19:6 20:23 (with
+  Megas on, 488). True 1–2 pointers need unevolved species with generated sets (the pool only admits species
+  with a randoms set), later.

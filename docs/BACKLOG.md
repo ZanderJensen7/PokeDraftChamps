@@ -80,6 +80,10 @@ Each line is one job. Sessions are started from the top; three at a time at most
     Tera/Mega pills in the battle log; the phone hover tap-sheet; attack-effect sizes and sound levels live.
 
 ## Done log (from the old Next section)
+- DONE 2026-11-03: draft fixes. ZU base 3 / PU base 5 (pool floor 3, was 5; histogram in DECISIONS.md); budget hint on
+  the draft screen (`maxAffordable` / `reservePerSlot`); Modal and Sheet portal to document.body so the bug report
+  opens above the draft UI (the top bar's backdrop-blur made it the containing block of the fixed dialog); "Finish draft"
+  error not reproduced (see `league/finishDraft.test.ts`, a guard that finishes drafts with the real set builder).
 - DONE 2026-11-02: mon detail sheet. Engine `prep/monDetail.ts` (card with ability descriptions, defensive type row
   + grouped lists, Lv100 speed, randoms roles, notable moves, full Gen 9 learnset; Megas read their base form);
   app `components/MonDetail.tsx` (one dialog mounted in App, `useMonDetail().open(species, { coachId })`, tabs

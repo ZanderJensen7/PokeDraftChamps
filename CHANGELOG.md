@@ -32,6 +32,12 @@ every package.json. The build stamp shows the version and short commit in the co
   last); winning the title at a stake unlocks the next.
 - The season length now follows the league size: 7 weeks with 8 coaches, 9 with 12 or 16, and never more weeks
   than there are other coaches, so nobody plays the same coach twice in the regular season.
+- Draft: the cheapest Pokemon cost less. The bottom of the pool now runs 3-5 points (ZU) and 5-7 (PU), so a budget
+  stretches to a late star. Everything from ZUBL up is priced as before.
+- Draft: on your pick the screen says why the cap is what it is ("8 more required after this at 5+ -> up to 80 now"),
+  on desktop and phone.
+- Fixed: Report a bug opened behind the draft screen (and could not be used); dialogs and sheets now open above
+  every screen.
 
 ## v0.3.1 — 2026-11-02
 

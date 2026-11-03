@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { GameButton } from './GameButton';
 
 interface SheetProps {
@@ -10,7 +11,7 @@ interface SheetProps {
   full?: boolean;
 }
 
-/** Phone bottom sheet (or full-screen panel). Escape or the backdrop closes it. */
+/** Phone bottom sheet (or full-screen panel). Escape or the backdrop closes it. Portaled to document.body (see Modal). */
 export function Sheet({ title, onClose, children, footer, full }: SheetProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -22,7 +23,7 @@ export function Sheet({ title, onClose, children, footer, full }: SheetProps) {
       document.body.style.overflow = prev;
     };
   }, [onClose]);
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-bg-deep/80" onClick={onClose}>
       <div
         role="dialog"
@@ -39,6 +40,7 @@ export function Sheet({ title, onClose, children, footer, full }: SheetProps) {
         {footer && <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t-2 border-edge px-3 pt-3 pb-safe-3">{footer}</div>}
         {!footer && <div className="pb-safe shrink-0" />}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
