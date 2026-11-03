@@ -69,3 +69,50 @@ An earlier pass used `--pairs` (different teams, 2,000 games each). Every varian
   - `eager`: Tera as soon as it adds 30% damage.
   - Result: eager helps a little with 2–3 Tera captains. It adds nothing on top of smartSack (seed 25).
 - **Epsilon 0.02** (default 0.04): no measurable difference.
+
+# Draft AI tuning log
+
+The draft AI (`aiChoosePick`) is measured the same way, in the draft arena:
+
+```
+npm run draft-arena -w @pdc/engine -- --drafts 80 --seed 45 --a overpay=2
+```
+
+Each draft has 12 coaches, Megas on. Half the coaches pick with config A and half with config B; which half alternates by draft, so seat order cancels out. Then every A coach plays every B coach once, with the default battle AI on both sides, so only the drafting differs. The matches share rosters, so the real interval is wider than the Wilson interval shown.
+
+Dials, all in `AI_DRAFT_DIALS`:
+- `overpay` is the overpay guard. A mon that scored below the lab's score-by-price line (`LAB_SCORES`, `LAB_FIT` in `data/labScores.ts`) pays a larger over-target penalty.
+- `roleBonus` adds a bonus for a candidate that brings a role the roster lacks: hazards, hazard removal, healing or priority. Roles come from the species' gen9randombattle movepools, because the AI's battle sets are rolled from them. `roles=N` sets all four at once.
+- `fit` turns on stake 3's fit mode: the draft helper's fit score is added to every candidate.
+
+## Result (2026-11-03)
+
+**The overpay guard ships at 2. The role bonus ships off. Fit mode stays a stake 3 rule, not the baseline.**
+
+- **Overpay guard at 2.** It won 53.7% and 54.5% against no guard, on two seeds.
+- **Role bonus.** It nearly doubles hazard removal (from about 35% of rosters to about 70%) and lifts priority (from about 67% to 86%), at the cost of some hazard setting (from about 77% to 69%). But it never won more matches. On top of the overpay guard it lost: 49.4% with a bonus of 2, 48.3% with 4. So it is off by default, and the dial stays for a later pass.
+- **Fit mode.** It did not draft better (49.5%) and costs 2.3 ms per pick against 0.5 ms.
+
+Every config kept the roster spread: about 9.8 mons, 119.5 of 120 points, and at least one fast and one bulky mon in 100% of rosters.
+
+## Draft runs
+
+Unless noted, B is the old default: no overpay guard and no role bonus. A run of 80 drafts is 2,880 matches; 120 drafts is 4,320.
+
+| A (challenger) | B | Seed | Drafts | A wins | 95% CI | ms/pick A / B |
+|---|---|---|---|---|---|---|
+| fit (stake 3) | old default | 41 | 40 | 49.5% | 46.9–52.1 | 2.27 / 0.52 |
+| roles=4 | old default | 42 | 40 | 50.1% | 47.5–52.6 | 0.51 / 0.51 |
+| roles=8 | old default | 43 | 40 | 51.0% | 48.5–53.6 | 0.54 / 0.53 |
+| roles=4 | old default | 44 | 80 | 49.8% | 47.9–51.6 | 0.54 / 0.55 |
+| overpay=2 | old default | 45 | 80 | 53.7% | 51.9–55.5 | 0.54 / 0.55 |
+| overpay=5 | old default | 46 | 80 | 51.8% | 50.0–53.7 | 0.60 / 0.57 |
+| roles=4, overpay=3 | old default | 47 | 80 | 49.5% | 47.7–51.3 | 0.56 / 0.53 |
+| overpay=2 (confirm) | old default | 48 | 120 | 54.5% | 53.0–56.0 | 0.48 / 0.49 |
+| overpay=1 | old default | 49 | 80 | 50.9% | 49.1–52.8 | 0.56 / 0.52 |
+| overpay=2, roles=2 | old default | 50 | 80 | 51.2% | 49.4–53.0 | 0.57 / 0.58 |
+| overpay=2, roles=4 | overpay=2 | 51 | 80 | 50.0% | 48.2–51.8 | 0.57 / 0.58 |
+| overpay=2, roles=2 | overpay=2 | 52 | 120 | 49.4% | 47.9–50.8 | |
+| overpay=2, roles=4 | overpay=2 | 53 | 120 | 48.3% | 46.8–49.8 | |
+
+Role coverage, as the share of rosters with each role (roles=4 vs old default, seed 44): hazards 68.5% vs 77.7%, removal 66.9% vs 35.6%, healing 96.9% vs 93.3%, priority 87.1% vs 62.7%.
