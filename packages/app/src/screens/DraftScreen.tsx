@@ -11,6 +11,8 @@ import {
 import { useIsMobile, useReducedMotion } from '../hooks/useIsMobile';
 import { useHeightVar } from '../hooks/useHeightVar';
 import { CaptainPicker } from '../components/CaptainPicker';
+import { MonDetailButton } from '../components/MonDetail';
+import { useMonDetail } from '../store/monDetail';
 import { FitBadge } from '../components/draft/FitBadge';
 import { MyTeamPanel } from '../components/draft/MyTeamPanel';
 import { PickImpactSummary } from '../components/draft/PickImpactSummary';
@@ -40,6 +42,7 @@ function MonDetail({ mon, canDraft, reason, onDraft, onClose, sheet, impact }: {
       footer={
         <>
           <GameButton variant="ghost" onClick={onClose} className="max-md:min-h-11">Back</GameButton>
+          <GameButton variant="secondary" onClick={() => useMonDetail.getState().open(mon.id)} className="max-md:min-h-11">Full details</GameButton>
           <GameButton disabled={!canDraft} onClick={onDraft} className="max-md:min-h-11">Draft {displayName(mon.name)} ({mon.points})</GameButton>
         </>
       }
@@ -328,8 +331,10 @@ export function DraftScreen() {
             const m = getDraftMon(r.species);
             return (
               <li key={r.species} className="anim-pick-in flex items-center gap-2 rounded-lg bg-panel-inset px-2 py-0.5">
-                <PokeIcon name={m?.name ?? r.species} title={displayName(m?.name ?? r.species)} />
-                <span className="flex-1 truncate font-semibold">{displayName(m?.name ?? r.species)}</span>
+                <MonDetailButton species={r.species} coachId={human.id} className="flex min-w-0 flex-1 items-center gap-2">
+                  <PokeIcon name={m?.name ?? r.species} title={displayName(m?.name ?? r.species)} />
+                  <span className="flex-1 truncate font-semibold">{displayName(m?.name ?? r.species)}</span>
+                </MonDetailButton>
                 {m?.isMega && <RoleTag role="mega" compact />}
                 <TypePills types={m?.types ?? []} size="xs" />
                 <span className="w-6 text-right font-display font-bold text-poke-yellow">{m?.points}</span>
@@ -383,8 +388,10 @@ export function DraftScreen() {
           return (
             <li key={p.overall} className={`anim-pick-slide flex items-center gap-2 rounded-lg px-2 py-0.5 ${you ? 'bg-you-soft' : 'bg-panel-inset'}`}>
               <span className="w-7 text-xs font-bold text-faint tabular-nums">#{p.overall}</span>
-              <PokeIcon name={m?.name ?? p.species} title={displayName(m?.name ?? p.species)} />
-              <span className="flex-1 truncate font-semibold">{displayName(m?.name ?? p.species)}</span>
+              <MonDetailButton species={p.species} coachId={p.coach} className="flex min-w-0 flex-1 items-center gap-2">
+                <PokeIcon name={m?.name ?? p.species} title={displayName(m?.name ?? p.species)} />
+                <span className="flex-1 truncate font-semibold">{displayName(m?.name ?? p.species)}</span>
+              </MonDetailButton>
               <span className="font-display text-xs font-bold text-muted">{abbrevOf(run, p.coach)}</span>
               <span className="w-5 text-right font-display text-sm font-bold text-poke-yellow">{p.points}</span>
             </li>
@@ -409,7 +416,11 @@ export function DraftScreen() {
               <span className="text-xs text-muted">{pts} pts</span>
             </div>
             <div className="flex flex-wrap gap-1">
-              {picks.map((p) => <IconBadge key={p.overall} name={getDraftMon(p.species)?.name ?? p.species} roles={getDraftMon(p.species)?.isMega ? ['mega'] : []} tone={you ? 'you' : 'neutral'} />)}
+              {picks.map((p) => (
+                <MonDetailButton key={p.overall} species={p.species} coachId={id}>
+                  <IconBadge name={getDraftMon(p.species)?.name ?? p.species} roles={getDraftMon(p.species)?.isMega ? ['mega'] : []} tone={you ? 'you' : 'neutral'} />
+                </MonDetailButton>
+              ))}
             </div>
           </div>
         );
@@ -493,8 +504,10 @@ export function DraftScreen() {
                   const you = p.coach === run.humanId;
                   return (
                     <span key={p.overall} className={`anim-pick-slide flex shrink-0 items-center gap-1 rounded-full border-2 py-0.5 pr-2.5 pl-1 text-xs font-bold ${you ? 'border-you bg-you-soft' : 'border-edge-dark bg-panel-inset'}`}>
-                      <PokeIcon name={m?.name ?? p.species} title={displayName(m?.name ?? p.species)} />
-                      <span className="max-w-24 truncate">{displayName(m?.name ?? p.species)}</span>
+                      <MonDetailButton species={p.species} coachId={p.coach} className="flex items-center gap-1">
+                        <PokeIcon name={m?.name ?? p.species} title={displayName(m?.name ?? p.species)} />
+                        <span className="max-w-24 truncate">{displayName(m?.name ?? p.species)}</span>
+                      </MonDetailButton>
                       <span className="font-display text-muted">{abbrevOf(run, p.coach)}</span>
                     </span>
                   );

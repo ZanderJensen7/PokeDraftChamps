@@ -4,6 +4,7 @@ import { useGame, weekLabel, type Screen } from './store/useGame';
 import { useSettings } from './store/settings';
 import { APP_VERSION } from './app/version';
 import { BugReport } from './components/BugReport';
+import { MonDetailHost } from './components/MonDetail';
 import { GameButton, ResponsiveDialog, PokeBallLogo } from './components/ui';
 import { leagueCode } from './game/names';
 import { TitleScreen } from './screens/TitleScreen';
@@ -192,6 +193,7 @@ export function App() {
       </main>
       {navShown && <BottomNav />}
       <VersionBadge />
+      <MonDetailHost />
       <LeaveBattleConfirm />
       <Toast />
     </div>

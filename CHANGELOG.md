@@ -22,6 +22,9 @@ every package.json. The build stamp shows the version and short commit in the co
 - Phone layout fixes: the draft Pool, Board and All-teams views scroll clear of the pinned DRAFT bar; landscape
   battles fit the screen with compact HP boxes that no longer overlap the sprites; the draft header and the
   AI-pick ticker name the same pick while picks reveal, and reduced motion shows them all at once.
+- Mon detail sheet: tap a mon's icon or name on the draft board, hub rosters, prep doc, team editor, free agency
+  or analytics for its abilities, base stats, speed tiers, type matchups, notable moves, full learnset (with a
+  filter), likely sets and, for a league coach's mon, what their battles have revealed.
 
 ## v0.3.1 — 2026-11-02
 
