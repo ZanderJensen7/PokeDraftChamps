@@ -87,8 +87,10 @@ function RoleChips({ needs }: { needs: TeamNeeds | null }) {
  * MY TEAM: what your roster looks like so far. Needs (engine summary), the compact resistances
  * chart, speed buckets and move-role coverage. Stays usable while the AI coaches pick.
  */
-export function MyTeamPanel({ rosterIds, sizeText, needs, loading, className = '' }: {
-  rosterIds: readonly SpeciesId[]; sizeText: string; needs: TeamNeeds | null; loading: boolean; className?: string;
+export function MyTeamPanel({ rosterIds, sizeText, needs, loading, showNeeds = true, className = '' }: {
+  rosterIds: readonly SpeciesId[]; sizeText: string; needs: TeamNeeds | null; loading: boolean;
+  /** Draft recommendations off: the Needs sentences go, the facts (resistances, speed, roles held) stay. */
+  showNeeds?: boolean; className?: string;
 }) {
   const key = rosterIds.join(',');
   // The type chart is sync, so it renders before the learnset-backed needs arrive.
@@ -100,7 +102,7 @@ export function MyTeamPanel({ rosterIds, sizeText, needs, loading, className = '
         <DialogueBox>Draft your first pick to see your team's shape.</DialogueBox>
       ) : (
         <div className="space-y-4">
-          <Section title="Needs" aside={loading ? 'updating…' : undefined}>
+          {showNeeds && <Section title="Needs" aside={loading ? 'updating…' : undefined}>
             <DialogueBox className="!px-3 !py-2 !text-sm">
               {!needs ? (
                 <p>Reading your team's movesets…</p>
@@ -112,7 +114,7 @@ export function MyTeamPanel({ rosterIds, sizeText, needs, loading, className = '
                 </ul>
               )}
             </DialogueBox>
-          </Section>
+          </Section>}
           <Section title="Resistances" aside="damage taken">
             <MatchupTable table={table} compact />
           </Section>

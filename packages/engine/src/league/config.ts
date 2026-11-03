@@ -9,6 +9,12 @@ export const MAX_WEEKS = 20;
 
 const isInt = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n);
 
+/** The least budget that can fill a roster: `rosterMin` mons at the pool's cheapest price. */
+export function minBudget(rosterMin: number, megas: boolean): { need: number; cheapest: number } {
+  const cheapest = Math.min(...buildDraftPool({ megas }).map((m) => m.points));
+  return { need: rosterMin * cheapest, cheapest };
+}
+
 /** Every problem with a league config, as plain sentences. Empty = valid. */
 export function validateLeagueConfig(config: LeagueConfig): string[] {
   const c = config;
@@ -34,8 +40,7 @@ export function validateLeagueConfig(config: LeagueConfig): string[] {
   }
   if (rosterOk) {
     const pool = buildDraftPool({ megas: !!c.megas });
-    const cheapest = Math.min(...pool.map((m) => m.points));
-    const need = c.rosterMin * cheapest;
+    const { need, cheapest } = minBudget(c.rosterMin, !!c.megas);
     if (typeof c.budget !== 'number' || !(c.budget >= need)) {
       errors.push(`The budget must be at least ${need} points (${c.rosterMin} mons at the cheapest price, ${cheapest}).`);
     }

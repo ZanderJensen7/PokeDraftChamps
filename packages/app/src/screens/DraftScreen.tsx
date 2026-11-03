@@ -5,6 +5,7 @@ import {
   runPool,
 } from '@pdc/engine';
 import { useGame } from '../store/useGame';
+import { useSettings } from '../store/settings';
 import {
   Crest, DialogueBox, GameButton, IconBadge, Modal, Panel, PokeIcon, PokeSprite, PriceBadge, RoleTag, Sheet, SpriteCard,
   StatBlock, Tabs, TypePills,
@@ -30,6 +31,25 @@ const RAIL_TABS = [
 
 function roundOrder(run: RunState, round: number): string[] {
   return round % 2 === 1 ? run.draft.order : [...run.draft.order].reverse();
+}
+
+/** Draft recommendations on/off (FIT badges, needs sentences, sort by fit, the "what this adds" note). */
+function RecsSwitch({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-bold md:min-h-0">
+      <span className="text-muted">Recommendations</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label="Recommendations"
+        onClick={() => onChange(!on)}
+        className={`focus-ring relative h-6 w-11 shrink-0 rounded-full border-2 transition-colors duration-150 ${on ? 'border-poke-yellow bg-crest-3' : 'border-edge bg-panel-inset'}`}
+      >
+        <span className={`absolute top-0.5 h-4 w-4 rounded-full border-2 border-cream-ink bg-cream transition-[left] duration-150 ${on ? 'left-5' : 'left-0.5'}`} />
+      </button>
+    </label>
+  );
 }
 
 function MonDetail({ mon, canDraft, reason, onDraft, onClose, sheet, impact }: {
@@ -89,6 +109,8 @@ export function DraftScreen() {
   const stopDrafting = useGame((s) => s.stopDrafting);
   const setCaptainsWith = useGame((s) => s.setCaptainsWith);
   const reducedMotion = useReducedMotion();
+  const draftHelper = useSettings((s) => s.draftHelper);
+  const updateSettings = useSettings((s) => s.update);
 
   const [search, setSearch] = useState('');
   const [type, setType] = useState('');
@@ -112,6 +134,10 @@ export function DraftScreen() {
   const ownedIds = useMemo<SpeciesId[]>(() => (run ? humanCoach(run).roster.map((r) => r.species) : []), [run]);
   const { needs, loading: needsLoading } = useTeamNeeds(ownedIds);
   const fit = useFitScores(ownedIds, pool);
+  // The recommendations switch hides all advice; before your first pick there is nothing to fit, so no fit score either way.
+  const hasPicked = ownedIds.length > 0;
+  const showFit = draftHelper && hasPicked;
+  const sortKey: SortKey = sort === 'fit' && !showFit ? 'price' : sort;
   const totalPicks = run ? run.draft.picks.length : 0;
   const animating = draftShown < totalPicks;
   const noCaptains = !!run && run.config.teraCaptains === 0 && (run.config.zCaptains ?? 0) === 0;
@@ -182,10 +208,10 @@ export function DraftScreen() {
     .filter((m) => m.points <= maxPrice)
     .filter((m) => !onlyLegal || !myTurn || legal.has(m.id))
     .sort((a, b) =>
-      sort === 'price' ? b.points - a.points || b.bst - a.bst
-        : sort === 'fit' ? (fit.get(b.id) ?? 0) - (fit.get(a.id) ?? 0) || b.points - a.points
-        : sort === 'bst' ? b.bst - a.bst
-          : sort === 'spe' ? b.baseStats.spe - a.baseStats.spe
+      sortKey === 'price' ? b.points - a.points || b.bst - a.bst
+        : sortKey === 'fit' ? (fit.get(b.id) ?? 0) - (fit.get(a.id) ?? 0) || b.points - a.points
+        : sortKey === 'bst' ? b.bst - a.bst
+          : sortKey === 'spe' ? b.baseStats.spe - a.baseStats.spe
             : displayName(a.name).localeCompare(displayName(b.name)));
 
   const reasonFor = (m: DraftMon): string | undefined => {
@@ -202,7 +228,7 @@ export function DraftScreen() {
 
   const ticker = shownPicks.slice(-8).reverse();
   const order = roundOrder(run, Math.min(round, run.config.rosterMax));
-  const filtersActive = (type ? 1 : 0) + (maxPrice < 20 ? 1 : 0) + (sort !== 'price' ? 1 : 0) + (onlyLegal ? 0 : 1) + (megasOnly ? 1 : 0);
+  const filtersActive = (type ? 1 : 0) + (maxPrice < 20 ? 1 : 0) + (sortKey !== 'price' ? 1 : 0) + (onlyLegal ? 0 : 1) + (megasOnly ? 1 : 0);
   const selectedMon = myTurn && selected && legal.has(selected) ? pool.find((m) => m.id === selected) ?? null : null;
 
   const searchInput = (
@@ -222,9 +248,11 @@ export function DraftScreen() {
         <option value="">All types</option>
         {ALL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
       </select>
-      <select className="field" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Sort">
+      <select className="field" value={sortKey} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Sort">
         <option value="price">Sort: price</option>
-        <option value="fit">Sort by fit</option>
+        {draftHelper && (
+          <option value="fit" disabled={!hasPicked}>{hasPicked ? 'Sort by fit' : 'Fit appears after your first pick'}</option>
+        )}
         <option value="bst">Sort: BST</option>
         <option value="spe">Sort: speed</option>
         <option value="name">Sort: name</option>
@@ -285,7 +313,7 @@ export function DraftScreen() {
                 badge={<PriceBadge points={m.points} />}
                 marker={(
                   <span className="flex flex-col items-start gap-1">
-                    <FitBadge score={score} />
+                    {showFit && <FitBadge score={score} />}
                     {m.isMega && <RoleTag role="mega" />}
                   </span>
                 )}
@@ -293,18 +321,18 @@ export function DraftScreen() {
                 selected={expanded}
                 onClick={() => onCard(m)}
                 title={reasonFor(m)}
-                ariaLabel={`${displayName(m.name)}, ${m.points} points, ${m.types.join('/')}, BST ${m.bst}, team fit ${score}`}
+                ariaLabel={`${displayName(m.name)}, ${m.points} points, ${m.types.join('/')}, BST ${m.bst}${showFit ? `, team fit ${score}` : ''}`}
               >
                 <div className="truncate text-center font-display font-bold leading-tight">{displayName(m.name)}</div>
                 <div className="mt-1 flex justify-center"><TypePills types={m.types} size="xs" /></div>
                 <div className="mt-1 flex justify-center gap-2 text-xs font-semibold text-muted">
                   <span>BST {m.bst}</span><span>Spe {m.baseStats.spe}</span>
                 </div>
-                {expanded && (
+                {expanded && showFit && (
                   <PickImpactSummary rosterIds={ownedIds} candidate={m.id} pool={pool} className="mt-2 border-t-2 border-edge-dark pt-2" />
                 )}
               </SpriteCard>
-              {peek && (
+              {peek && showFit && (
                 <div className="pointer-events-none absolute inset-x-0 top-full -mt-1 rounded-lg border-2 border-b-4 border-poke-yellow bg-panel-hi p-2 shadow-lg shadow-black/40">
                   <PickImpactSummary rosterIds={ownedIds} candidate={m.id} pool={pool} />
                 </div>
@@ -357,9 +385,9 @@ export function DraftScreen() {
   );
 
   const myTeamPanel = (
-    <MyTeamPanel rosterIds={ownedIds} sizeText={sizeText} needs={needs} loading={needsLoading} />
+    <MyTeamPanel rosterIds={ownedIds} sizeText={sizeText} needs={needs} loading={needsLoading} showNeeds={draftHelper} />
   );
-  const needsLine = needsOneLiner(needs);
+  const needsLine = draftHelper ? needsOneLiner(needs) : null;
 
   const roundChips = (
     <>
@@ -446,7 +474,7 @@ export function DraftScreen() {
           sheet={isMobile}
           canDraft={myTurn && legal.has(detail.id)}
           reason={reasonFor(detail)}
-          impact={available.has(detail.id) ? (
+          impact={showFit && available.has(detail.id) ? (
             <span className="flex flex-col gap-1.5">
               <FitBadge score={fit.get(detail.id) ?? 0} />
               <PickImpactSummary rosterIds={ownedIds} candidate={detail.id} pool={pool} />
@@ -527,6 +555,7 @@ export function DraftScreen() {
                 })}
               </div>
             )}
+            <div className="flex justify-end"><RecsSwitch on={draftHelper} onChange={(v) => updateSettings({ draftHelper: v })} /></div>
             <div className="flex gap-2">
               <input
                 className="field min-w-0 flex-1"
@@ -635,7 +664,7 @@ export function DraftScreen() {
       <div className="grid gap-4 lg:grid-cols-[1fr_22rem] xl:grid-cols-[1fr_25.5rem]">
         {/* Pool */}
         {!done && (
-          <Panel title="Draft pool" aside={<span>{filtered.length} shown</span>} className="order-2 lg:order-1">
+          <Panel title="Draft pool" aside={<span className="flex items-center gap-3"><RecsSwitch on={draftHelper} onChange={(v) => updateSettings({ draftHelper: v })} /><span>{filtered.length} shown</span></span>} className="order-2 lg:order-1">
             <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {searchInput}
               {filterControls}

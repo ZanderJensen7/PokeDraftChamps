@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { LeagueConfig } from '@pdc/engine';
-import { applyStake, DEFAULT_LEAGUE_CONFIG, MAX_STAKE, rulesAt, STAKES, validateLeagueConfig } from '@pdc/engine';
+import { applyStake, DEFAULT_LEAGUE_CONFIG, MAX_STAKE, minBudget, rulesAt, STAKES, validateLeagueConfig } from '@pdc/engine';
 import { useGame } from '../store/useGame';
 import { useProfile } from '../store/profile';
 import { Crest, DialogueBox, GameButton, Panel, Segmented } from '../components/ui';
@@ -12,8 +12,12 @@ const PLAYOFF_OPTIONS: Record<Teams, number[]> = { 8: [4], 12: [4, 8], 16: [8] }
 /** Everyone plays everyone at most once (user ruling 2026-11-03), capped at 9 weeks for the bigger leagues. */
 const defaultWeeks = (t: Teams) => Math.min(t - 1, 9);
 
-function Slider({ label, value, min, max, onChange, hint }: {
-  label: string; value: number; min: number; max: number; onChange: (v: number) => void; hint: string;
+const BUDGET_STEP = 5;
+const BUDGET_MAX = 200;
+const MAX_FREE_AGENCY = 6;
+
+function Slider({ label, value, min, max, step = 1, onChange, hint }: {
+  label: string; value: number; min: number; max: number; step?: number; onChange: (v: number) => void; hint: string;
 }) {
   const id = `slider-${label.replace(/\s+/g, '-').toLowerCase()}`;
   return (
@@ -22,7 +26,7 @@ function Slider({ label, value, min, max, onChange, hint }: {
         <label htmlFor={id} className="font-display font-bold uppercase tracking-wide">{label}</label>
         <span className="font-display text-2xl font-bold text-poke-yellow tabular-nums">{value}</span>
       </div>
-      <input id={id} type="range" min={min} max={max} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full" />
+      <input id={id} type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full" />
       <div className="text-sm text-muted">{hint}</div>
     </div>
   );
@@ -131,12 +135,20 @@ export function SetupScreen() {
   const [rosterMin, setRosterMin] = useState(DEFAULT_LEAGUE_CONFIG.rosterMin);
   const [rosterMax, setRosterMax] = useState(DEFAULT_LEAGUE_CONFIG.rosterMax);
   const [captainMaxPoints, setCaptainMaxPoints] = useState(DEFAULT_LEAGUE_CONFIG.captainMaxPoints);
+  const [budgetPicked, setBudget] = useState(DEFAULT_LEAGUE_CONFIG.budget);
+  const [freeAgencyMoves, setFreeAgencyMoves] = useState(DEFAULT_LEAGUE_CONFIG.freeAgencyMoves);
   const [code, setCode] = useState(() => leagueCode(randomSeed()));
 
   const seed = seedFromCode(code);
   const tag = abbrev.trim().toUpperCase();
+  // The slider starts at the first step of 5 that fills a roster of rosterMin; a bigger roster or Megas moving that
+  // floor up pulls the budget with it, so the screen never sits on a budget the validator would refuse.
+  const floor = useMemo(() => minBudget(rosterMin, megas), [rosterMin, megas]);
+  const budgetMin = Math.ceil(floor.need / BUDGET_STEP) * BUDGET_STEP;
+  const budget = Math.min(BUDGET_MAX, Math.max(budgetPicked, budgetMin));
   const config: LeagueConfig = {
     ...DEFAULT_LEAGUE_CONFIG, teams, weeks, playoffTeams, lossCap, megas, teraCaptains, zCaptains, rosterMin, rosterMax, captainMaxPoints, stake,
+    budget, freeAgencyMoves,
   };
   // What the run will actually play: the stake tightens the loss cap and the bracket where it is stricter.
   const effective = applyStake(config);
@@ -268,9 +280,16 @@ export function SetupScreen() {
             hint={rosterMax === rosterMin ? 'Same as the min: every roster is this size.' : 'Past the min, a coach may stop drafting any time.'}
           />
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <Fixed label="Budget" value={DEFAULT_LEAGUE_CONFIG.budget} />
-          <Fixed label="Free agency" value={DEFAULT_LEAGUE_CONFIG.freeAgencyMoves} />
+        <div className="mt-4 grid gap-5 sm:grid-cols-2">
+          <Slider
+            label="Budget" value={budget} min={budgetMin} max={BUDGET_MAX} step={BUDGET_STEP} onChange={setBudget}
+            hint={`${rosterMin} mons at the cheapest price (${floor.cheapest}) need ${floor.need}. Tier prices stay as they are.${stakeRules.aiBudgetBonus > 0
+              ? ` Stake ${stake}: AI coaches draft with ${budget + stakeRules.aiBudgetBonus}.` : ''}`}
+          />
+          <Stepper
+            label="Free agency" value={freeAgencyMoves} min={0} max={MAX_FREE_AGENCY} onChange={setFreeAgencyMoves}
+            hint={freeAgencyMoves === 0 ? 'No signings once the season starts.' : `${freeAgencyMoves} signing${freeAgencyMoves === 1 ? '' : 's'} per season.`}
+          />
         </div>
       </Panel>
 

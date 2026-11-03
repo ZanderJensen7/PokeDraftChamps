@@ -1,6 +1,6 @@
 import { DEFAULT_LEAGUE_CONFIG, type Coach, type LeagueConfig, type MatchResult, type RunState } from '../types';
 import { buildDraftPool, getDraftMon } from '../draft/pool';
-import { validateLeagueConfig } from './config';
+import { minBudget, validateLeagueConfig } from './config';
 import { aiChoosePick, budgetOf, legalPicks } from '../draft/draft';
 import { MAX_STAKE, STAKES } from '../data/stakes';
 import { visibleRoster } from './stakes';
@@ -470,6 +470,12 @@ describe('save migration + config validation', () => {
     expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, weeks: 21 }).length).toBe(1);
     expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, teraCaptains: 6, zCaptains: 3 }).length).toBe(1); // 9 > rosterMin - 1
     expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, budget: 5 }).length).toBe(1);
+    // minBudget is the validator's own floor: the least budget passes, one point less fails
+    for (const megas of [false, true]) {
+      const { need } = minBudget(9, megas);
+      expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, megas, budget: need })).toEqual([]);
+      expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, megas, budget: need - 1 }).length).toBe(1);
+    }
     expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, rosterMin: 5 })[0]).toMatch(/minimum must be at least 6/);
     expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, rosterMin: 6, rosterMax: 6 })).toEqual([]);
     expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, rosterMax: 8 })[0]).toMatch(/maximum .*no lower than the minimum/);

@@ -16,6 +16,8 @@ export interface Settings {
   nickname: string;
   /** Opt-in anonymous run-summary upload when a run ends (off by default). */
   shareRuns: boolean;
+  /** Draft recommendations: FIT badges, the needs sentences, Sort by fit, the "what this adds" note. */
+  draftHelper: boolean;
 }
 
 export const NICKNAME_MAX = 20;
@@ -28,7 +30,7 @@ export function cleanNickname(s: string): string {
 const KEY = 'pdc.settings.v2';
 const OLD_KEY = 'pdc.settings.v1';
 const DEFAULTS: Settings = {
-  spriteSet: 'ani', reducedMotion: false, battleLogOpen: true, battleEffects: true, sound: true, nickname: '', shareRuns: false,
+  spriteSet: 'ani', reducedMotion: false, battleLogOpen: true, battleEffects: true, sound: true, nickname: '', shareRuns: false, draftHelper: true,
 };
 
 function load(): Settings {
@@ -49,6 +51,7 @@ function load(): Settings {
       sound: parsed.sound !== false,
       nickname: typeof parsed.nickname === 'string' ? cleanNickname(parsed.nickname) : '',
       shareRuns: parsed.shareRuns === true,
+      draftHelper: parsed.draftHelper !== false,
     };
   } catch {
     return DEFAULTS;
@@ -70,10 +73,10 @@ export const useSettings = create<SettingsStore>((set, get) => ({
   update(patch) {
     // In memory the nickname keeps what is being typed (inner spaces need a trailing one first); storage trims.
     set(patch.nickname === undefined ? patch : { ...patch, nickname: patch.nickname.slice(0, NICKNAME_MAX) });
-    const { spriteSet, reducedMotion, battleLogOpen, battleEffects, sound, nickname, shareRuns } = get();
+    const { spriteSet, reducedMotion, battleLogOpen, battleEffects, sound, nickname, shareRuns, draftHelper } = get();
     try {
       localStorage.setItem(KEY, JSON.stringify({
-        spriteSet, reducedMotion, battleLogOpen, battleEffects, sound, nickname: cleanNickname(nickname), shareRuns,
+        spriteSet, reducedMotion, battleLogOpen, battleEffects, sound, nickname: cleanNickname(nickname), shareRuns, draftHelper,
       }));
     } catch {
       /* storage full or blocked: settings stay in memory */
