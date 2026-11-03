@@ -36,7 +36,7 @@ const boostMult = (stage: number) => (stage >= 0 ? (2 + stage) / 2 : 2 / (2 - st
 type DexMove = ReturnType<typeof Dex.moves.get>;
 interface Threat { pct: number; prio: number }
 interface MoveEval { slot: number; score: number; tera: boolean; /** Average damage % of the target's max HP (0 for status). */ pct: number }
-interface SwitchPick { slot: number; value: number; survives: boolean; incoming: number }
+interface SwitchPick { slot: number; value: number; survives: boolean }
 
 interface Situation {
   req: ParsedRequest;
@@ -55,37 +55,16 @@ interface Situation {
 const Z_BIG_HIT = 60;
 const Z_PLAIN_WEAK = 40;
 
-/** The battle AI's tunables, one table. Every change is measured head to head (`npm run arena`, docs/balance/ai-tuning.md). */
+/**
+ * The battle AI's tunables, one table. Every change is measured head to head first (`npm run arena`); the variants
+ * tried and dropped (lookahead, sacking, hazard and status valuation, Tera timing) are in docs/balance/ai-tuning.md.
+ */
 export interface HeuristicDials {
   /** Chance of picking one of the top three moves instead of the best. */
   epsilon: number;
-  /** 'defensive': also Tera when the opponent's best hit would KO us this turn and the Tera type survives it; 'eager': Tera once it adds this much damage. */
-  tera: 'default' | 'defensive' | 'eager';
-  abl: string;
-  lookahead: boolean;
-  smartSack: boolean;
-  freeEntry: boolean;
-  holdSack: boolean;
-  sackHp: number;
-  sackHit: number;
-  hazardValue: boolean;
 }
 
-export const HEURISTIC_DIALS: Readonly<HeuristicDials> = {
-  epsilon: 0.04,
-  tera: 'default',
-  abl: '',
-  lookahead: false,
-  smartSack: false,
-  freeEntry: false,
-  holdSack: false,
-  sackHp: 80,
-  sackHit: 25,
-  hazardValue: false,
-};
-const RACE_TURNS = 6;
-const LA_WIDTH = 2;
-const LA_MARGIN = 5;
+export const HEURISTIC_DIALS: Readonly<HeuristicDials> = { epsilon: 0.04 };
 
 /**
  * Rule-based AI. Moves are scored from damage calcs against an assumed opponent spread
@@ -97,14 +76,12 @@ const LA_MARGIN = 5;
 export class HeuristicPlayer implements BattlePlayer {
   private rng: Rng;
   private lastWasSwitch = false;
-  private dials: HeuristicDials;
   /** Chance of picking one of the top three moves instead of the best. */
   epsilon: number;
 
   constructor(seed = 1, dials: Partial<HeuristicDials> = {}) {
     this.rng = new Rng(seed);
-    this.dials = { ...HEURISTIC_DIALS, ...dials };
-    this.epsilon = this.dials.epsilon;
+    this.epsilon = { ...HEURISTIC_DIALS, ...dials }.epsilon;
   }
 
   choose(req: ParsedRequest, ctx: PlayerContext): string {
@@ -120,8 +97,7 @@ export class HeuristicPlayer implements BattlePlayer {
       if (!bench.length) return 'pass';
       this.lastWasSwitch = true;
       if (!oppMon) return `switch ${this.rng.pick(bench)}`;
-      const free = (this.dials.smartSack || this.dials.freeEntry) && req.side.pokemon.some(p => p.active && hpOf(p) === 0);
-      return `switch ${this.bestSwitch(req, ctx, view, oppMon, bench, free).slot}`;
+      return `switch ${this.bestSwitch(req, ctx, view, oppMon, bench).slot}`;
     }
     const activeReq = req.active?.[0];
     const active = req.side.pokemon[0];
@@ -142,24 +118,18 @@ export class HeuristicPlayer implements BattlePlayer {
       const bestTera = tera.evals[0]?.score ?? 0;
       const flipsKo = bestPlain < 900 && bestTera >= 900;
       const removesLethal = plain.koFirst && !tera.koFirst && bestTera > 40;
-      const ourHp = hpOf(active);
-      const survivesHit = this.dials.tera === 'defensive' && plain.threat >= ourHp && tera.threat < ourHp && tera.threat < plain.threat * 0.6 && bestTera > 20;
-      const bigger = this.dials.tera === 'eager' && bestTera >= 15 && bestTera >= bestPlain * 1.3;
-      if (flipsKo || removesLethal || survivesHit || bigger) evals = tera.evals;
+      if (flipsKo || removesLethal) evals = tera.evals;
     }
-    if (this.dials.lookahead && evals.length > 1 && (evals[0]?.score ?? 0) < 900) evals = this.lookahead(sit, evals);
     const best = evals[0];
 
     // Voluntary switch: about to be KO'd before acting (and no KO of our own), or nothing useful to do.
     const canSwitch = bench.length > 0 && !activeReq.trapped && !activeReq.maybeTrapped;
     const danger = plain.koFirst && (best?.score ?? 0) < 900;
     const useless = (best?.score ?? 0) < 15;
-    const abl = this.dials.abl;
-    if (abl !== 'noswitch' && canSwitch && !this.lastWasSwitch && hpOf(active) >= (abl === 'freeswitch' ? 20 : 35) && (danger || useless || (abl === 'freeswitch' && plain.threat >= 60))) {
+    if (canSwitch && !this.lastWasSwitch && hpOf(active) >= 35 && (danger || useless)) {
       const cand = this.bestSwitch(req, ctx, view, oppMon, bench);
       const stay = this.monValue(ctx, view, oppMon, active, activeSet, false, megaForme).value;
-      const sack = (this.dials.smartSack || this.dials.holdSack) && danger && hpOf(active) < this.dials.sackHp && cand.incoming >= this.dials.sackHit;
-      if (cand.survives && cand.value > stay + (abl === 'freeswitch' ? 10 : 25) && !sack) {
+      if (cand.survives && cand.value > stay + 25) {
         this.lastWasSwitch = true;
         return `switch ${cand.slot}`;
       }
@@ -172,85 +142,6 @@ export class HeuristicPlayer implements BattlePlayer {
     const z = this.zMoveSlot(sit, evals);
     if (z !== undefined) return `move ${z} zmove`;
     return `move ${pick.slot}${pick.tera ? ' terastallize' : ''}`;
-  }
-
-  // ---------- lookahead ----------
-
-  /** The top two moves re-ranked by `race` (damaging and self-boosting moves only; anything else keeps its rank). */
-  private lookahead(sit: Situation, evals: MoveEval[]): MoveEval[] {
-    const top = evals[0];
-    if (!top) return evals;
-    const rTop = this.race(sit, top);
-    if (rTop === undefined) return evals;
-    let best = top;
-    let rBest = rTop + LA_MARGIN;
-    for (const ev of evals.slice(1, LA_WIDTH)) {
-      const r = this.race(sit, ev);
-      if (r !== undefined && r > rBest) { best = ev; rBest = r; }
-    }
-    return best === top ? evals : [best, ...evals.filter(e => e !== best)];
-  }
-
-  /**
-   * Play `ev` this turn, then our best attack every turn, against the opponent's best attack every turn, for up to
-   * RACE_TURNS turns (average rolls times accuracy, speed order with the move's priority on the first turn).
-   * Higher is better: a won race scores 100 + our HP left, a lost one -100 + the share of the opponent's HP we took.
-   */
-  private race(sit: Situation, ev: MoveEval): number | undefined {
-    const { req, view, me, them, oppMon, active, activeSet, megaForme, ctx } = sit;
-    const dm = Dex.moves.get(req.active?.[0]?.moves[ev.slot - 1]?.id ?? '');
-    if (!dm.exists) return undefined;
-    const selfBoosts = dm.category === 'Status' ? selfBoostsOf(dm) : undefined;
-    if (dm.category === 'Status' && !selfBoosts) return undefined;
-    const oppSet = oppSetOf(ctx, oppMon);
-    const oppCalc = oppCalcMon(oppMon, them.boosts, oppSet);
-    const now = ownCalcMon(activeSet, active, me.boosts, ev.tera, megaForme);
-    if (!oppCalc || !now) return undefined;
-    const boosted = { ...me.boosts };
-    if (selfBoosts) for (const [k, v] of Object.entries(selfBoosts)) boosted[k] = Math.max(-6, Math.min(6, (boosted[k] ?? 0) + (v ?? 0)));
-    const after = selfBoosts ? ownCalcMon(activeSet, active, boosted, ev.tera, megaForme) : now;
-    if (!after) return undefined;
-    const status = parseCondition(active.condition).status;
-    const baseSpe = megaForme ? now.stats.spe : (active.stats?.spe ?? 100);
-    const theirSpe = oppSpeed(oppMon, them.boosts.spe ?? 0, oppSet && oppCalc);
-    const faster = (stage: number) => {
-      const ours = effectiveSpeed(baseSpe, stage, active.item, status);
-      return view.trickRoom ? ours < theirSpe : ours > theirSpe;
-    };
-    const atkField = makeField(view, me, them);
-    const defField = makeField(view, them, me);
-    const theirHit = (mon: Pokemon) => Math.max(0, ...threatsAgainst(oppMon, oppCalc, mon, defField, oppSet).map(t => t.pct));
-    const ourHit = (mon: Pokemon) => {
-      let best = 0;
-      for (const slot of usableMoves(req)) {
-        const m = Dex.moves.get(req.active?.[0]?.moves[slot - 1]?.id ?? '');
-        if (!m.exists || m.category === 'Status' || m.flags.charge || m.flags.recharge) continue;
-        if (typeMultiplier(m.type, viewTypes(oppMon), oppMon.ability) === 0) continue;
-        const acc = m.accuracy === true ? 1 : m.accuracy / 100;
-        best = Math.max(best, damagePct(mon, oppCalc, m.name, atkField).avg * acc);
-      }
-      return best;
-    };
-    const acc = dm.accuracy === true ? 1 : dm.accuracy / 100;
-    const first = { ours: dm.category === 'Status' ? 0 : ev.pct * acc, theirs: theirHit(now), weFirst: dm.priority > 0 || (dm.priority === 0 && faster(me.boosts.spe ?? 0)) };
-    const later = { ours: ourHit(after), theirs: theirHit(after), weFirst: faster(boosted.spe ?? 0) };
-    let ourHp = hpOf(active);
-    let oppHp = oppMon.hpPct;
-    for (let turn = 0; turn < RACE_TURNS; turn++) {
-      const t = turn === 0 ? first : later;
-      if (t.weFirst) {
-        oppHp -= t.ours;
-        if (oppHp <= 0) return 100 + ourHp;
-        ourHp -= t.theirs;
-        if (ourHp <= 0) return -100 + 100 * (1 - oppHp / oppMon.hpPct);
-      } else {
-        ourHp -= t.theirs;
-        if (ourHp <= 0) return -100 + 100 * (1 - oppHp / oppMon.hpPct);
-        oppHp -= t.ours;
-        if (oppHp <= 0) return 100 + ourHp;
-      }
-    }
-    return ourHp - oppHp;
   }
 
   // ---------- Z-moves ----------
@@ -318,12 +209,12 @@ export class HeuristicPlayer implements BattlePlayer {
 
   // ---------- moves ----------
 
-  private evaluateMoves(sit: Situation, tera: boolean): { evals: MoveEval[]; koFirst: boolean; threat: number } {
+  private evaluateMoves(sit: Situation, tera: boolean): { evals: MoveEval[]; koFirst: boolean } {
     const { req, ctx, view, me, them, oppMon, active, activeSet, megaForme } = sit;
     const ourMon = ownCalcMon(activeSet, active, me.boosts, tera, megaForme);
     const oppSet = oppSetOf(ctx, oppMon);
     const oppCalc = oppCalcMon(oppMon, them.boosts, oppSet);
-    if (!ourMon || !oppCalc) return { evals: [], koFirst: false, threat: 0 };
+    if (!ourMon || !oppCalc) return { evals: [], koFirst: false };
     const ourHp = hpOf(active);
     const threats = threatsAgainst(oppMon, oppCalc, ourMon, makeField(view, them, me), oppSet);
     const bestThreat = Math.max(0, ...threats.map(t => t.pct));
@@ -370,7 +261,7 @@ export class HeuristicPlayer implements BattlePlayer {
       evals.push({ slot, score: score + this.rng.next() * 2, tera, pct: dealt });
     }
     evals.sort((a, b) => b.score - a.score);
-    return { evals, koFirst: koFirstAt(0), threat: bestThreat };
+    return { evals, koFirst: koFirstAt(0) };
   }
 
   private statusScore(sit: Situation, dm: DexMove, ourHp: number, bestThreat: number, koFirst: boolean, oppTypes: string[], oppReal?: Pokemon): number {
@@ -380,7 +271,6 @@ export class HeuristicPlayer implements BattlePlayer {
     const subbed = them.volatiles.has('substitute');
 
     if (PROTECT.has(id)) return me.lastMove && PROTECT.has(me.lastMove) ? 0 : 8;
-    if (this.dials.hazardValue && HAZARD_WEIGHT[id] !== undefined) return hazardScore(id, them, benchOf(ctx, them));
     if (id === 'stealthrock') return them.conditions.has('stealthrock') || oppAlive < 2 ? 0 : 60;
     if (id === 'spikes') return (them.conditions.get('spikes') ?? 0) >= 3 || oppAlive < 2 ? 0 : 35;
     if (id === 'toxicspikes') return (them.conditions.get('toxicspikes') ?? 0) >= 2 || oppAlive < 2 ? 0 : 25;
@@ -418,13 +308,12 @@ export class HeuristicPlayer implements BattlePlayer {
       if (dm.status === 'slp' && [...them.mons.values()].some(m => m.status === 'slp')) return 0;
       const sp = Dex.species.get(oppMon.forme);
       const physical = known ? isPhysicalSet(known) : sp.exists && sp.baseStats.atk > sp.baseStats.spa;
-      const hpScale = this.dials.hazardValue ? 0.3 + 0.7 * (oppMon.hpPct / 100) : 1;
       switch (dm.status) {
-        case 'slp': return 65 * hpScale;
-        case 'brn': return (physical ? 55 : 22) * hpScale;
-        case 'par': return (oppSpeed(oppMon, them.boosts.spe ?? 0, oppReal) > (sit.active.stats?.spe ?? 0) ? 45 : 20) * hpScale;
-        case 'tox': return 45 * hpScale;
-        default: return 25 * hpScale;
+        case 'slp': return 65;
+        case 'brn': return physical ? 55 : 22;
+        case 'par': return oppSpeed(oppMon, them.boosts.spe ?? 0, oppReal) > (sit.active.stats?.spe ?? 0) ? 45 : 20;
+        case 'tox': return 45;
+        default: return 25;
       }
     }
     return 10;
@@ -432,29 +321,29 @@ export class HeuristicPlayer implements BattlePlayer {
 
   // ---------- switching ----------
 
-  private bestSwitch(req: ParsedRequest, ctx: PlayerContext, view: BattleView, oppMon: MonView, bench: number[], free = false): SwitchPick {
-    let best: SwitchPick = { slot: bench[0] ?? 1, value: -Infinity, survives: false, incoming: 0 };
+  private bestSwitch(req: ParsedRequest, ctx: PlayerContext, view: BattleView, oppMon: MonView, bench: number[]): SwitchPick {
+    let best: SwitchPick = { slot: bench[0] ?? 1, value: -Infinity, survives: false };
     for (const slot of bench) {
       const p = req.side.pokemon[slot - 1];
       if (!p) continue;
       const set = findSet(ctx.ownTeam, p);
       if (!set) continue;
-      const v = this.monValue(ctx, view, oppMon, p, set, true, undefined, free);
+      const v = this.monValue(ctx, view, oppMon, p, set, true);
       const value = v.value + this.rng.next() * 3;
-      if (value > best.value) best = { slot, value, survives: v.survives, incoming: v.incoming };
+      if (value > best.value) best = { slot, value, survives: v.survives };
     }
     return best;
   }
 
   /** How well one of our mons fares against the opponent's active right now (higher is better). */
-  private monValue(ctx: PlayerContext, view: BattleView, oppMon: MonView, p: RequestPokemon, set: BattleSet, entering: boolean, megaForme?: string, free = false): { value: number; survives: boolean; incoming: number } {
+  private monValue(ctx: PlayerContext, view: BattleView, oppMon: MonView, p: RequestPokemon, set: BattleSet, entering: boolean, megaForme?: string): { value: number; survives: boolean } {
     const me = view.sides[ctx.side];
     const them = view.sides[ctx.side === 'p1' ? 'p2' : 'p1'];
     const boosts = entering ? {} : me.boosts;
     const ours = ownCalcMon(set, p, boosts, false, megaForme);
     const oppSet = oppSetOf(ctx, oppMon);
     const opp = oppCalcMon(oppMon, them.boosts, oppSet);
-    if (!ours || !opp) return { value: -50, survives: false, incoming: 100 };
+    if (!ours || !opp) return { value: -50, survives: false };
     let hp = hpOf(p);
     if (entering) hp -= hazardCost(me, ours, toID(p.item));
     const incoming = Math.max(0, ...threatsAgainst(oppMon, opp, ours, makeField(view, them, me), oppSet).map(t => t.pct));
@@ -468,11 +357,10 @@ export class HeuristicPlayer implements BattlePlayer {
     const ourSpe = effectiveSpeed(p.stats?.spe ?? 100, boosts.spe ?? 0, p.item, parseCondition(p.condition).status);
     const theirSpe = oppSpeed(oppMon, them.boosts.spe ?? 0, oppSet && opp);
     const faster = view.trickRoom ? ourSpe < theirSpe : ourSpe > theirSpe;
-    if (free && faster && out >= oppMon.hpPct) return { value: out * 1.3 + 40 + hp * 0.2, survives: true, incoming };
     const survives = incoming < hp;
     // A mon switching in takes the hit before acting, so incoming damage weighs more.
-    const value = out * (faster ? 1.3 : 1) - incoming * (entering && !free ? 1.2 : 1) + (survives ? 0 : -80) + hp * 0.2;
-    return { value, survives, incoming };
+    const value = out * (faster ? 1.3 : 1) - incoming * (entering ? 1.2 : 1) + (survives ? 0 : -80) + hp * 0.2;
+    return { value, survives };
   }
 }
 
@@ -635,45 +523,6 @@ function statusBlocked(m: MonView, set?: BattleSet): boolean {
   if (set) return STATUS_BLOCKING_ABILITIES.has(toID(set.ability));
   const sp = speciesOf(m);
   return sp.exists && Object.values(sp.abilities).some(a => STATUS_BLOCKING_ABILITIES.has(toID(a)));
-}
-
-/** The stat stages a status move raises on its user, or undefined when it raises none. */
-function selfBoostsOf(dm: DexMove) {
-  const b = dm.target === 'self' || dm.target === 'adjacentAllyOrSelf' ? (dm.boosts ?? dm.self?.boosts) : dm.self?.boosts;
-  return b && Object.values(b).some(v => (v ?? 0) > 0) ? b : undefined;
-}
-
-const HAZARD_WEIGHT: Record<string, { perMon: number; layers: number }> = {
-  stealthrock: { perMon: 15, layers: 1 },
-  spikes: { perMon: 9, layers: 3 },
-  toxicspikes: { perMon: 7, layers: 2 },
-  stickyweb: { perMon: 8, layers: 1 },
-};
-
-function benchOf(ctx: PlayerContext, them: SideView): { types: string[]; ability?: string; item?: string }[] {
-  const seen = [...them.mons.values()];
-  const out: { types: string[]; ability?: string; item?: string }[] = [];
-  for (const id of ctx.opponentTeam) {
-    const sp = Dex.species.get(id);
-    const m = seen.find(v => v.speciesId === id || Dex.species.get(v.speciesId).baseSpecies === sp.baseSpecies);
-    if (m && (m.fainted || m.name === them.active)) continue;
-    out.push(m ? { types: viewTypes(m), ability: m.ability, item: m.item } : { types: sp.exists ? [...sp.types] : ['Normal'] });
-  }
-  return out;
-}
-
-function hazardScore(id: string, them: SideView, bench: { types: string[]; ability?: string; item?: string }[]): number {
-  const w = HAZARD_WEIGHT[id];
-  if (!w || (them.conditions.get(id) ?? 0) >= w.layers) return 0;
-  let score = 0;
-  for (const b of bench) {
-    if (toID(b.item ?? '') === 'heavydutyboots') continue;
-    const grounded = !b.types.includes('Flying') && toID(b.ability ?? '') !== 'levitate';
-    if (id === 'stealthrock') score += w.perMon * typeMultiplier('Rock', b.types);
-    else if (id === 'toxicspikes') score += grounded && !b.types.includes('Poison') && !b.types.includes('Steel') ? w.perMon : 0;
-    else score += grounded ? w.perMon : 0;
-  }
-  return score;
 }
 
 function sumBoosts(s: SideView): number {
