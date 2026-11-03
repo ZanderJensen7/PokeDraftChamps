@@ -44,7 +44,9 @@ per-species sets and roles from `@pkmn/randoms` (`getTeamGenerator('gen9randomba
    playoff match.
 
 Roguelike layer v0.1 (kept small on purpose): between weeks you may make up to 2 free-agency moves per
-season (drop one roster mon, pick up an undrafted one, within budget). Perks/relics come later.
+season (drop one roster mon, pick up an undrafted one, within budget). The full roguelike and meta
+progression design (stakes, perk beats, trades, coach archetypes, optional mutators, career profile, pool
+progression, daily / challenge leagues, keepers later) is `docs/ROGUELIKE.md`.
 
 ## Match rules (Gen 9 singles)
 Level 100, bring 6 of your roster, team preview, Species Clause, Sleep Clause, OHKO/Evasion clauses,

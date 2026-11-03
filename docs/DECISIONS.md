@@ -56,3 +56,14 @@
   and the lockfile together and dates the Unreleased section of `CHANGELOG.md`; the user commits and tags
   (`git tag vX.Y.Z`). The build stamp (version · short commit) sits as a tiny string in the bottom-right corner
   of every screen except the live battle, where the action panel owns the bottom edge.
+- **2026-11-02 — Roguelike / meta layer.** Design in `docs/ROGUELIKE.md`. User rulings: battles never
+  change damage, stats or move effects (one-match treats may break *league* rules the sim already supports:
+  a rental legendary, a Mega Stone in a Megas-off league); stakes (ascension) are the spine and never use
+  mutators; mutators are an optional setup toggle (off by default) and the body of challenge leagues; trades
+  are a negotiation, never a trap (single-player, agency first); AI coach archetypes drive draft, lineup and
+  battle style from one data table but are not labelled to the player (you learn it when they lead Torkoal);
+  pool progression is shared by the whole league and starts with half of every tier, with scouting packs
+  (keep 1 of 3, no currency) and earned unlocks, species only; keeper / dynasty campaigns and the Arena-style
+  gauntlet come later. The daily league needs a leaderboard, which amends "no server, ever" to "no server
+  the game needs to run": a small Worker-style backend that only receives what the player sends on purpose
+  (scores, opt-in run summaries), plus a cookieless page-view beacon for traffic.

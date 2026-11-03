@@ -1,7 +1,7 @@
 {
   "name": "pokedraftchamps",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "PokeDraftChamps - a solo roguelike Pokemon draft league",
   "license": "MIT",
   "workspaces": [

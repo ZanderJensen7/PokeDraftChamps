@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "packages/app/src/components/ui/SpriteCard.tsx"
+        ],
+        "createdAt": "2026-11-03T04:06:47.192Z",
+        "reason": "project style: docs/UI_STYLE.md specifies bevelled game-box cards (2px border, thicker bottom edge, 12px radius); pre-existing SpriteCard, not touched by the sprite fallback change"
+      }
+    ]
+  }
+}

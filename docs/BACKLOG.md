@@ -62,6 +62,10 @@ Status: TODO · RUNNING · DONE. Keep this short; details live in the job report
   (index.html script + modulepreloads) went from 10.6 MB raw / 1.87 MB gzip (a 10.1 MB `src` chunk) to 2.57 MB raw /
   0.54 MB gzip; the largest preloaded chunk is now the 2.0 MB @pkmn/dex data (0.37 MB gzip). The sim sits in an
   8.2 MB lazy `battle` chunk + the 10.2 MB worker. Guard: `engine/src/entries.test.ts`.
+- Sprites without a 3D model (2026-11-02): Showdown has none for 20 pool species (Future Paradox line, all Ogerpon
+  forms, Dialga/Palkia-Origin, Miraidon, Terapagos, Pecharunt, Greninja-Bond). `spriteFor` in `ui/SpriteCard.tsx`
+  falls back to the animated pixel front sprite where one exists (7 of them); the other 13 stay still images, and
+  no animated backs exist for any of the 20. Recheck after bumping @pkmn/img.
 - Showdown look: default sprite set `ani` (3D-model animated sprites, front + back) with `gen5ani` pixel as
   the option; larger battle sprites; Gen 9 mons fall back automatically via @pkmn/img. One-line setting change
   plus layout sizing (user ruling 2026-11-02: match the Showdown Champs NatDex look).
@@ -98,7 +102,10 @@ Status: TODO · RUNNING · DONE. Keep this short; details live in the job report
 - Draft AI quality pass (role coverage, not overpaying), battle AI strength tuning (measure vs random and
   vs itself across seeds), prep threat summary wording.
 - Replay viewer for stored logs (watch any league match).
-- Roguelike layer beyond free agency: perks / relics between weeks, league modifiers.
+- Roguelike layer beyond free agency: designed in `docs/ROGUELIKE.md` (2026-11-02). Build order: stakes →
+  career profile + run-end screen → perk beats + trades → pool progression → coach archetypes → daily +
+  challenge leagues → mutator toggle → keepers / gauntlet. Daily leaderboard + opt-in analytics need the
+  small backend described there (Cloudflare Worker first; page-view beacon can go in now).
 - Human set editor polish: Showdown text import/export (`@pkmn/sets`), sample sets from `@pkmn/smogon`.
 - Formats: Champs NatDex (Megas, Z), other gens; doubles never.
 - Optional bring-your-own-key LLM opponent mode.

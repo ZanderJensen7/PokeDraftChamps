@@ -1,7 +1,8 @@
 # PokeDraftChamps — CLAUDE.md
 
 Free, solo, roguelike Pokemon draft league in the browser (PokeRogue-style: static site, no backend,
-no accounts, never monetized). Design source of truth: `docs/DESIGN.md`. Decisions log: `docs/DECISIONS.md`.
+no accounts, never monetized). Design source of truth: `docs/DESIGN.md`
+(roguelike / meta layer: `docs/ROGUELIKE.md`). Decisions log: `docs/DECISIONS.md`.
 
 ## Stack
 - npm workspaces. `packages/engine` (pure TypeScript, no DOM, vitest) and `packages/app` (Vite + React 19 +

@@ -1,6 +1,6 @@
 import { Sprites } from '@pkmn/img';
 import type { ReactNode } from 'react';
-import { useSettings } from '../../store/settings';
+import { useSettings, type SpriteSet } from '../../store/settings';
 
 interface PokeSpriteProps {
   name: string;
@@ -9,10 +9,24 @@ interface PokeSpriteProps {
   className?: string;
 }
 
+/**
+ * The sprite for a species in the chosen set. Showdown has no 3D model for a few Gen 9 mons (the Future
+ * Paradox line, Ogerpon, Origin formes…), and the package then falls back to a still image; prefer the animated
+ * pixel sprite when one exists so the mon still moves (front side only: no animated backs exist for them).
+ */
+export function spriteFor(name: string, spriteSet: SpriteSet, side: 'p1' | 'p2') {
+  const s = Sprites.getPokemon(name, { gen: spriteSet, side });
+  if (spriteSet === 'ani' && !s.url.includes('/ani')) {
+    const pixel = Sprites.getPokemon(name, { gen: 'gen5ani', side });
+    if (pixel.url.includes('/gen5ani')) return pixel;
+  }
+  return s;
+}
+
 /** A battle sprite (front by default) from the user's chosen sprite set, pixel-crisp. */
 export function PokeSprite({ name, side = 'p2', size = 96, className = '' }: PokeSpriteProps) {
   const spriteSet = useSettings((s) => s.spriteSet);
-  const s = Sprites.getPokemon(name, { gen: spriteSet, side });
+  const s = spriteFor(name, spriteSet, side);
   return (
     <img
       src={s.url}

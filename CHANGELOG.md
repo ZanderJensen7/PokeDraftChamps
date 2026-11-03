@@ -6,6 +6,11 @@ every package.json. The build stamp shows the version and short commit in the co
 
 ## Unreleased
 
+## v0.3.1 — 2026-11-02
+
+- Mons without a 3D model on Showdown (Iron Valiant, Iron Hands, Iron Moth, Iron Thorns, Miraidon, Terapagos,
+  Dialga-Origin) use their animated pixel sprite as the opponent instead of a still image.
+
 ## v0.3.0 — 2026-11-02
 
 - Attack effects over the battle field: every move drawn by shape and type, hit flash and shudder, field
