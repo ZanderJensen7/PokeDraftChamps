@@ -38,7 +38,7 @@ Each line is one job. Sessions are started from the top; three at a time at most
    equal-strength AI eliminates most runs".
 2. **Battle polish bundle.** SHIPPED 2026-11-02 (branch `claude/reverent-mirzakhani-692141`, see the done log). A Mega shows its base name in the lead picker / after fainting (map by roster id);
    weather label prints raw ids ("SunnyDay"); export writes a Tera Type line for non-captains.
-3. **Mobile bundle.** The "what everyone drafted" view cannot scroll all the way; landscape battle HP boxes
+3. **Mobile bundle.** SHIPPED 2026-11-02 except the real-phone install check (see the done log). The "what everyone drafted" view cannot scroll all the way; landscape battle HP boxes
    overlap the sprites; lineup reorder on phones is tap-to-swap (no drag); AI-pick ticker lags the header during
    the draft animation; prove home-screen install on a real phone.
 4. **Setup + draft options (user notes).** League setup: number of free-agency moves and total point budget
@@ -77,6 +77,11 @@ Each line is one job. Sessions are started from the top; three at a time at most
   no animated backs exist for any of the 20. Recheck after bumping @pkmn/img.
 - Showdown look: default sprite set `ani` (3D-model animated sprites, front + back) with `gen5ani` pixel as
   the option; larger battle sprites; Gen 9 mons fall back automatically via @pkmn/img (user ruling 2026-11-02).
+- DONE 2026-11-02: mobile bundle (branch `claude/epic-greider-0abe10`): the draft Pool / Board / All-teams views pad
+  for the pinned DRAFT bar (it publishes its height); landscape battle HP boxes are compact and the field and action
+  column size to the viewport at 812x375 and 667x375; lineup drag on phones (pointer-event drag on the name strip,
+  tap-to-swap kept); the draft header and the AI-pick ticker both read `draftShown`, reduced motion reveals every
+  pick at once. Home-screen install on a real phone is STILL UNCHECKED (a desktop session cannot).
 - DONE 2026-11-02: Mega Mewtwo X/Y banned (`BANNED_MEGAS`); see DECISIONS. Rerun the lab with Megas on to
   find the next outlier now that the top is gone.
 - DONE 2026-11-02: polish from the first play-test. A Mega pick goes by its Mega name in the lead picker, bench,
