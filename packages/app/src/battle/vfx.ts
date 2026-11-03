@@ -4,7 +4,7 @@
 // weather / terrain / hazard / status / chip-damage source borrows its look from. Own code throughout:
 // nothing here comes from the Showdown client or PokeRogue (both AGPL).
 import { Dex } from '@pkmn/dex';
-import { parseDetails, parseIdent, splitLine, type Side } from './battleView';
+import { parseDetails, parseIdent, splitLine, TRACKED_VOLATILES, type Side } from './battleView';
 
 const dex = Dex.forGen(9);
 
@@ -12,7 +12,7 @@ const dex = Dex.forGen(9);
 export type FxShape = 'contact' | 'projectile' | 'beam' | 'self' | 'status' | 'field';
 
 /** Particle glyphs the canvas knows how to draw. */
-export type Glyph = 'star' | 'flame' | 'drop' | 'bolt' | 'leaf' | 'shard' | 'ring' | 'rock' | 'slash' | 'dot' | 'arrow' | 'bubble' | 'spark';
+export type Glyph = 'star' | 'flame' | 'drop' | 'bolt' | 'leaf' | 'shard' | 'ring' | 'rock' | 'slash' | 'dot' | 'arrow' | 'bubble' | 'spark' | 'heart';
 
 export interface TypeFx {
   /** Theme color token (`--color-<token>`), resolved by the canvas at draw time. */
@@ -115,7 +115,7 @@ export const FIELD_FX: Record<string, string> = {
 export const SIDE_FX: Record<string, { type: string; rises: boolean }> = {
   'Stealth Rock': { type: 'Rock', rises: false }, Spikes: { type: 'Ground', rises: false },
   'Toxic Spikes': { type: 'Poison', rises: false }, 'Sticky Web': { type: 'Bug', rises: false },
-  Reflect: { type: 'Psychic', rises: true }, 'Light Screen': { type: 'Psychic', rises: true },
+  Reflect: { type: 'Psychic', rises: true }, 'Light Screen': { type: 'Electric', rises: true },
   'Aurora Veil': { type: 'Ice', rises: true }, Tailwind: { type: 'Flying', rises: true },
   Safeguard: { type: 'Normal', rises: true }, Mist: { type: 'Ice', rises: true },
 };
@@ -154,7 +154,9 @@ export type FxEvent =
   | { kind: 'switch'; to: Side; species: string }
   | { kind: 'weather'; type: string; weather: string }
   | { kind: 'terrain'; type: string }
-  | { kind: 'side'; to: Side; type: string; rises: boolean };
+  | { kind: 'side'; to: Side; type: string; rises: boolean; condition: string }
+  /** A tracked volatile (Substitute, Leech Seed, Taunt…) beginning or ending on a mon; `from` is who set it, when that is known. */
+  | { kind: 'volatile'; to: Side; name: string; on: boolean; from?: Side };
 
 const other = (s: Side): Side => (s === 'p1' ? 'p2' : 'p1');
 const strip = (effect: string | undefined): string => (effect ?? '').replace(/^(move|ability|item):\s*/, '');
@@ -194,8 +196,12 @@ export function fxEvent(line: string, species: (ident: string | undefined) => st
       const type = STATUS_FX[parts[2] ?? ''];
       return side && type ? { kind: 'status', to: side, type } : null;
     }
-    case '-start': {
-      const type = STATUS_FX[strip(parts[2])];
+    case '-start': case '-end': {
+      const name = strip(parts[2]);
+      if (side && name !== 'confusion' && TRACKED_VOLATILES.includes(name)) {
+        return { kind: 'volatile', to: side, name, on: cmd === '-start', from: name === 'Leech Seed' ? other(side) : undefined };
+      }
+      const type = cmd === '-start' ? STATUS_FX[name] : undefined;
       return side && type ? { kind: 'status', to: side, type } : null;
     }
     case '-boost': case '-unboost': {
@@ -228,7 +234,7 @@ export function fxEvent(line: string, species: (ident: string | undefined) => st
     case '-sidestart': {
       const s = parts[1]?.slice(0, 2);
       const fx = SIDE_FX[strip(parts[2])];
-      return (s === 'p1' || s === 'p2') && fx ? { kind: 'side', to: s, ...fx } : null;
+      return (s === 'p1' || s === 'p2') && fx ? { kind: 'side', to: s, ...fx, condition: strip(parts[2]) } : null;
     }
     default: return null;
   }

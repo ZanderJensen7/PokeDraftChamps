@@ -1,8 +1,11 @@
 // The canvas over the battle field that plays attack effects. BattleScreen hands it the FxEvents of each
 // narrated batch through `handle`; sprites are found by `data-fx="p1" | "p2"` inside the field.
-import { useEffect, useImperativeHandle, useRef, type Ref } from 'react';
-import type { Side } from '../../battle/battleView';
+import { useEffect, useImperativeHandle, useMemo, useRef, type Ref } from 'react';
+import type { FieldView, Side } from '../../battle/battleView';
+import { fieldState } from '../../battle/fieldFx';
 import { FxStage } from '../../battle/fxCanvas';
+import { useReducedMotion } from '../../hooks/useIsMobile';
+import { useSettings } from '../../store/settings';
 import type { FxEvent } from '../../battle/vfx';
 
 export interface FxHandle {
@@ -11,11 +14,13 @@ export interface FxHandle {
 
 interface FxLayerProps {
   handle: Ref<FxHandle>;
-  /** Draw the effects (off: sounds only). */
+  /** Draw the one-shot effects (off: sounds only). */
   visual: boolean;
+  /** The battle view: the persistent effects (weather, terrain, hazards, markers) are drawn from it for as long as they last. */
+  view: FieldView;
 }
 
-export function FxLayer({ handle, visual }: FxLayerProps) {
+export function FxLayer({ handle, visual, view }: FxLayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<FxStage | null>(null);
   const visualRef = useRef(visual);
@@ -61,6 +66,15 @@ export function FxLayer({ handle, visual }: FxLayerProps) {
       color(token) {
         return getComputedStyle(canvas).getPropertyValue(`--color-${token}`).trim() || '#ffffff';
       },
+      bounds(side) {
+        return boxOf(field.querySelector(`[data-fx="${side}"]`), canvas);
+      },
+      ground(side) {
+        return boxOf(field.querySelector(`[data-fx-ground="${side}"]`), canvas);
+      },
+      spriteFlag(side, cls, on) {
+        field.querySelector(`[data-fx="${side}"]`)?.classList.toggle(cls, on);
+      },
     });
     const fit = () => stage.resize(field.clientWidth, field.clientHeight);
     fit();
@@ -75,6 +89,14 @@ export function FxLayer({ handle, visual }: FxLayerProps) {
     };
   }, []);
 
+  // Persistent effects follow the view. Reduced motion keeps the still ones; the Attack effects setting hides them all.
+  const enabled = useSettings((s) => s.battleEffects);
+  const reduced = useReducedMotion();
+  const fx = useMemo(() => fieldState(view), [view]);
+  useEffect(() => {
+    stageRef.current?.setField(fx, !enabled ? 'off' : reduced ? 'static' : 'full');
+  }, [fx, enabled, reduced]);
+
   useImperativeHandle(handle, () => ({
     play(events) {
       const stage = stageRef.current;
@@ -84,4 +106,12 @@ export function FxLayer({ handle, visual }: FxLayerProps) {
   }), []);
 
   return <canvas ref={canvasRef} aria-hidden className="pointer-events-none absolute inset-0 z-[5] h-full w-full" />;
+}
+
+/** An element's box in canvas pixels, or null when it is not on the page. */
+function boxOf(el: Element | null, canvas: HTMLCanvasElement): { x: number; y: number; w: number; h: number } | null {
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  const c = canvas.getBoundingClientRect();
+  return { x: r.left - c.left, y: r.top - c.top, w: r.width, h: r.height };
 }

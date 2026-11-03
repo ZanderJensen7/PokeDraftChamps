@@ -3,7 +3,10 @@
 // (contact / projectile / beam / self / status / field) are the only "animations", the sprites never move
 // except for the hit shake. Randomness here is cosmetic, so plain Math.random is fine.
 import type { Side } from './battleView';
+import { activeSlots, FIELD_LOOKS, type FieldFx } from './fieldFx';
+import { FieldPainter, type FieldMode, type Rect } from './fieldCanvas';
 import { playCry, playSfx, playTypeSfx } from './sound';
+import { drawGlyph } from './glyphs';
 import { TYPE_FX, type FxEvent, type FxShape, type Glyph } from './vfx';
 
 export interface Pt { x: number; y: number }
@@ -17,6 +20,12 @@ export interface FxHooks {
   shake(strong: boolean): void;
   /** Resolve a theme color token (`type-fire`) to a CSS color. */
   color(token: string): string;
+  /** A side's sprite box in canvas pixels, or null. */
+  bounds(side: Side): Rect | null;
+  /** A side's platform box in canvas pixels, or null. */
+  ground(side: Side): Rect | null;
+  /** Turn a class on or off on a side's sprite wrapper until told otherwise (the dimmed sprite behind a Substitute). */
+  spriteFlag(side: Side, cls: string, on: boolean): void;
 }
 
 interface Palette { color: string; light: string; glyph: Glyph }
@@ -62,9 +71,29 @@ export class FxStage {
   private mods: Partial<Record<Side, { crit?: boolean; eff?: 'super' | 'resisted' }>> = {};
   private zNext: Partial<Record<Side, boolean>> = {};
   private palettes = new Map<string, Palette>();
+  /** The persistent layer (weather, terrain, screens, hazards, markers), drawn under everything above. */
+  private readonly field: FieldPainter;
+  private geoAt = 0;
+  /** Keep frames coming until then, so a sprite sliding in is followed by its markers. */
+  private settleUntil = 0;
 
   constructor(private readonly canvas: HTMLCanvasElement, private readonly hooks: FxHooks) {
     this.ctx = canvas.getContext('2d');
+    this.field = new FieldPainter({
+      bounds: (s) => hooks.bounds(s),
+      ground: (s) => hooks.ground(s),
+      spriteFlag: (s, cls, on) => hooks.spriteFlag(s, cls, on),
+      palette: (type) => this.palette(type),
+    });
+  }
+
+  /** Show the persistent effects of a field state. `static` keeps the still ones (tints, glows, hazards, markers) and drops the motion. */
+  setField(fx: FieldFx, mode: FieldMode): void {
+    this.field.setMode(mode);
+    this.field.refreshGeometry();
+    this.field.setSlots(mode === 'off' ? [] : activeSlots(fx), performance.now());
+    this.settleUntil = performance.now() + 800;
+    this.kick();
   }
 
   resize(w: number, h: number): void {
@@ -74,6 +103,8 @@ export class FxStage {
     this.canvas.width = Math.round(w * dpr);
     this.canvas.height = Math.round(h * dpr);
     this.ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.field.resize(w, h);
+    this.kick();
   }
 
   dispose(): void {
@@ -81,6 +112,8 @@ export class FxStage {
     this.raf = 0;
     this.parts = [];
     this.overs = [];
+    this.field.setMode('off');
+    this.field.setSlots([], 0);
   }
 
   /** Play one event. With `visual` off only the sounds play (effects disabled or reduced motion). */
@@ -275,11 +308,25 @@ export class FxStage {
         this.kick();
         return;
       }
+      case 'volatile': {
+        playSfx(ev.on ? 'status' : 'chip');
+        if (!visual) return;
+        this.volatile(ev.to, ev.name, ev.on, ev.from, now);
+        this.kick();
+        return;
+      }
       case 'side': {
         playSfx(ev.rises ? 'screen' : 'hazard');
         if (!visual) return;
+        const placed = FIELD_LOOKS[ev.condition];
+        if (placed && (placed.style === 'rocks' || placed.style === 'spikes' || placed.style === 'toxic' || placed.style === 'web')) {
+          this.placeHazard(ev.to, ev.condition, placed.style, now);
+          this.kick();
+          return;
+        }
         const at = this.hooks.anchor(ev.to) ?? this.sideFallback(ev.to);
         const fx = this.palette(ev.type);
+        if (ev.rises) this.overs.push({ kind: 'flash', x: at.x, y: at.y, r: 110, color: fx.light, born: now, life: 420 });
         for (let i = 0; i < 14; i++) {
           const x = at.x + rnd(-70, 70);
           if (ev.rises) {
@@ -355,6 +402,53 @@ export class FxStage {
         break;
     }
     this.kick();
+  }
+
+  /** A hazard dropping onto its side's ground, piece by piece, where the persistent layer then draws it. */
+  private placeHazard(side: Side, condition: string, style: string, now: number): void {
+    const fx = this.palette(FIELD_LOOKS[condition]!.type);
+    const layer = style === 'spikes' || style === 'toxic' ? this.field.layers(side, condition) + 1 : 1;
+    const glyph: Glyph = style === 'rocks' ? 'rock' : style === 'spikes' ? 'shard' : style === 'toxic' ? 'bubble' : 'dot';
+    this.field.hazardSpots(side, condition, layer).forEach((p, i) => {
+      const at = now + i * 60;
+      this.spawn({
+        glyph, color: fx.color, light: fx.light, x: p.x, y: p.y - 170, vx: 0, vy: 0, g: 0, drag: 1,
+        path: { x0: p.x + rnd(-14, 14), y0: p.y - 170, x1: p.x, y1: p.y - 8, arc: 0 },
+        size: rnd(10, 14), rot: rnd(0, TAU), spin: style === 'web' ? 0 : rnd(-5, 5), born: at, life: 460, fade: 'out',
+      });
+      this.overs.push({ kind: 'ring', x: p.x, y: p.y, r0: 4, r1: style === 'web' ? 60 : 24, color: fx.light, born: at + 380, life: 340 });
+      this.burst({ x: p.x, y: p.y - 6 }, { ...fx, glyph: 'dot' }, 4, [40, 90], 320, at + 400);
+    });
+  }
+
+  /** A Substitute, Leech Seed, Taunt… beginning or ending on a mon; the persistent marker fades in or out beside it. */
+  private volatile(side: Side, name: string, on: boolean, from: Side | undefined, now: number): void {
+    const look = FIELD_LOOKS[name];
+    if (!look) return;
+    const fx = this.palette(look.type);
+    if (name === 'Substitute') {
+      const d = this.field.dollSpot(side);
+      const at = { x: d.x, y: d.y - d.s * 0.45 };
+      this.overs.push({ kind: 'flash', x: at.x, y: at.y, r: d.s * 1.1, color: on ? fx.light : '#ffffff', born: now, life: on ? 360 : 260 });
+      this.burst(at, { color: fx.color, light: fx.light, glyph: on ? 'dot' : 'star' }, on ? 12 : 16, on ? [60, 150] : [140, 280], on ? 460 : 560, now);
+      if (!on) this.hooks.spriteClass(side, 'fx-glow', 500, fx.light);
+      return;
+    }
+    const feet = this.field.feet(side);
+    if (name === 'Leech Seed' && on) {
+      const a = this.hooks.anchor(from ?? (side === 'p1' ? 'p2' : 'p1')) ?? this.sideFallback(from ?? 'p2');
+      for (let i = 0; i < 3; i++) {
+        this.spawn({
+          glyph: 'leaf', color: fx.color, light: fx.light, x: a.x, y: a.y, vx: 0, vy: 0, g: 0, drag: 1,
+          path: { x0: a.x + rnd(-14, 14), y0: a.y + rnd(-14, 14), x1: feet.x + rnd(-24, 24), y1: feet.y - 6, arc: rnd(-60, 60) },
+          size: rnd(9, 12), rot: 0, spin: rnd(-6, 6), born: now + i * 90, life: 420, fade: 'none',
+        });
+      }
+      this.burst({ x: feet.x, y: feet.y - 8 }, fx, 10, [60, 150], 520, now + 400);
+      return;
+    }
+    this.overs.push({ kind: 'ring', x: feet.x, y: feet.y - 14, r0: on ? 8 : 40, r1: on ? 44 : 10, color: fx.color, born: now, life: 420 });
+    this.burst({ x: feet.x, y: feet.y - 14 }, fx, on ? 8 : 5, [40, 110], 480, now);
   }
 
   /** Particles flying out from a point. */
@@ -449,9 +543,8 @@ export class FxStage {
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     this.step(now, dt);
-    this.draw(now);
-    if (this.parts.length || this.overs.length) this.raf = requestAnimationFrame(this.tick);
-    else this.ctx?.clearRect(0, 0, this.w, this.h);
+    this.draw(now, dt);
+    if (this.parts.length || this.overs.length || this.field.animating || now < this.settleUntil) this.raf = requestAnimationFrame(this.tick);
   };
 
   private step(now: number, dt: number): void {
@@ -484,12 +577,15 @@ export class FxStage {
     });
     for (const t of trails) this.spawn(t);
     this.overs = this.overs.filter((o) => now - o.born < o.life);
+    if (now - this.geoAt > 150) { this.geoAt = now; this.field.refreshGeometry(); }
+    this.field.step(now, dt);
   }
 
-  private draw(now: number): void {
+  private draw(now: number, dt: number): void {
     const ctx = this.ctx;
     if (!ctx) return;
     ctx.clearRect(0, 0, this.w, this.h);
+    this.field.draw(ctx, now, dt);
     for (const o of this.overs) {
       const t = (now - o.born) / o.life;
       if (t < 0) continue;
@@ -596,160 +692,4 @@ function drawOverlay(ctx: CanvasRenderingContext2D, o: Overlay, t: number, w: nu
     }
   }
   ctx.restore();
-}
-
-/** One glyph centered on the origin (the caller has translated and rotated). */
-function drawGlyph(ctx: CanvasRenderingContext2D, g: Glyph, s: number, color: string, light: string): void {
-  switch (g) {
-    case 'dot':
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(0, 0, s * 0.5, 0, TAU);
-      ctx.fill();
-      return;
-    case 'spark':
-      ctx.fillStyle = light;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 8;
-      ctx.beginPath();
-      for (let i = 0; i < 4; i++) {
-        const a = (i / 4) * TAU;
-        ctx.lineTo(Math.cos(a) * s, Math.sin(a) * s);
-        ctx.lineTo(Math.cos(a + Math.PI / 4) * s * 0.25, Math.sin(a + Math.PI / 4) * s * 0.25);
-      }
-      ctx.closePath();
-      ctx.fill();
-      return;
-    case 'star':
-      ctx.fillStyle = color;
-      ctx.strokeStyle = light;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      for (let i = 0; i < 10; i++) {
-        const a = (i / 10) * TAU - Math.PI / 2;
-        const r = i % 2 ? s * 0.45 : s;
-        ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-      }
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      return;
-    case 'flame': {
-      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, s);
-      grad.addColorStop(0, light);
-      grad.addColorStop(0.45, color);
-      grad.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = grad;
-      ctx.scale(1, 1.35);
-      ctx.beginPath();
-      ctx.arc(0, 0, s, 0, TAU);
-      ctx.fill();
-      return;
-    }
-    case 'drop':
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.moveTo(0, -s);
-      ctx.quadraticCurveTo(s * 0.7, 0, 0, s * 0.8);
-      ctx.quadraticCurveTo(-s * 0.7, 0, 0, -s);
-      ctx.fill();
-      ctx.fillStyle = light;
-      ctx.beginPath();
-      ctx.arc(-s * 0.2, s * 0.1, s * 0.18, 0, TAU);
-      ctx.fill();
-      return;
-    case 'bolt':
-      ctx.strokeStyle = light;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 10;
-      ctx.lineWidth = Math.max(1.5, s * 0.3);
-      ctx.lineJoin = 'miter';
-      ctx.beginPath();
-      ctx.moveTo(-s * 0.35, -s);
-      ctx.lineTo(s * 0.2, -s * 0.15);
-      ctx.lineTo(-s * 0.15, -s * 0.05);
-      ctx.lineTo(s * 0.35, s);
-      ctx.stroke();
-      return;
-    case 'leaf':
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, s, s * 0.45, 0, 0, TAU);
-      ctx.fill();
-      ctx.strokeStyle = light;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(-s, 0);
-      ctx.lineTo(s, 0);
-      ctx.stroke();
-      return;
-    case 'shard':
-      ctx.fillStyle = color;
-      ctx.strokeStyle = light;
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.moveTo(0, -s);
-      ctx.lineTo(s * 0.45, 0);
-      ctx.lineTo(0, s);
-      ctx.lineTo(-s * 0.45, 0);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      return;
-    case 'ring':
-      ctx.strokeStyle = color;
-      ctx.lineWidth = Math.max(1.5, s * 0.3);
-      ctx.shadowColor = light;
-      ctx.shadowBlur = 6;
-      ctx.beginPath();
-      ctx.arc(0, 0, s, 0, TAU);
-      ctx.stroke();
-      return;
-    case 'rock':
-      ctx.fillStyle = color;
-      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * TAU;
-        const r = s * (i % 2 ? 0.75 : 1);
-        ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-      }
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      return;
-    case 'slash':
-      ctx.fillStyle = light;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 8;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, s * 1.6, s * 0.25, 0, 0, TAU);
-      ctx.fill();
-      return;
-    case 'arrow':
-      ctx.strokeStyle = color;
-      ctx.lineWidth = Math.max(2, s * 0.45);
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.shadowColor = light;
-      ctx.shadowBlur = 4;
-      ctx.beginPath();
-      ctx.moveTo(-s, s * 0.5);
-      ctx.lineTo(0, -s * 0.6);
-      ctx.lineTo(s, s * 0.5);
-      ctx.stroke();
-      return;
-    case 'bubble':
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(0, 0, s * 0.6, 0, TAU);
-      ctx.stroke();
-      ctx.fillStyle = light;
-      ctx.beginPath();
-      ctx.arc(-s * 0.2, -s * 0.2, s * 0.15, 0, TAU);
-      ctx.fill();
-      return;
-  }
 }

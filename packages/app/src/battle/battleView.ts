@@ -17,6 +17,8 @@ export interface MonView {
   fainted: boolean;
   tera?: string;
   boosts: Record<string, number>;
+  /** Volatile conditions on the mon while it stays in (`TRACKED_VOLATILES`: Substitute, Leech Seed, Taunt…), in the order they began. */
+  volatiles: string[];
   /** Moves this mon used this battle, in order of first use (protocol display names; Z-moves left out). */
   moves: string[];
   /** Item revealed this battle (the one it holds now, or the last one it lost when `itemGone`). */
@@ -46,6 +48,11 @@ export interface FieldView {
   ended: boolean;
   winner: string | null;
 }
+
+/** The volatile conditions the view tracks (protocol names, `move:` prefix stripped): the ones the field effects draw. */
+export const TRACKED_VOLATILES: readonly string[] = [
+  'Substitute', 'Leech Seed', 'confusion', 'Taunt', 'Encore', 'Torment', 'Yawn', 'Curse', 'Ingrain', 'Aqua Ring', 'Attract',
+];
 
 export function emptyView(): FieldView {
   const side = (): SideView => ({ name: '', team: [], active: -1, conditions: {} });
@@ -88,7 +95,7 @@ function speciesMatches(preview: string, actual: string): boolean {
 }
 
 function newMon(species: string, level = 100): MonView {
-  return { species, level, hp: 100, maxhp: 100, unseen: true, status: '', fainted: false, boosts: {}, moves: [] };
+  return { species, level, hp: 100, maxhp: 100, unseen: true, status: '', fainted: false, boosts: {}, volatiles: [], moves: [] };
 }
 
 /** The team entry for an ident (+ details when known), created if the mon was never previewed. */
@@ -232,7 +239,7 @@ export function applyLine(view: FieldView, line: string): void {
       if (!id) break;
       const side = view.sides[id.side];
       const prev = activeMon(view, id.side);
-      if (prev && cmd !== 'replace') prev.boosts = {};
+      if (prev && cmd !== 'replace') { prev.boosts = {}; prev.volatiles = []; }
       const mon = monFor(view, parts[1], parts[2]);
       if (!mon) break;
       const tera = parts[2] ? parseDetails(parts[2]).tera : undefined;
@@ -251,7 +258,15 @@ export function applyLine(view: FieldView, line: string): void {
       break;
     case 'faint': {
       const mon = monFor(view, parts[1]);
-      if (mon) { mon.hp = 0; mon.fainted = true; mon.status = ''; mon.boosts = {}; }
+      if (mon) { mon.hp = 0; mon.fainted = true; mon.status = ''; mon.boosts = {}; mon.volatiles = []; }
+      break;
+    }
+    case '-start': case '-end': {
+      const name = strip(parts[2]);
+      const mon = TRACKED_VOLATILES.includes(name) ? monFor(view, parts[1]) : null;
+      if (!mon) break;
+      mon.volatiles = mon.volatiles.filter((v) => v !== name);
+      if (cmd === '-start') mon.volatiles.push(name);
       break;
     }
     case '-status': {
