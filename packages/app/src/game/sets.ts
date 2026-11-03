@@ -56,21 +56,13 @@ export function blankSet(species: SpeciesId): BattleSet {
   };
 }
 
-/** Fills the gaps an imported (partial) set may have. */
-export function completeSet(species: SpeciesId, partial: Partial<BattleSet>): BattleSet {
-  const base = blankSet(species);
-  return {
-    ...base,
-    ...partial,
-    species: base.species,
-    name: base.name,
-    item: lockedStone(species) ?? partial.item ?? base.item,
-    moves: (partial.moves ?? []).slice(0, 4),
-    evs: { ...base.evs, ...(partial.evs ?? {}) },
-    ivs: { ...base.ivs, ...(partial.ivs ?? {}) },
-    level: 100,
-  };
-}
+/** Competitive staples shown first in the item picker. */
+export const COMMON_ITEMS: string[] = [
+  'Leftovers', 'Life Orb', 'Choice Band', 'Choice Specs', 'Choice Scarf', 'Assault Vest', 'Heavy-Duty Boots', 'Rocky Helmet',
+  'Focus Sash', 'Sitrus Berry', 'Lum Berry', 'Loaded Dice', 'Expert Belt', 'Black Sludge', 'Light Clay', 'Air Balloon',
+  'Eviolite', 'Booster Energy', 'Covert Cloak', 'Clear Amulet', 'Safety Goggles', 'Weakness Policy', 'Shell Bell',
+  'Throat Spray', 'Punching Glove', 'Mystic Water', 'Charcoal', 'Never-Melt Ice', 'Black Glasses', 'Soft Sand',
+];
 
 let itemNames: string[] | null = null;
 export function allItems(): string[] {
@@ -80,14 +72,28 @@ export function allItems(): string[] {
   return itemNames;
 }
 
+/** The item picker's two groups: common competitive items first, then every other item. */
+export function itemGroups(): { common: string[]; rest: string[] } {
+  const all = allItems();
+  const common = COMMON_ITEMS.filter((i) => all.includes(i));
+  const skip = new Set(common);
+  return { common, rest: all.filter((i) => !skip.has(i)) };
+}
+
 export function natureNames(): string[] {
   return dex9.natures.all().map((n) => n.name).sort();
 }
 
-export function natureSummary(name: string): string {
+/** The stat a nature raises and the one it lowers; both null for the five neutral natures. */
+export function natureStats(name: string): { plus: StatName; minus: StatName } | null {
   const n = dex9.natures.get(name);
-  if (!n.exists || !n.plus || !n.minus) return 'neutral';
-  return `+${STAT_LABEL[n.plus as StatName]} -${STAT_LABEL[n.minus as StatName]}`;
+  if (!n.exists || !n.plus || !n.minus) return null;
+  return { plus: n.plus as StatName, minus: n.minus as StatName };
+}
+
+export function natureSummary(name: string): string {
+  const n = natureStats(name);
+  return n ? `+${STAT_LABEL[n.plus]} −${STAT_LABEL[n.minus]}` : 'neutral';
 }
 
 export function speciesAbilities(species: SpeciesId): string[] {

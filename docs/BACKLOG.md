@@ -61,7 +61,7 @@ Each line is one job. Sessions are started from the top; three at a time at most
 7. **Draft helper follow-ups.** FIT badge uses the quick score (roles excluded) while the hover note uses the
    full one; hover popover covers the next card row; resistances table scrolls sideways in the narrow rail.
 8. **Replay viewer** for stored logs (watch any league match); the tape-room perk needs it.
-9. **Set editor polish.** Showdown text import/export (`@pkmn/sets`), sample sets from `@pkmn/smogon`.
+9. DONE 2026-11-02: set editor polish. `engine/src/setImport.ts` (parse, match, validate, `importRosterSets`, `fillSet`), `prep/sampleSets.ts` (`@pkmn/smogon` fetched lazily from data.pkmn.cc, randoms fallback), `spreads.ts` (`spreadFor` moved out of the battle layer + `SPREAD_PRESETS`); app `components/TeamSetTools.tsx`. Follow-ups: none known.
 10. **AI quality + pricing.** Draft AI (role coverage, not overpaying), battle AI strength (vs random, vs itself
     across seeds), prep threat summary wording; rerun the lab with Megas on for the next outlier after Mega
     Mewtwo; then the per-species price override table once the lab has thousands of games (lab 2026-11-02: fit

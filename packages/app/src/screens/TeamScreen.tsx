@@ -1,27 +1,33 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Sets } from '@pkmn/sets';
-import type { BattleSet, SpeciesId, StatsTable } from '@pdc/engine';
-import { exportSetText, getDraftMon, humanCoach } from '@pdc/engine';
+import { toID } from '@pkmn/dex';
+import type { BattleSet, RosterEntry, SampleSet, SpeciesId, StatsTable } from '@pdc/engine';
+import { SPREAD_PRESETS, exportSetText, fillSet, getDraftMon, humanCoach, spreadFor } from '@pdc/engine';
 import { useGame } from '../store/useGame';
 import {
   DialogueBox, GameButton, IconBadge, ItemIcon, ResponsiveDialog, Panel, PokeSprite, PriceBadge, RoleTags, StatBlock, TypePill, TypePills,
 } from '../components/ui';
 import { displayName, rolesOf } from '../game/names';
 import { MonDetailButton } from '../components/MonDetail';
+import { ExportRosterDialog, ImportRosterDialog, MovePickerDialog, SampleSets, rosterExportText } from '../components/TeamSetTools';
 import { useMonDetail } from '../store/monDetail';
 import {
-  EV_STAT_CAP, EV_TOTAL_CAP, STAT_LABEL, STAT_NAMES, TERA_TYPES, Z_CRYSTALS, allItems, blankSet, completeSet, learnableMoves,
-  lockedStone, moveInfo, natureNames, natureSummary, speciesAbilities, zCrystalType,
+  EV_STAT_CAP, EV_TOTAL_CAP, STAT_LABEL, STAT_NAMES, TERA_TYPES, Z_CRYSTALS, blankSet, itemGroups, learnableMoves,
+  lockedStone, moveInfo, natureNames, natureStats, natureSummary, speciesAbilities, zCrystalType,
 } from '../game/sets';
 
 type StatName = keyof StatsTable;
+
+function spreadText(evs: StatsTable): string {
+  return STAT_NAMES.filter((k) => (evs[k] ?? 0) > 0).map((k) => `${evs[k]} ${STAT_LABEL[k]}`).join(' / ') || 'no EVs';
+}
 
 function evTotal(evs: StatsTable): number {
   return STAT_NAMES.reduce((s, k) => s + (evs[k] ?? 0), 0);
 }
 
-function MoveField({ index, value, options, onChange }: {
-  index: number; value: string; options: string[] | null; onChange: (v: string) => void;
+function MoveField({ index, value, options, onChange, onBrowse }: {
+  index: number; value: string; options: string[] | null; onChange: (v: string) => void; onBrowse: () => void;
 }) {
   const info = value ? moveInfo(value) : null;
   const legal = !value || !options || options.some((o) => o.toLowerCase() === value.toLowerCase());
@@ -36,21 +42,24 @@ function MoveField({ index, value, options, onChange }: {
         aria-label={`Move ${index + 1}`}
         aria-invalid={!legal}
       />
+      <GameButton variant="ghost" size="sm" onClick={onBrowse} aria-label={`Browse moves for slot ${index + 1}`} title="Browse legal moves">▾</GameButton>
       {info ? (
-        <span className="flex w-28 shrink-0 items-center gap-1 text-xs text-muted">
+        <span className="flex w-24 shrink-0 items-center gap-1 text-xs text-muted">
           <TypePill type={info.type} size="xs" />
           <span>{info.category === 'Status' ? 'Status' : `${info.power || '—'} ${info.category.slice(0, 4)}`}</span>
         </span>
       ) : (
-        <span className="w-28 shrink-0 text-xs text-loss">{value && !legal ? 'Not learnable' : ''}</span>
+        <span className="w-24 shrink-0 text-xs text-loss">{value && !legal ? 'Not learnable' : ''}</span>
       )}
     </div>
   );
 }
 
-function SetEditor({ species, saved, showTera, isZCaptain }: {
-  species: SpeciesId; saved: BattleSet | undefined; showTera: boolean; isZCaptain: boolean;
+function SetEditor({ entry, saved, showTera }: {
+  entry: RosterEntry; saved: BattleSet | undefined; showTera: boolean;
 }) {
+  const species = entry.species;
+  const isZCaptain = !!entry.isZCaptain;
   const saveSet = useGame((s) => s.saveSet);
   const setToast = useGame((s) => s.setToast);
   const mon = getDraftMon(species);
@@ -60,6 +69,7 @@ function SetEditor({ species, saved, showTera, isZCaptain }: {
   const [moves, setMoves] = useState<string[] | null>(null);
   const [io, setIo] = useState<'import' | 'export' | null>(null);
   const [ioText, setIoText] = useState('');
+  const [picking, setPicking] = useState<number | null>(null);
 
   useEffect(() => {
     setDraft(saved ?? null);
@@ -72,9 +82,13 @@ function SetEditor({ species, saved, showTera, isZCaptain }: {
     return () => { live = false; };
   }, [species]);
 
-  const items = useMemo(() => allItems(), []);
+  const itemList = useMemo(() => itemGroups(), []);
   const natures = useMemo(() => natureNames(), []);
   const abilities = speciesAbilities(species);
+  const useSample = (sample: SampleSet) => {
+    setDraft(fillSet(entry, sample.set));
+    useGame.getState().setToast(`Filled in ${name}'s ${sample.label} set (${sample.source}). Save to keep it.`);
+  };
 
   if (!draft) {
     return (
@@ -92,14 +106,14 @@ function SetEditor({ species, saved, showTera, isZCaptain }: {
           </GameButton>
           <GameButton variant="secondary" onClick={() => { setIoText(''); setIo('import'); }}>Import Showdown text</GameButton>
         </div>
+        <SampleSets entry={entry} onPick={useSample} />
         {io === 'import' && (
           <ImportModal
             text={ioText}
             setText={setIoText}
             onClose={() => setIo(null)}
             onImport={(t) => {
-              const parsed = Sets.importSet(t);
-              setDraft(completeSet(species, parsed as Partial<BattleSet>));
+              setDraft(fillSet(entry, Sets.importSet(t) as Partial<BattleSet>));
               setIo(null);
             }}
           />
@@ -119,6 +133,13 @@ function SetEditor({ species, saved, showTera, isZCaptain }: {
   const illegal = moves ? moveList.filter((m) => m && !moves.some((o) => o.toLowerCase() === m.toLowerCase())) : [];
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
   const zType = zCrystalType(draft.item);
+  const mon0 = getDraftMon(species);
+  const applyPreset = (role: string, label: string) => {
+    if (!mon0) return;
+    const sp = spreadFor(role, moveList.filter(Boolean).map(toID), mon0.baseStats, draft.item);
+    patch({ evs: sp.evs, nature: sp.nature, ivs: sp.ivs });
+    useGame.getState().setToast(`${label}: ${spreadText(sp.evs)}, ${sp.nature}.`);
+  };
   const zMoves = zType ? moveList.filter((m) => m && moveInfo(m)?.type === zType && moveInfo(m)?.category !== 'Status') : [];
 
   const save = () => {
@@ -134,7 +155,6 @@ function SetEditor({ species, saved, showTera, isZCaptain }: {
   return (
     <div className="space-y-4">
       <datalist id="pdc-moves">{(moves ?? []).map((m) => <option key={m} value={m} />)}</datalist>
-      <datalist id="pdc-items">{items.map((m) => <option key={m} value={m} />)}</datalist>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
@@ -150,6 +170,7 @@ function SetEditor({ species, saved, showTera, isZCaptain }: {
                 next[i] = v;
                 patch({ moves: next });
               }}
+              onBrowse={() => setPicking(i)}
             />
           ))}
         </div>
@@ -166,7 +187,16 @@ function SetEditor({ species, saved, showTera, isZCaptain }: {
                   {Z_CRYSTALS.map((z) => <option key={z} value={z}>{z} ({zCrystalType(z)})</option>)}
                 </select>
               ) : (
-                <input className="field min-w-0 flex-1" list="pdc-items" value={draft.item} placeholder="No item" onChange={(e) => patch({ item: e.target.value })} />
+                <select className="field min-w-0 flex-1" value={draft.item} onChange={(e) => patch({ item: e.target.value })} aria-label="Item">
+                  <option value="">No item</option>
+                  {draft.item && !itemList.common.includes(draft.item) && !itemList.rest.includes(draft.item) && <option value={draft.item}>{draft.item}</option>}
+                  <optgroup label="Common">
+                    {itemList.common.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </optgroup>
+                  <optgroup label="All items">
+                    {itemList.rest.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </optgroup>
+                </select>
               )}
             </div>
             {stone && (
@@ -188,8 +218,13 @@ function SetEditor({ species, saved, showTera, isZCaptain }: {
           <label className="flex flex-col gap-1">
             <span className="text-sm font-bold uppercase tracking-wide text-muted">Nature</span>
             <select className="field" value={draft.nature} onChange={(e) => patch({ nature: e.target.value })}>
-              {natures.map((n) => <option key={n} value={n}>{n} {natureSummary(n)}</option>)}
+              {natures.map((n) => <option key={n} value={n}>{n} ({natureSummary(n)})</option>)}
             </select>
+            <span className="text-xs">
+              {natureStats(draft.nature)
+                ? <><span className="font-bold text-win">+{STAT_LABEL[natureStats(draft.nature)!.plus]}</span>{' '}<span className="font-bold text-loss">−{STAT_LABEL[natureStats(draft.nature)!.minus]}</span></>
+                : <span className="text-muted">No stat changes</span>}
+            </span>
           </label>
           {showTera && <label className="col-span-2 flex flex-col gap-1">
             <span className="text-sm font-bold uppercase tracking-wide text-muted">Tera type</span>
@@ -206,7 +241,15 @@ function SetEditor({ species, saved, showTera, isZCaptain }: {
       <div>
         <div className="mb-1 flex items-baseline justify-between">
           <span className="text-sm font-bold uppercase tracking-wide text-muted">Effort values</span>
-          <span className={`font-display font-bold tabular-nums ${total > EV_TOTAL_CAP ? 'text-loss' : 'text-poke-yellow'}`}>{total} / {EV_TOTAL_CAP}</span>
+          <span className={`font-display font-bold tabular-nums ${total > EV_TOTAL_CAP ? 'text-loss' : 'text-poke-yellow'}`}>
+            {total} / {EV_TOTAL_CAP} <span className="text-sm font-semibold text-muted">({EV_TOTAL_CAP - total} left)</span>
+          </span>
+        </div>
+        <div className="mb-2 flex flex-wrap gap-1.5" role="group" aria-label="EV presets">
+          {SPREAD_PRESETS.map((p) => (
+            <GameButton key={p.role} variant="ghost" size="sm" onClick={() => applyPreset(p.role, p.label)}>{p.label}</GameButton>
+          ))}
+          <GameButton variant="ghost" size="sm" disabled={total === 0} onClick={() => patch({ evs: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 } })}>Clear</GameButton>
         </div>
         <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
           {STAT_NAMES.map((k) => (
@@ -219,6 +262,8 @@ function SetEditor({ species, saved, showTera, isZCaptain }: {
         </div>
       </div>
 
+      <SampleSets entry={entry} onPick={useSample} />
+
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
         <div className="flex flex-wrap gap-2">
           <GameButton variant="ghost" size="sm" onClick={() => { setIoText(''); setIo('import'); }}>Import</GameButton>
@@ -228,14 +273,26 @@ function SetEditor({ species, saved, showTera, isZCaptain }: {
         <GameButton disabled={!dirty} onClick={save}>Save set</GameButton>
       </div>
 
+      {picking !== null && (
+        <MovePickerDialog
+          moves={moves}
+          taken={moveList}
+          onClose={() => setPicking(null)}
+          onPick={(m) => {
+            const next = [...moveList];
+            next[picking] = m;
+            patch({ moves: next });
+            setPicking(null);
+          }}
+        />
+      )}
       {io === 'import' && (
         <ImportModal
           text={ioText}
           setText={setIoText}
           onClose={() => setIo(null)}
           onImport={(t) => {
-            const parsed = Sets.importSet(t);
-            setDraft(completeSet(species, parsed as Partial<BattleSet>));
+            setDraft(fillSet(entry, Sets.importSet(t) as Partial<BattleSet>));
             setIo(null);
           }}
         />
@@ -258,7 +315,7 @@ function ImportModal({ text, setText, onClose, onImport }: {
       onClose={onClose}
       footer={<><GameButton variant="ghost" onClick={onClose}>Cancel</GameButton><GameButton disabled={!text.trim()} onClick={() => onImport(text)}>Import</GameButton></>}
     >
-      <p className="mb-2 text-sm text-muted">Paste one set. The species line is ignored; it applies to the selected Pokemon. Remember to save after importing.</p>
+      <p className="mb-2 text-sm text-muted">Paste one set. The species line is ignored; it applies to the selected Pokemon. Remember to save after importing. To paste a whole team, use Import sets at the top.</p>
       <textarea className="field h-56 w-full font-mono text-sm" value={text} onChange={(e) => setText(e.target.value)} aria-label="Showdown set text" />
     </ResponsiveDialog>
   );
@@ -269,16 +326,31 @@ export function TeamScreen() {
   const closeOverlay = useGame((s) => s.closeOverlay);
   const human = run ? humanCoach(run) : null;
   const [sel, setSel] = useState<SpeciesId | null>(human?.roster[0]?.species ?? null);
+  const [roster, setRoster] = useState<'import' | 'export' | null>(null);
   if (!run || !human) return null;
   const current = human.roster.find((r) => r.species === sel) ?? human.roster[0];
   const mon = current ? getDraftMon(current.species) : undefined;
+  const teraEnabled = run.config.teraCaptains > 0;
 
   return (
     <div className="space-y-4">
-      <div className="title-band flex items-center justify-between gap-2">
+      <div className="title-band flex flex-wrap items-center justify-between gap-2">
         <h1 className="font-display text-3xl font-bold uppercase leading-none">{human.abbrev} team</h1>
-        <GameButton variant="ghost" size="sm" onClick={closeOverlay}>Done</GameButton>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <GameButton variant="secondary" size="sm" onClick={() => setRoster('import')}>Import sets</GameButton>
+          <GameButton
+            variant="secondary"
+            size="sm"
+            disabled={!human.roster.some((r) => human.sets[r.species])}
+            onClick={() => setRoster('export')}
+          >
+            Export all
+          </GameButton>
+          <GameButton variant="ghost" size="sm" onClick={closeOverlay}>Done</GameButton>
+        </div>
       </div>
+      {roster === 'import' && <ImportRosterDialog roster={human.roster} teraEnabled={teraEnabled} onClose={() => setRoster(null)} />}
+      {roster === 'export' && <ExportRosterDialog text={rosterExportText(human.roster, human.sets, teraEnabled)} onClose={() => setRoster(null)} />}
 
       <div className="grid gap-4 lg:grid-cols-[16rem_1fr]">
         <Panel title="Roster" className="max-md:sticky max-md:top-[var(--topbar-h,3.75rem)] max-md:z-20" aside={<span>{human.pointsSpent}/{run.config.budget} pts</span>}>
@@ -323,10 +395,9 @@ export function TeamScreen() {
             </div>
             <SetEditor
               key={current.species}
-              species={current.species}
+              entry={current}
               saved={human.sets[current.species]}
-              showTera={run.config.teraCaptains > 0 && current.isTeraCaptain}
-              isZCaptain={!!current.isZCaptain}
+              showTera={teraEnabled && current.isTeraCaptain}
             />
           </Panel>
         )}

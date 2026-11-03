@@ -1,7 +1,7 @@
 // The `@pdc/engine/battle` entry: everything that loads @pkmn/sim / @pkmn/randoms / @smogon/calc (sets, players, the
 // battle runner, AI, lineups, scouting, match simulation, and the league's bound engineDeps). The main entry
 // (`@pdc/engine`, src/index.ts) stays sim-free so the app's first load never pulls the simulator.
-export { buildSetFor, buildSeasonSets, setSpeciesId, spreadFor, type BuildSetOptions } from './sets';
+export { buildSetFor, buildSeasonSets, setSpeciesId, type BuildSetOptions } from './sets';
 export {
   RandomPlayer, switchableSlots, usableMoves,
   type BattlePlayer, type ParsedRequest, type PlayerContext, type RequestActive, type RequestMove, type RequestPokemon,

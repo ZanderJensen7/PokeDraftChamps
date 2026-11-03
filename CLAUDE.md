@@ -24,6 +24,7 @@ sends on purpose). Design source of truth: `docs/DESIGN.md`
   after bumping @pkmn/randoms run `npm run gen:randoms -w @pdc/engine` (`data/randomsData.test.ts` fails while stale).
 - `types.ts` — shared types; every module imports from it, it imports nothing.
 - `data/` — point prices by tier, bans, AI coach identities, the precomputed randoms species table.
+- `setText.ts` / `setImport.ts` / `spreads.ts` — Showdown text for sets (export; roster import = parse, match, validate; `fillSet`), the role EV table (`spreadFor`, `SPREAD_PRESETS`); `prep/sampleSets.ts` — Smogon sample sets via `@pkmn/smogon` (lazy, fetched from data.pkmn.cc, fails soft) plus the randoms role sets. All sim-free.
 - `forms.ts` — Mega / Z-Crystal helpers (`megaInfo`, `battleSpeciesId`, `zCrystalFor`); `logs/` — Showdown
   protocol helpers + `scoutFromLogs` (both sim-free).
 - `draft/` — draft pool (Dex ∩ randoms sets − bans), snake draft, AI drafting.
