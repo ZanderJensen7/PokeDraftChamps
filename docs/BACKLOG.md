@@ -75,7 +75,7 @@ Each line is one job. Sessions are started from the top; three at a time at most
    `useReplay` transport), `screens/ReplayScreen.tsx` (route `replay`, `watch(matchId)` in the store), the field +
    log + hover cards shared with the live battle as `BattleStage`; WATCH in the hub schedule (yours and the rest of
    the league), the week recap and the bracket.
-9. **Set editor polish.** Showdown text import/export (`@pkmn/sets`), sample sets from `@pkmn/smogon`.
+9. DONE 2026-11-02: set editor polish. `engine/src/setImport.ts` (parse, match, validate, `importRosterSets`, `fillSet`), `prep/sampleSets.ts` (`@pkmn/smogon` fetched lazily from data.pkmn.cc, randoms fallback), `spreads.ts` (`spreadFor` moved out of the battle layer + `SPREAD_PRESETS`); app `components/TeamSetTools.tsx`. Follow-ups: none known.
 10. **AI quality + pricing.** Draft AI (role coverage, not overpaying), battle AI strength (vs random, vs itself
     across seeds), prep threat summary wording; rerun the lab with Megas on for the next outlier after Mega
     Mewtwo; then the per-species price override table once the lab has thousands of games (lab 2026-11-02: fit

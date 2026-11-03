@@ -5,3 +5,4 @@ export * from './likelySets';
 export * from './prepDoc';
 export * from './draftHelper';
 export * from './monDetail';
+export * from './sampleSets';

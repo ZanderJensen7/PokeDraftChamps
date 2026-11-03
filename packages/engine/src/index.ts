@@ -7,6 +7,8 @@ export * from './league';
 export * from './prep';
 export * from './forms';
 export * from './setText';
+export * from './setImport';
+export * from './spreads';
 export * from './logs';
 export * from './stats';
 export * from './profile';
