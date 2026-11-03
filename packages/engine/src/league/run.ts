@@ -38,7 +38,7 @@ export interface CreateRunOptions {
 /** Builds a coach's season sets. Injected (the battle module owns the real one). */
 export type BuildSets = (coach: Coach, seed: number) => Record<SpeciesId, BattleSet>;
 /** The stake rules an AI-vs-AI simulation reads (plain JSON: it crosses the worker boundary). */
-export type SimRules = Pick<StakeRules, 'aiSwitchOnKo'>;
+export type SimRules = Pick<StakeRules, 'aiKnowsSets'>;
 
 /**
  * Simulates one AI-involved match. Injected (the battle module owns the real one). `rules` carries the run's stake
@@ -397,7 +397,7 @@ export async function resolveWeek(
     const result = m.id === humanMatch.id
       ? humanResult
       : await deps.simulateMatch(
-        coachById(run, m.home), coachById(run, m.away), deriveSeed(run.seed, 'week', week, m.id), { aiSwitchOnKo: rules.aiSwitchOnKo },
+        coachById(run, m.home), coachById(run, m.away), deriveSeed(run.seed, 'week', week, m.id), { aiKnowsSets: rules.aiKnowsSets },
       );
     matches.push({ ...m, result });
   }

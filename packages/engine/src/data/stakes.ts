@@ -11,8 +11,8 @@ export interface StakeRules {
   aiBudgetBonus: number;
   /** AI coaches add the draft helper's fit score to their picks. */
   aiDraftFit: boolean;
-  /** The battle AI switches out of predicted KOs more readily. */
-  aiSwitchOnKo: boolean;
+  /** The battle AI reads your real sets (moves, item, ability, spread) instead of guessing from species. */
+  aiKnowsSets: boolean;
   /** The prep doc drops the Likely sets tab. */
   hideLikelySets: boolean;
   /** Opposing rosters show only mons already brought in a stored battle. */
@@ -30,7 +30,7 @@ export interface Stake {
 }
 
 const BASE_RULES: StakeRules = {
-  lossCap: null, playoffsQuarter: false, aiBudgetBonus: 0, aiDraftFit: false, aiSwitchOnKo: false,
+  lossCap: null, playoffsQuarter: false, aiBudgetBonus: 0, aiDraftFit: false, aiKnowsSets: false,
   hideLikelySets: false, fogOfWar: false, humanDraftsLast: false,
 };
 
@@ -39,7 +39,7 @@ export const STAKES: readonly Stake[] = [
   { stake: 1, label: 'Base game', rule: 'The league as you set it up.', patch: {} },
   { stake: 2, label: 'Loss cap 3', rule: 'The fourth regular-season loss ends the run.', patch: { lossCap: 3 } },
   { stake: 3, label: 'AI drafts by fit', rule: 'AI coaches draft for team fit, not just price.', patch: { aiDraftFit: true } },
-  { stake: 4, label: 'AI switches on predicted KOs', rule: 'The battle AI switches out of hits it would not survive.', patch: { aiSwitchOnKo: true } },
+  { stake: 4, label: 'AI knows your sets', rule: 'The battle AI reads your real moves, items and abilities.', patch: { aiKnowsSets: true } },
   { stake: 5, label: 'No Likely Sets tab', rule: 'The prep doc loses the Likely sets tab.', patch: { hideLikelySets: true } },
   { stake: 6, label: 'AI coaches get +5 budget', rule: 'Every AI coach drafts with 5 more points than you.', patch: { aiBudgetBonus: 5 } },
   { stake: 7, label: 'Fog of war', rule: 'You only see opposing mons once they have been brought to a battle.', patch: { fogOfWar: true } },

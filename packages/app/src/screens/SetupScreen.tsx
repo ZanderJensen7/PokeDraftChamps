@@ -9,6 +9,8 @@ import { leagueCode, randomSeed, seedFromCode } from '../game/names';
 type Teams = LeagueConfig['teams'];
 
 const PLAYOFF_OPTIONS: Record<Teams, number[]> = { 8: [4], 12: [4, 8], 16: [8] };
+/** Everyone plays everyone at most once (user ruling 2026-11-03), capped at 9 weeks for the bigger leagues. */
+const defaultWeeks = (t: Teams) => Math.min(t - 1, 9);
 
 function Slider({ label, value, min, max, onChange, hint }: {
   label: string; value: number; min: number; max: number; onChange: (v: number) => void; hint: string;
@@ -120,7 +122,8 @@ export function SetupScreen() {
   const [abbrev, setAbbrev] = useState('PAL');
   const [teams, setTeams] = useState<Teams>(DEFAULT_LEAGUE_CONFIG.teams);
   const [playoffTeams, setPlayoffTeams] = useState(DEFAULT_LEAGUE_CONFIG.playoffTeams);
-  const [weeks, setWeeks] = useState(DEFAULT_LEAGUE_CONFIG.weeks);
+  const [weeks, setWeeks] = useState(() => defaultWeeks(DEFAULT_LEAGUE_CONFIG.teams));
+  const [weeksTouched, setWeeksTouched] = useState(false);
   const [lossCap, setLossCap] = useState(DEFAULT_LEAGUE_CONFIG.lossCap);
   const [megas, setMegas] = useState(DEFAULT_LEAGUE_CONFIG.megas);
   const [teraCaptains, setTeraCaptains] = useState(DEFAULT_LEAGUE_CONFIG.teraCaptains);
@@ -146,6 +149,7 @@ export function SetupScreen() {
 
   const pickTeams = (t: Teams) => {
     setTeams(t);
+    setWeeks(weeksTouched ? Math.min(weeks, t - 1) : defaultWeeks(t));
     const opts = PLAYOFF_OPTIONS[t];
     if (!opts.includes(playoffTeams)) setPlayoffTeams(opts[opts.length - 1]!);
   };
@@ -244,7 +248,11 @@ export function SetupScreen() {
 
       <Panel title="Season rules">
         <div className="grid gap-5 sm:grid-cols-2">
-          <Slider label="Weeks" value={weeks} min={4} max={12} onChange={setWeeks} hint="Regular-season matches before the playoffs." />
+          <Slider
+            label="Weeks" value={weeks} min={4} max={teams - 1}
+            onChange={(w) => { setWeeks(w); setWeeksTouched(true); }}
+            hint="Regular-season matches before the playoffs. At most one match against each coach."
+          />
           <Slider label="Loss cap" value={lossCap} min={2} max={6} onChange={setLossCap} hint={effective.lossCap < lossCap
             ? `Stake ${stake} caps it at ${effective.lossCap}: loss number ${effective.lossCap + 1} ends the run.`
             : `Loss number ${lossCap + 1} ends the run.`} />

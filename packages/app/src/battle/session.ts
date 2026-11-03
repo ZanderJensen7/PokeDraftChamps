@@ -48,7 +48,7 @@ export function playLiveMatch(args: PlayHumanMatchArgs): Promise<MatchResult> {
     p2: { name: opp.name, team: teamFor(opp, oppLineup, base), teraCaptains: captainsIn(opp, oppLineup) },
     seed: new BattleRng(base).seed4(),
     aiSeed: deriveSeed(base, 'ai'),
-    aiOptions: { switchOnKo: rulesAt(run.config.stake).aiSwitchOnKo },
+    aiKnowsSets: rulesAt(run.config.stake).aiKnowsSets,
   });
   const lineups = { [human.id]: humanLineup, [opp.id]: oppLineup };
   let forfeited = false;

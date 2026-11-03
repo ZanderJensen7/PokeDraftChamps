@@ -67,3 +67,15 @@
   gauntlet come later. The daily league needs a leaderboard, which amends "no server, ever" to "no server
   the game needs to run": a small Worker-style backend that only receives what the player sends on purpose
   (scores, opt-in run summaries), plus a cookieless page-view beacon for traffic.
+- **2026-11-03 — Season length per league size.** User ruling: "9 weeks with 8 coaches makes no sense; end
+  after 7, everyone once". The setup screen defaults weeks to min(coaches − 1, 9) (8 → 7, 12 → 9, 16 → 9), the
+  weeks slider stops at coaches − 1 (no regular-season rematches), and changing the league size re-applies the
+  default unless the player moved the slider. `MAX_WEEKS` validation is unchanged; the daily league is already
+  8 coaches / 7 weeks.
+- **2026-11-03 — Stake 4 is "AI knows your sets".** The first stake 4 (the AI switches out of predicted KOs)
+  measured at ~50% against the default AI, so it was not a difficulty step. The replacement gives the AI side
+  the human's real sets (`PlayerContext.opponentSets`): real moves for its threat estimate, real item, ability
+  and spread for its damage calcs (a Tera type still counts only once it Terastallizes), instead of STAB
+  stand-ins and a guessed set. Measured 116/200 and 118/200 wins against the default AI over two seed ranges (sides alternated, identical teams), against
+  96/200 and 104/200 for two identical AIs. Dropping the AI's random-move epsilon on top added little
+  (119/200), so it stays at the default. It never changes the sim, only what the AI knows.

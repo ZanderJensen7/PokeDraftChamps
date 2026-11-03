@@ -1,7 +1,7 @@
 // Drives one @pkmn/sim battle between two BattlePlayers (or a human on p1). Browser-safe.
 import { BattleStreams, Teams } from '@pkmn/sim';
 import type { BattleSet, SpeciesId } from '../types';
-import { HeuristicPlayer, type HeuristicOptions } from './heuristicPlayer';
+import { HeuristicPlayer } from './heuristicPlayer';
 import type { BattlePlayer, ParsedRequest, PlayerContext } from './player';
 import { parseIdent, speciesIdFromDetails, splitLine, toID, type SideId } from '../logs/protocol';
 import { battleSpeciesId } from '../forms';
@@ -22,6 +22,8 @@ export interface BattleSideOptions {
   team: BattleSet[];
   player: BattlePlayer;
   teraCaptains: Iterable<SpeciesId>;
+  /** The player sees the other side's real sets (`PlayerContext.opponentSets`). */
+  knowsOpponentSets?: boolean;
 }
 
 export interface RunBattleOptions {
@@ -49,6 +51,7 @@ interface InternalSide {
   team: BattleSet[];
   player?: BattlePlayer;
   teraCaptains: Set<SpeciesId>;
+  knowsOpponentSets?: boolean;
 }
 
 /** Captain ids as given (roster ids) plus the battle id of each (a Mega entry battles as its base species). */
@@ -167,11 +170,15 @@ function startSession(
   human?: HumanHooks,
 ): Session {
   const sides: Record<SideId, InternalSide> = {
-    p1: { name: opts.p1.name, simName: opts.p1.name, team: opts.p1.team, player: opts.p1.player, teraCaptains: captainSet(opts.p1.teraCaptains) },
+    p1: {
+      name: opts.p1.name, simName: opts.p1.name, team: opts.p1.team, player: opts.p1.player,
+      teraCaptains: captainSet(opts.p1.teraCaptains), knowsOpponentSets: opts.p1.knowsOpponentSets,
+    },
     p2: {
       name: opts.p2.name,
       simName: opts.p2.name === opts.p1.name ? `${opts.p2.name} (2)` : opts.p2.name,
       team: opts.p2.team, player: opts.p2.player, teraCaptains: captainSet(opts.p2.teraCaptains),
+      knowsOpponentSets: opts.p2.knowsOpponentSets,
     },
   };
   const maxTurns = opts.maxTurns ?? DEFAULT_MAX_TURNS;
@@ -212,6 +219,7 @@ function startSession(
           const ctx: PlayerContext = {
             side, teraCaptains: cfg.teraCaptains, log: sideLog,
             opponentTeam: opponentTeamFromLog(sideLog, opp), ownTeam: cfg.team,
+            opponentSets: cfg.knowsOpponentSets ? sides[opp].team : undefined,
           };
           let cmd = 'default';
           try {
@@ -287,8 +295,8 @@ export interface InteractiveBattleOptions {
   seed: [number, number, number, number];
   /** Seed for the default HeuristicPlayer on p2. */
   aiSeed?: number;
-  /** Options for the default HeuristicPlayer on p2 (the run's stake rules). */
-  aiOptions?: HeuristicOptions;
+  /** The AI on p2 sees the human's real sets (stake rule aiKnowsSets). */
+  aiKnowsSets?: boolean;
   formatid?: string;
   maxTurns?: number;
 }
@@ -317,7 +325,7 @@ export function createInteractiveBattle(opts: InteractiveBattleOptions): Interac
   const session = startSession(
     {
       p1: { ...opts.p1 },
-      p2: { ...opts.p2, player: opts.p2.player ?? new HeuristicPlayer(opts.aiSeed ?? opts.seed[0], opts.aiOptions) },
+      p2: { ...opts.p2, player: opts.p2.player ?? new HeuristicPlayer(opts.aiSeed ?? opts.seed[0]), knowsOpponentSets: opts.aiKnowsSets },
       seed: opts.seed, formatid: opts.formatid, maxTurns: opts.maxTurns,
     },
     {

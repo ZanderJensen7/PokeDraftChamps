@@ -1,6 +1,6 @@
 // AI-vs-AI league matches, and turning a human's interactive battle into a MatchResult.
 import type { BattleSet, Coach, CoachId, MatchResult, SpeciesId } from '../types';
-import { HeuristicPlayer, type HeuristicOptions } from './heuristicPlayer';
+import { HeuristicPlayer } from './heuristicPlayer';
 import { chooseLineup } from './lineup';
 import { runBattle, type BattleOutcome } from './runner';
 import { Rng } from './rng';
@@ -39,17 +39,26 @@ function toResult(outcome: BattleOutcome, p1: CoachId, p2: CoachId, lineups: { p
   };
 }
 
-/** Simulate a full match between two AI coaches. Home plays p1. Deterministic per seed. `opts.ai` goes to both AI sides. */
+/**
+ * Simulate a full match between two AI coaches. Home plays p1. Deterministic per seed. `opts.knowSets` lets each side
+ * see the other's real sets (`side` limits it to one of them, for measurement).
+ */
 export async function simulateMatch(
-  home: Coach, away: Coach, seed: number, opts: { ai?: HeuristicOptions } = {},
+  home: Coach, away: Coach, seed: number, opts: { knowSets?: boolean | 'p1' | 'p2' } = {},
 ): Promise<MatchResult> {
   const rng = new Rng(seed);
   const homeLineup = chooseLineup(home.roster, home.sets, away.roster, seed);
   const awayLineup = chooseLineup(away.roster, away.sets, home.roster, seed + 1);
   const battleSeed = rng.seed4();
   const outcome = await runBattle({
-    p1: { name: home.name, team: teamFor(home, homeLineup, seed), player: new HeuristicPlayer(rng.int(2 ** 31), opts.ai), teraCaptains: captainsIn(home, homeLineup) },
-    p2: { name: away.name, team: teamFor(away, awayLineup, seed), player: new HeuristicPlayer(rng.int(2 ** 31), opts.ai), teraCaptains: captainsIn(away, awayLineup) },
+    p1: {
+      name: home.name, team: teamFor(home, homeLineup, seed), player: new HeuristicPlayer(rng.int(2 ** 31)),
+      teraCaptains: captainsIn(home, homeLineup), knowsOpponentSets: opts.knowSets === true || opts.knowSets === 'p1',
+    },
+    p2: {
+      name: away.name, team: teamFor(away, awayLineup, seed), player: new HeuristicPlayer(rng.int(2 ** 31)),
+      teraCaptains: captainsIn(away, awayLineup), knowsOpponentSets: opts.knowSets === true || opts.knowSets === 'p2',
+    },
     seed: battleSeed,
   });
   return toResult(outcome, home.id, away.id, { p1: homeLineup, p2: awayLineup }, rng);

@@ -38,12 +38,13 @@ Each line is one job. Sessions are started from the top; three at a time at most
    equal-strength AI eliminates most runs".
    SHIPPED 2026-11-02 (branch `claude/stakes-85a96b`): `data/stakes.ts` (10 levels), `applyStake`, save v4,
    `DraftState.budgets`, fit-scored AI picks, `visibleRoster` fog, `pdc.profile.v1`, setup Stake panel, top bar /
-   end screen. Measured: the stake 4 knob (switch out of predicted KOs) does NOT make the AI stronger: 19/40,
-   98/200 vs an identical-AI control at 82/160; every switch threshold tried lands at ~50% on fresh seeds.
-   Shipped as specced with a no-regression test (>= 35%). Open: replace stake 4 with a real strength lever (or
-   wait for item 10); fog during the draft screen (all AI picks still shown); the prep threat summary reads
-   "the opp has no hazard removal" from the fogged (empty) roster; `exportSave` leaves the profile out;
-   `docs/ROGUELIKE.md` stake table differs (stake 8 "playoffs take 6", stake 9 Mega/Z) and needs a rewrite.
+   end screen. Stake 4 is now "AI knows your sets" (`PlayerContext.opponentSets`): 116/200 and 118/200 wins vs
+   the default AI, against 96/200 and 104/200 for identical AIs (the first stake 4, switch on predicted KOs,
+   measured ~50% and was removed). Season weeks default to min(coaches − 1, 9). The prep threat summary says
+   "roster unknown under fog of war" for an empty fogged roster; `docs/ROGUELIKE.md` matches the shipped
+   ladder. Open: fog during the draft screen (all AI picks still shown; the mobile session owns that file);
+   `exportSave` leaves the profile out (item 6 covers profile export); with a partly scouted roster the threat
+   summary still reads absences ("opp has no hazard removal") from the mons seen so far.
 2. **Battle polish bundle.** A Mega shows its base name in the lead picker / after fainting (map by roster id);
    weather label prints raw ids ("SunnyDay"); export writes a Tera Type line for non-captains.
 3. **Mobile bundle.** The "what everyone drafted" view cannot scroll all the way; landscape battle HP boxes

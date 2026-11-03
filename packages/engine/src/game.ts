@@ -11,7 +11,7 @@ export const buildSets: BuildSets = (coach: Coach, seed: number): Record<Species
 
 /** Simulates one AI-vs-AI match with the heuristic AI on both sides, under the run's stake rules. */
 export const simulateLeagueMatch: SimulateMatch = (home, away, seed, rules) =>
-  simulateMatch(home, away, seed, { ai: { switchOnKo: !!rules?.aiSwitchOnKo } });
+  simulateMatch(home, away, seed, { knowSets: !!rules?.aiKnowsSets });
 
 /** Everything the league transitions need, in one object. */
 export const engineDeps = { buildSets, simulateMatch: simulateLeagueMatch };
