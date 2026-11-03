@@ -1,6 +1,7 @@
 import type { EliminationReason } from '@pdc/engine';
 import { computeStandings, humanCoach, regularSeasonRecord, runScore } from '@pdc/engine';
 import { useGame } from '../store/useGame';
+import { useProfile } from '../store/profile';
 import { PostScoreButton, ShareLine } from '../components/DailyBits';
 import { Crest, DialogueBox, GameButton, Panel } from '../components/ui';
 import { StandingsTable } from '../components/StandingsTable';
@@ -28,6 +29,7 @@ function Trophy() {
 export function EndScreen() {
   const run = useGame((s) => s.run);
   const go = useGame((s) => s.go);
+  const justUnlockedBy = useProfile((s) => s.justUnlockedBy);
   if (!run) return null;
   const human = humanCoach(run);
   const rec = regularSeasonRecord(run, human.id);
@@ -37,6 +39,7 @@ export function EndScreen() {
   const hadPlayoffs = run.matches.some((m) => m.playoffRound !== undefined);
   const daily = run.daily;
   const outcome = champion ? 'League champions!' : 'Run over';
+  const unlocked = !daily && justUnlockedBy === run.id;
   return (
     <div className="mx-auto max-w-3xl space-y-4 py-4">
       <Panel>
@@ -46,6 +49,8 @@ export function EndScreen() {
             {daily ? `Daily League · ${daily.date}` : outcome}
           </h1>
           {daily && <div className={`font-display text-2xl font-bold uppercase ${champion ? 'text-poke-yellow' : ''}`}>{outcome}</div>}
+          {!daily && <div className="rounded-full bg-panel-inset px-3 py-1 font-display font-bold uppercase tracking-wide">Stake {run.config.stake}</div>}
+          {unlocked && <div className="font-display text-2xl font-bold uppercase text-poke-yellow">Stake {run.config.stake + 1} unlocked</div>}
           <div className="font-display text-xl font-bold">{human.name}</div>
           <div className="text-lg">
             Regular season <b className="tabular-nums">{rec.wins}-{rec.losses}</b>
@@ -53,7 +58,13 @@ export function EndScreen() {
           </div>
         </div>
         {!champion && reason && <DialogueBox>{REASON[reason]}</DialogueBox>}
-        {champion && !daily && <DialogueBox>You drafted, prepped and survived the bracket. Try a bigger league or a tighter loss cap next.</DialogueBox>}
+        {champion && !daily && (
+          <DialogueBox>
+            {unlocked
+              ? `You drafted, prepped and survived the bracket. Stake ${run.config.stake + 1} is open on the setup screen.`
+              : 'You drafted, prepped and survived the bracket. Try a bigger league or a tighter loss cap next.'}
+          </DialogueBox>
+        )}
         {champion && daily && <DialogueBox>You drafted, prepped and survived the bracket. Post your score and see how the rest of today’s coaches did.</DialogueBox>}
       </Panel>
       <Panel title="Score" aside={<span className="font-display text-xl font-bold text-poke-yellow tabular-nums">{runScore(run).toLocaleString('en-US')} pts</span>}>

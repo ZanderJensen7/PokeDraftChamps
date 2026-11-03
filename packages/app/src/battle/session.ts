@@ -1,7 +1,7 @@
 // Sets up the human's live battle (human = p1, HeuristicPlayer = p2), hands it to BattleScreen through the
 // game store, and resolves with the MatchResult once the player presses CONTINUE on the result banner.
 import type { BattleSet, Coach, MatchResult, SpeciesId } from '@pdc/engine';
-import { deriveSeed, humanCoach, nextHumanMatch, opponentOf } from '@pdc/engine';
+import { deriveSeed, humanCoach, nextHumanMatch, opponentOf, rulesAt } from '@pdc/engine';
 import type { InteractiveBattle } from '@pdc/engine/battle';
 import { BattleRng, buildSetFor, chooseLineup, createInteractiveBattle, humanMatchResult } from '@pdc/engine/battle';
 import type { PlayHumanMatchArgs } from '../game/bridge';
@@ -48,6 +48,7 @@ export function playLiveMatch(args: PlayHumanMatchArgs): Promise<MatchResult> {
     p2: { name: opp.name, team: teamFor(opp, oppLineup, base), teraCaptains: captainsIn(opp, oppLineup) },
     seed: new BattleRng(base).seed4(),
     aiSeed: deriveSeed(base, 'ai'),
+    aiOptions: { switchOnKo: rulesAt(run.config.stake).aiSwitchOnKo },
   });
   const lineups = { [human.id]: humanLineup, [opp.id]: oppLineup };
   let forfeited = false;

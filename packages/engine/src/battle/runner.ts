@@ -1,7 +1,7 @@
 // Drives one @pkmn/sim battle between two BattlePlayers (or a human on p1). Browser-safe.
 import { BattleStreams, Teams } from '@pkmn/sim';
 import type { BattleSet, SpeciesId } from '../types';
-import { HeuristicPlayer } from './heuristicPlayer';
+import { HeuristicPlayer, type HeuristicOptions } from './heuristicPlayer';
 import type { BattlePlayer, ParsedRequest, PlayerContext } from './player';
 import { parseIdent, speciesIdFromDetails, splitLine, toID, type SideId } from '../logs/protocol';
 import { battleSpeciesId } from '../forms';
@@ -287,6 +287,8 @@ export interface InteractiveBattleOptions {
   seed: [number, number, number, number];
   /** Seed for the default HeuristicPlayer on p2. */
   aiSeed?: number;
+  /** Options for the default HeuristicPlayer on p2 (the run's stake rules). */
+  aiOptions?: HeuristicOptions;
   formatid?: string;
   maxTurns?: number;
 }
@@ -315,7 +317,7 @@ export function createInteractiveBattle(opts: InteractiveBattleOptions): Interac
   const session = startSession(
     {
       p1: { ...opts.p1 },
-      p2: { ...opts.p2, player: opts.p2.player ?? new HeuristicPlayer(opts.aiSeed ?? opts.seed[0]) },
+      p2: { ...opts.p2, player: opts.p2.player ?? new HeuristicPlayer(opts.aiSeed ?? opts.seed[0], opts.aiOptions) },
       seed: opts.seed, formatid: opts.formatid, maxTurns: opts.maxTurns,
     },
     {

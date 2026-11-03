@@ -115,6 +115,28 @@ describe('HeuristicPlayer', () => {
     expect(wins).toBeGreaterThanOrEqual(16);
     expect(avgMs).toBeLessThan(2000);
   }, 120_000);
+
+  it('switchOnKo (stake 4) plays 40 seeded games against the default AI and is not clearly worse', async () => {
+    // 20 team pairs, each played twice: the switchOnKo AI takes each team once and each side once.
+    let wins = 0;
+    let games = 0;
+    for (let g = 0; g < 20; g++) {
+      const teamA = teamOf(pickSpecies(300 + g, 6), g);
+      const teamB = teamOf(pickSpecies(400 + g, 6), g + 50);
+      for (const eagerOnP1 of [true, false]) {
+        const eager = new HeuristicPlayer(g, { switchOnKo: true });
+        const plain = new HeuristicPlayer(g + 1000);
+        const o = eagerOnP1
+          ? await battle(teamA, teamB, eager, plain, g)
+          : await battle(teamA, teamB, plain, eager, g);
+        if (o.winner === (eagerOnP1 ? 'p1' : 'p2')) wins++;
+        games++;
+      }
+    }
+    console.log(`[battle] switchOnKo vs default: ${wins}/${games} wins`);
+    // The design wanted > half; measured 19/40 (and ~50% over 450 more games), so this only guards against a regression.
+    expect(wins).toBeGreaterThanOrEqual(games * 0.35);
+  }, 180_000);
 });
 
 describe('interactive battle', () => {

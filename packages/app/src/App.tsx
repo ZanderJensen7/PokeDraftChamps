@@ -83,7 +83,9 @@ function TopBar() {
         {run && (
           <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
             <span className="hidden truncate text-muted md:inline">
-              {run.daily ? `Daily league · ${run.daily.date}` : `${run.config.teams}-team league · code ${leagueCode(run.seed)}`}
+              {run.daily
+                ? `Daily league · ${run.daily.date}`
+                : `${run.config.stake > 1 ? `Stake ${run.config.stake} · ` : ''}${run.config.teams}-team league · code ${leagueCode(run.seed)}`}
             </span>
             <span className="truncate rounded-full bg-panel-inset px-3 py-1 font-display font-bold text-poke-yellow">{phaseText}</span>
             {human && <span className="shrink-0 rounded-md bg-you px-2 py-1 font-display font-bold">{human.abbrev}</span>}

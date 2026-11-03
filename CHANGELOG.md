@@ -12,6 +12,9 @@ every package.json. The build stamp shows the version and short commit in the co
   results (settings, result, score; never battles or names).
 - Backend (`packages/api`): a Cloudflare Worker for the daily leaderboard and the opt-in run summaries, plus
   an optional cookieless page-view beacon. Neither is needed to play.
+- Stakes: ten difficulty levels on the setup screen, one added rule each (loss cap, smarter AI drafts, no
+  Likely sets tab, +5 AI budget, fog of war, smaller playoffs, drafting last); winning the title at a stake
+  unlocks the next.
 
 ## v0.3.1 — 2026-11-02
 

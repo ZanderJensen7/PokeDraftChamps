@@ -10,7 +10,7 @@ export {
   runBattle, createInteractiveBattle, outcomeFromLog, BATTLE_FORMAT, FALLBACK_FORMAT, DEFAULT_MAX_TURNS,
   type BattleOutcome, type BattleSideOptions, type InteractiveBattle, type InteractiveBattleOptions, type RunBattleOptions,
 } from './runner';
-export { HeuristicPlayer } from './heuristicPlayer';
+export { HeuristicPlayer, type HeuristicOptions } from './heuristicPlayer';
 export { chooseLineup, LINEUP_SIZE } from './lineup';
 export { simulateMatch, humanMatchResult } from './simulateMatch';
 export { viewOf, viewTypes, type BattleView, type MonView, type SideView } from './view';

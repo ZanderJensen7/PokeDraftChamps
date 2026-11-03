@@ -1,7 +1,9 @@
 import { DEFAULT_LEAGUE_CONFIG, type Coach, type LeagueConfig, type MatchResult, type RunState } from '../types';
 import { buildDraftPool, getDraftMon } from '../draft/pool';
 import { validateLeagueConfig } from './config';
-import { aiChoosePick, legalPicks } from '../draft/draft';
+import { aiChoosePick, budgetOf, legalPicks } from '../draft/draft';
+import { MAX_STAKE, STAKES } from '../data/stakes';
+import { visibleRoster } from './stakes';
 import { createRng, deriveSeed } from './rng';
 import {
   captainBlock, createRun, deserializeRun, draftPick, draftStop, finishDraft, freeAgency, nextHumanMatch, opponentOf,
@@ -330,6 +332,7 @@ describe('save migration + config validation', () => {
     delete v2.config.captainMaxPoints;
     delete v2.draft.turn;
     delete v2.draft.done;
+    delete v2.config.stake;
     return v2;
   }
   const fixed = (size: number): LeagueConfig => ({
@@ -345,15 +348,15 @@ describe('save migration + config validation', () => {
     for (const c of v1.coaches) for (const r of c.roster) delete r.isZCaptain;
     const back = deserializeRun(JSON.stringify(v1));
     expect(back).toEqual(run);
-    expect(back.version).toBe(3);
-    expect(() => deserializeRun(JSON.stringify({ ...v1, version: 4 }))).toThrow(/version/);
+    expect(back.version).toBe(4);
+    expect(() => deserializeRun(JSON.stringify({ ...v1, version: 5 }))).toThrow(/version/);
   });
 
   it('migrates a version-2 save: rosterMin = rosterMax = the old size, no captain cap', () => {
     const run = finishDraft(draftedRun(9, fixed(10)), { buildSets: fakeSets });
     const back = deserializeRun(JSON.stringify(asV2(run, 10)));
     expect(back).toEqual(run);
-    expect(back.version).toBe(3);
+    expect(back.version).toBe(4);
     expect(back.config).toMatchObject({ rosterMin: 10, rosterMax: 10, captainMaxPoints: 20 });
     expect('rosterSize' in back.config).toBe(false);
     // Mid-draft: the clock resumes on the same coach the v2 snake would name.
@@ -363,6 +366,24 @@ describe('save migration + config validation', () => {
     const midBack = deserializeRun(JSON.stringify(asV2(mid, 10)));
     expect(midBack.draft.turn).toBe(mid.draft.pickIndex);
     expect(runAiDraftUntilHuman(midBack)).toEqual(runAiDraftUntilHuman(mid));
+  });
+
+  it('migrates a version-3 save: stake 1, no per-coach budgets, and it plays on', () => {
+    const run = finishDraft(draftedRun(9, fixed(10)), { buildSets: fakeSets });
+    const v3 = JSON.parse(serializeRun(run)) as LooseRun;
+    v3.version = 3;
+    delete v3.config.stake;
+    const back = deserializeRun(JSON.stringify(v3));
+    expect(back).toEqual(run);
+    expect(back.config.stake).toBe(1);
+    expect(back.draft.budgets).toBeUndefined();
+    let mid = createRun({ config: fixed(10), seed: 9, humanName: 'Test Town Testers', humanAbbrev: 'tst', createdAt: 1 });
+    mid = runAiDraftUntilHuman(mid);
+    const midV3 = JSON.parse(serializeRun(mid)) as LooseRun;
+    midV3.version = 3;
+    delete midV3.config.stake;
+    expect(runAiDraftUntilHuman(draftPick(deserializeRun(JSON.stringify(midV3)), legalPicks(mid.draft, mid.humanId, mid.config)[0]!)))
+      .toEqual(runAiDraftUntilHuman(draftPick(mid, legalPicks(mid.draft, mid.humanId, mid.config)[0]!)));
   });
 
   it('validateLeagueConfig reports plain-sentence errors', () => {
@@ -386,5 +407,79 @@ describe('save migration + config validation', () => {
     expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, captainMaxPoints: 12.5 }).length).toBe(1);
     expect(validateLeagueConfig({ ...DEFAULT_LEAGUE_CONFIG, lossCap: -1 }).length).toBe(1);
     expect(() => createRun({ config: { ...DEFAULT_LEAGUE_CONFIG, playoffTeams: 6 }, seed: 1, humanName: 'X', humanAbbrev: 'XXX' })).toThrow(/power of two/);
+  });
+});
+
+describe('stakes', () => {
+  const cfg: LeagueConfig = { ...DEFAULT_LEAGUE_CONFIG, teams: 8, playoffTeams: 4 };
+  const stakeOf = (label: string): number => STAKES.find((s) => s.label === label)!.stake;
+  const make = (stake: number, seed = 41): RunState =>
+    createRun({ config: { ...cfg, stake }, seed, humanName: 'Test Town Testers', humanAbbrev: 'tst', createdAt: 1 });
+
+  it('the run stores the stake-applied config', () => {
+    const run = make(MAX_STAKE);
+    expect(run.config.stake).toBe(MAX_STAKE);
+    expect(run.config.lossCap).toBeLessThanOrEqual(2);
+    expect(run.config.playoffTeams).toBe(2);
+    expect(make(1).config).toEqual({ ...cfg, stake: 1 });
+  });
+
+  it('"You draft last" puts the human last in round 1 and first in round 2', () => {
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const run = make(stakeOf('You draft last'), seed);
+      expect(run.draft.order.at(-1)).toBe(run.humanId);
+      expect([...run.draft.order].sort()).toEqual(run.coaches.map((c) => c.id).sort());
+    }
+    // Below that stake the shuffled order stands (the same seed puts the human elsewhere at least once).
+    expect([1, 2, 3, 4, 5].some((seed) => make(1, seed).draft.order.at(-1) !== make(1, seed).humanId)).toBe(true);
+  });
+
+  it('"AI coaches get +5 budget" gives every AI coach budget + 5 and the human none', () => {
+    const run = make(stakeOf('AI coaches get +5 budget'));
+    for (const c of run.coaches) {
+      if (c.isHuman) {
+        expect(run.draft.budgets?.[c.id]).toBeUndefined();
+        expect(budgetOf(run.draft, c.id, run.config)).toBe(run.config.budget);
+      } else {
+        expect(run.draft.budgets?.[c.id]).toBe(run.config.budget + 5);
+        expect(budgetOf(run.draft, c.id, run.config)).toBe(run.config.budget + 5);
+      }
+    }
+    // No budgets map: everyone falls back to config.budget.
+    const base = make(1);
+    expect(base.draft.budgets).toBeUndefined();
+    for (const c of base.coaches) expect(budgetOf(base.draft, c.id, base.config)).toBe(base.config.budget);
+    // AI coaches may spend past the human's budget, never past their own.
+    const done = draftedRun(41, { ...cfg, stake: stakeOf('AI coaches get +5 budget') });
+    for (const c of done.coaches) {
+      const spent = c.roster.reduce((s, r) => s + getDraftMon(r.species)!.points, 0);
+      expect(spent).toBeLessThanOrEqual(budgetOf(done.draft, c.id, done.config));
+    }
+  });
+
+  it('"AI drafts by fit" changes AI picks for the same seed', () => {
+    const fit = stakeOf('AI drafts by fit');
+    const picksAt = (stake: number): string[] => {
+      const run = draftedRun(41, { ...cfg, stake });
+      return run.coaches.filter((c) => !c.isHuman).flatMap((c) => c.roster.map((r) => r.species));
+    };
+    expect(picksAt(fit)).not.toEqual(picksAt(fit - 1));
+  });
+
+  it('visibleRoster hides unscouted opposing mons under fog of war only', () => {
+    const fog = stakeOf('Fog of war');
+    const run = draftedRun(41, { ...cfg, stake: fog });
+    const opp = run.coaches.find((c) => !c.isHuman)!;
+    expect(visibleRoster(run, run.humanId)).toEqual(run.coaches.find((c) => c.isHuman)!.roster);
+    expect(visibleRoster(run, opp.id)).toEqual([]);
+    const seen = opp.roster[0]!.species;
+    const scout = {
+      coach: opp.id, matchesScouted: 1,
+      bySpecies: { [seen]: { timesBrought: 1 } },
+    } as unknown as Parameters<typeof visibleRoster>[2];
+    expect(visibleRoster(run, opp.id, scout).map((r) => r.species)).toEqual([seen]);
+    const clear = draftedRun(41, { ...cfg, stake: fog - 1 });
+    const clearOpp = clear.coaches.find((c) => !c.isHuman)!;
+    expect(visibleRoster(clear, clearOpp.id)).toEqual(clearOpp.roster);
   });
 });

@@ -2,6 +2,7 @@
 import type { LeagueConfig } from '../types';
 import { buildDraftPool } from '../draft/pool';
 import { MAX_POINTS } from '../data/points';
+import { MAX_STAKE } from '../data/stakes';
 
 const TEAM_COUNTS: readonly number[] = [8, 12, 16];
 export const MAX_WEEKS = 20;
@@ -44,5 +45,6 @@ export function validateLeagueConfig(config: LeagueConfig): string[] {
   }
   if (!isInt(c.lossCap) || c.lossCap < 0) errors.push('The loss cap must be a whole number, 0 or more.');
   if (!isInt(c.freeAgencyMoves) || c.freeAgencyMoves < 0) errors.push('Free-agency moves must be a whole number, 0 or more.');
+  if (!isInt(c.stake) || c.stake < 1 || c.stake > MAX_STAKE) errors.push(`The stake must be 1 to ${MAX_STAKE} (got ${String(c.stake)}).`);
   return errors;
 }

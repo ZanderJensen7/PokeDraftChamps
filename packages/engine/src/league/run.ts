@@ -15,12 +15,14 @@ import { buildSchedule } from './schedule';
 import { computeStandings } from './standings';
 import { advancePlayoffs, playoffRoundName, seedPlayoffs } from './playoffs';
 import { validateLeagueConfig } from './config';
+import { applyStake, rulesAt, type StakeRules } from '../data/stakes';
 
 /**
  * 2: league options megas + zCaptains, RosterEntry.isZCaptain. 3: roster range (rosterMin/rosterMax replace
- * rosterSize), captainMaxPoints, DraftState.turn/done. Older saves are migrated on load.
+ * rosterSize), captainMaxPoints, DraftState.turn/done. 4: config.stake, DraftState.budgets. Older saves are
+ * migrated on load.
  */
-export const RUN_SAVE_VERSION = 3;
+export const RUN_SAVE_VERSION = 4;
 
 export interface CreateRunOptions {
   config: LeagueConfig;
@@ -35,8 +37,16 @@ export interface CreateRunOptions {
 
 /** Builds a coach's season sets. Injected (the battle module owns the real one). */
 export type BuildSets = (coach: Coach, seed: number) => Record<SpeciesId, BattleSet>;
-/** Simulates one AI-involved match. Injected (the battle module owns the real one). */
-export type SimulateMatch = (home: Coach, away: Coach, seed: number) => MatchResult | Promise<MatchResult>;
+/** The stake rules an AI-vs-AI simulation reads (plain JSON: it crosses the worker boundary). */
+export type SimRules = Pick<StakeRules, 'aiSwitchOnKo'>;
+
+/**
+ * Simulates one AI-involved match. Injected (the battle module owns the real one). `rules` carries the run's stake
+ * rules the battle AI reads (resolveWeek passes rulesAt(config.stake)).
+ */
+export type SimulateMatch = (
+  home: Coach, away: Coach, seed: number, rules?: SimRules,
+) => MatchResult | Promise<MatchResult>;
 
 const HUMAN_ID: CoachId = 'c0';
 
@@ -50,9 +60,16 @@ export function runPool(run: Pick<RunState, 'config'>): readonly DraftMon[] {
   return buildDraftPool({ megas: run.config.megas });
 }
 
+/**
+ * A new league in the draft phase. The run stores applyStake(config), so the stake's loss cap and playoff size are
+ * plain config from here on. Stake rules: the human drafts last in round 1 (humanDraftsLast); AI coaches get
+ * config.budget + aiBudgetBonus in draft.budgets.
+ */
 export function createRun(opts: CreateRunOptions): RunState {
-  const { config, seed } = opts;
-  validateConfig(config);
+  const { seed } = opts;
+  validateConfig(opts.config);
+  const config = applyStake(opts.config);
+  const rules = rulesAt(config.stake);
   const createdAt = opts.createdAt ?? Date.now();
   const abbrev = opts.humanAbbrev.trim().toUpperCase();
   const identities = pickCoachIdentities(createRng(deriveSeed(seed, 'coaches')), config.teams - 1, [abbrev, opts.humanName]);
@@ -62,7 +79,11 @@ export function createRun(opts: CreateRunOptions): RunState {
       id: `c${i + 1}`, name: idn.name, abbrev: idn.abbrev, isHuman: false, roster: [], pointsSpent: 0, sets: {},
     })),
   ];
-  const draft = createDraft(coaches.map((c) => c.id), createRng(deriveSeed(seed, 'draftOrder')), buildDraftPool({ megas: config.megas }));
+  let draft = createDraft(coaches.map((c) => c.id), createRng(deriveSeed(seed, 'draftOrder')), buildDraftPool({ megas: config.megas }));
+  if (rules.humanDraftsLast) draft = { ...draft, order: [...draft.order.filter((c) => c !== HUMAN_ID), HUMAN_ID] };
+  if (rules.aiBudgetBonus > 0) {
+    draft = { ...draft, budgets: Object.fromEntries(coaches.filter((c) => !c.isHuman).map((c) => [c.id, config.budget + rules.aiBudgetBonus])) };
+  }
   const pos = draft.order.indexOf(HUMAN_ID) + 1;
   return {
     version: RUN_SAVE_VERSION,
@@ -77,7 +98,9 @@ export function createRun(opts: CreateRunOptions): RunState {
     matches: [],
     freeAgencyUsed: 0,
     createdAt,
-    log: [`League created: ${config.teams} coaches, ${config.weeks} weeks, ${config.budget} points. You pick #${pos} in round 1.`],
+    log: [
+      `League created: ${config.teams} coaches, ${config.weeks} weeks, ${config.budget} points${config.stake > 1 ? `, stake ${config.stake}` : ''}. You pick #${pos} in round 1.`,
+    ],
     ...(opts.daily ? { daily: { date: opts.daily.date } } : {}),
   };
 }
@@ -173,6 +196,7 @@ export function runAiDraftUntilHuman(run: RunState): RunState {
   if (run.phase !== 'draft') return run;
   let cur = run;
   const pool = runPool(run);
+  const fit = rulesAt(run.config.stake).aiDraftFit;
   for (;;) {
     const picker = currentPicker(cur.draft, cur.config);
     if (picker === undefined || picker === cur.humanId) return cur;
@@ -182,7 +206,7 @@ export function runAiDraftUntilHuman(run: RunState): RunState {
       continue;
     }
     const rng = createRng(deriveSeed(cur.seed, 'pick', cur.draft.pickIndex));
-    const species = aiChoosePick(cur.draft, picker, cur.config, pool, rng, aim);
+    const species = aiChoosePick(cur.draft, picker, cur.config, pool, rng, aim, { fit });
     cur = afterPick(cur, picker, species);
   }
 }
@@ -367,11 +391,14 @@ export async function resolveWeek(
   const week = run.week;
   const log = [...run.log];
   const matches: Match[] = [];
+  const rules = rulesAt(run.config.stake);
   for (const m of run.matches) {
     if (m.week !== week || m.result) { matches.push(m); continue; }
     const result = m.id === humanMatch.id
       ? humanResult
-      : await deps.simulateMatch(coachById(run, m.home), coachById(run, m.away), deriveSeed(run.seed, 'week', week, m.id));
+      : await deps.simulateMatch(
+        coachById(run, m.home), coachById(run, m.away), deriveSeed(run.seed, 'week', week, m.id), { aiSwitchOnKo: rules.aiSwitchOnKo },
+      );
     matches.push({ ...m, result });
   }
   for (const m of matches) if (m.week === week && m.result) log.push(resultLine(run, m));
@@ -466,7 +493,7 @@ export function serializeRun(run: RunState): string {
 
 /**
  * Parses a save made by serializeRun. Older versions are migrated step by step (v1: Megas off, Z off; v2: a
- * fixed roster size, no captain cap). Throws on a non-run payload or an unknown version.
+ * fixed roster size, no captain cap; v3: no stake). Throws on a non-run payload or an unknown version.
  */
 export function deserializeRun(json: string): RunState {
   const raw = JSON.parse(json) as RunState;
@@ -477,6 +504,7 @@ export function deserializeRun(json: string): RunState {
   let run = raw;
   if (run.version === 1) run = migrateV1(run);
   if (run.version === 2) run = migrateV2(run);
+  if (run.version === 3) run = migrateV3(run);
   if (run.version !== RUN_SAVE_VERSION) throw new Error(`unsupported save version ${String(raw.version)}`);
   return run;
 }
@@ -504,4 +532,9 @@ function migrateV2(raw: RunState): RunState {
     config: { ...config, rosterMin: size, rosterMax: size, captainMaxPoints: MAX_POINTS },
     draft: { ...raw.draft, turn: raw.draft.pickIndex, done: [] },
   };
+}
+
+/** v3 -> v4: config.stake = 1 (the base game). draft.budgets stays absent: every coach has config.budget. */
+function migrateV3(raw: RunState): RunState {
+  return { ...raw, version: 4, config: { ...raw.config, stake: 1 } };
 }

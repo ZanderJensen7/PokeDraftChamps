@@ -61,14 +61,33 @@ const Z_PLAIN_WEAK = 40;
  * with speed-order awareness, plus a small table for status, setup, hazards and recovery.
  * Seeded: the same seed and the same battle give the same choices.
  */
+/**
+ * Voluntary switch thresholds: min HP% to switch out, and how much better the switch-in must score than staying.
+ * Measured 2026-11-02 (switchOnKo vs default, team pairs played both ways): 20/0 won 19/40, 76/160, 98/200 against
+ * a 82/160 control; floors from 35 to "never switch" all sat near 50% on fresh seeds. Not a strength lever yet.
+ */
+export const SWITCH_DIALS = {
+  minHp: 35, margin: 25,
+  /** switchOnKo (stake 4+), when a KO is predicted. */
+  eagerMinHp: 20, eagerMargin: 0,
+};
+
+export interface HeuristicOptions {
+  /** Stake rule aiSwitchOnKo. */
+  switchOnKo?: boolean;
+}
+
 export class HeuristicPlayer implements BattlePlayer {
   private rng: Rng;
   private lastWasSwitch = false;
   /** Chance of picking one of the top three moves instead of the best. */
   epsilon = 0.04;
+  /** Stake 4+: switch out of a predicted KO at lower HP and for any switch-in that does better than staying. */
+  private switchOnKo: boolean;
 
-  constructor(seed = 1) {
+  constructor(seed = 1, opts: HeuristicOptions = {}) {
     this.rng = new Rng(seed);
+    this.switchOnKo = !!opts.switchOnKo;
   }
 
   choose(req: ParsedRequest, ctx: PlayerContext): string {
@@ -113,10 +132,12 @@ export class HeuristicPlayer implements BattlePlayer {
     const canSwitch = bench.length > 0 && !activeReq.trapped && !activeReq.maybeTrapped;
     const danger = plain.koFirst && (best?.score ?? 0) < 900;
     const useless = (best?.score ?? 0) < 15;
-    if (canSwitch && !this.lastWasSwitch && hpOf(active) >= 35 && (danger || useless)) {
+    // With switchOnKo a predicted KO lowers the bar: any surviving switch-in that beats staying, down to 20% HP.
+    const eager = this.switchOnKo && danger;
+    if (canSwitch && !this.lastWasSwitch && hpOf(active) >= (eager ? SWITCH_DIALS.eagerMinHp : SWITCH_DIALS.minHp) && (danger || useless)) {
       const cand = this.bestSwitch(req, ctx, view, oppMon, bench);
       const stay = this.monValue(ctx, view, oppMon, active, activeSet, false, megaForme).value;
-      if (cand.survives && cand.value > stay + 25) {
+      if (cand.survives && cand.value > stay + (eager ? SWITCH_DIALS.eagerMargin : SWITCH_DIALS.margin)) {
         this.lastWasSwitch = true;
         return `switch ${cand.slot}`;
       }
