@@ -36,7 +36,7 @@ Each line is one job. Sessions are started from the top; three at a time at most
    `aiChoosePick` (fit scoring via `prep/draftHelper`); loss cap, AI budget, prep-doc gating, playoff size;
    stake picker on the setup screen; win at N unlocks N+1 in a profile store. Also answers "loss cap 4 vs
    equal-strength AI eliminates most runs".
-2. **Battle polish bundle.** A Mega shows its base name in the lead picker / after fainting (map by roster id);
+2. **Battle polish bundle.** SHIPPED 2026-11-02 (branch `claude/reverent-mirzakhani-692141`, see the done log). A Mega shows its base name in the lead picker / after fainting (map by roster id);
    weather label prints raw ids ("SunnyDay"); export writes a Tera Type line for non-captains.
 3. **Mobile bundle.** The "what everyone drafted" view cannot scroll all the way; landscape battle HP boxes
    overlap the sprites; lineup reorder on phones is tap-to-swap (no drag); AI-pick ticker lags the header during
@@ -79,6 +79,13 @@ Each line is one job. Sessions are started from the top; three at a time at most
   the option; larger battle sprites; Gen 9 mons fall back automatically via @pkmn/img (user ruling 2026-11-02).
 - DONE 2026-11-02: Mega Mewtwo X/Y banned (`BANNED_MEGAS`); see DECISIONS. Rerun the lab with Megas on to
   find the next outlier now that the top is gone.
+- DONE 2026-11-02: polish from the first play-test. A Mega pick goes by its Mega name in the lead picker, bench,
+  HP box and the log's switch / faint lines (`session.ts` maps each protocol nickname to the roster entry by
+  roster id, `narrate` and the battle screen read the map); weather / terrain chips and log lines use the
+  `battle/conditions.ts` name table ("Sun", never "SunnyDay"); the Showdown export (`exportSetText`, engine,
+  tested) writes a Tera Type line only for Tera captains. Still open from that play-test: loss cap 4 vs
+  equal-strength AI eliminates most runs (tune AI difficulty tiers or default cap once humans play).
+
 - DONE 2026-11-02: first commit pushed, live at https://zanderjensen7.github.io/PokeDraftChamps/ (service worker registers there, so the PWA install gap from the mobile pass is half proven; home-screen install on a phone still unchecked).
 - DONE 2026-11-02: startup bundle. The engine has two entries: `@pdc/engine` (sim-free: draft, league, prep, stats,
   scouting, form helpers over @pkmn/dex + a checked-in randoms JSON) and `@pdc/engine/battle` (sim, randoms, calc,

@@ -6,5 +6,6 @@ export * from './draft';
 export * from './league';
 export * from './prep';
 export * from './forms';
+export * from './setText';
 export * from './logs';
 export * from './stats';
