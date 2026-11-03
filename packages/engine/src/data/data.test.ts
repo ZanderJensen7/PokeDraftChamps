@@ -1,5 +1,12 @@
 import { buildDraftPool, getDraftMon } from '../draft/pool';
-import { BANNED_SPECIES, COACH_IDENTITIES, isBannedSpecies, pickCoachIdentities, priceOf } from './index';
+import { Dex } from '@pkmn/dex';
+import { BANNED_SPECIES, COACH_IDENTITIES, isBannedSpecies, MAX_POINTS, pickCoachIdentities, PRICE_OVERRIDES, priceOf, tierPriceOf } from './index';
+import { DEFAULT_LEAGUE_CONFIG } from '../types';
+import { minBudget, validateLeagueConfig } from '../league/config';
+import { captainBlock } from '../league/run';
+
+/** The tier price, before PRICE_OVERRIDES. */
+const tierPrice = (id: string): number => tierPriceOf(Dex.forGen(9).species.get(id));
 import { createRng } from '../league/rng';
 
 describe('draft pool', () => {
@@ -16,9 +23,9 @@ describe('draft pool', () => {
     }
   });
 
-  it('runs the cheapest price at 3, with the floor tiers cheaper than PUBL', () => {
-    expect(Math.min(...pool.map((m) => m.points))).toBe(3);
-    const price = (t: string): number[] => pool.filter((m) => m.tier === t).map((m) => m.points);
+  it('runs the cheapest tier price at 3, with the floor tiers cheaper than PUBL', () => {
+    expect(Math.min(...pool.map((m) => tierPrice(m.id)))).toBe(3);
+    const price = (t: string): number[] => pool.filter((m) => m.tier === t).map((m) => tierPrice(m.id));
     for (const tier of ['ZU', 'PU']) {
       const ps = price(tier);
       expect(ps.length).toBeGreaterThan(0);
@@ -93,10 +100,12 @@ describe('mega forms', () => {
   });
 
   it('are priced by their National Dex tier', () => {
-    expect(byId.get('charizardmegax')?.points).toBe(16);   // UUBL
-    expect(byId.get('charizardmegay')?.points).toBe(19);   // OU, BST 634
-    expect(byId.get('garchompmega')?.points).toBe(19);     // '(OU)', BST 700
-    expect(byId.get('venusaurmega')?.points).toBe(15);     // UU
+    // Tier prices: a mon in PRICE_OVERRIDES drafts at its override instead.
+    for (const id of ['charizardmegax', 'charizardmegay', 'garchompmega', 'venusaurmega']) expect(byId.has(id)).toBe(true);
+    expect(tierPrice('charizardmegax')).toBe(16);   // UUBL
+    expect(tierPrice('charizardmegay')).toBe(19);   // OU, BST 634
+    expect(tierPrice('garchompmega')).toBe(19);     // '(OU)', BST 700
+    expect(tierPrice('venusaurmega')).toBe(15);     // UU
     expect(priceOf({ tier: 'Illegal', natDexTier: 'UUBL', bst: 634 })).toBe(16);
     expect(priceOf({ tier: 'OU', natDexTier: 'UU', bst: 500 })).toBe(18); // a priced tier wins
   });
@@ -121,5 +130,48 @@ describe('coach identities', () => {
     expect(a).toEqual(b);
     expect(new Set(a.map((c) => c.abbrev)).size).toBe(15);
     expect(a.some((c) => c.abbrev === 'OHA')).toBe(false);
+  });
+});
+
+describe('price overrides', () => {
+  const ids = Object.keys(PRICE_OVERRIDES);
+
+  const megaPool = buildDraftPool({ megas: true });
+
+  it('are whole prices in 1..MAX_POINTS for pool species that differ from the tier price', () => {
+    expect(ids.length).toBeGreaterThan(0);
+    for (const id of ids) {
+      const p = PRICE_OVERRIDES[id]!;
+      expect(Number.isInteger(p) && p >= 1 && p <= MAX_POINTS, id).toBe(true);
+      expect(megaPool.some((m) => m.id === id), `${id} is in the Mega pool (real, unbanned)`).toBe(true);
+      expect(p, id).not.toBe(tierPrice(id));
+    }
+  });
+
+  it('are the prices the pool and priceOf use; without an id priceOf is the tier price', () => {
+    for (const id of ids) {
+      expect(megaPool.find((x) => x.id === id)?.points, id).toBe(PRICE_OVERRIDES[id]);
+      const s = Dex.forGen(9).species.get(id);
+      expect(priceOf({ id, tier: s.tier, natDexTier: s.natDexTier, bst: s.bst })).toBe(PRICE_OVERRIDES[id]);
+      expect(priceOf({ tier: s.tier, natDexTier: s.natDexTier, bst: s.bst })).toBe(tierPrice(id));
+    }
+  });
+
+  it('keep every default and Mega config fillable (budget >= rosterMin x cheapest)', () => {
+    for (const megas of [false, true]) {
+      const config = { ...DEFAULT_LEAGUE_CONFIG, megas };
+      const { need, cheapest } = minBudget(config.rosterMin, megas);
+      expect(cheapest).toBe(Math.min(...buildDraftPool({ megas }).map((m) => m.points)));
+      expect(config.budget).toBeGreaterThanOrEqual(need);
+      expect(validateLeagueConfig(config)).toEqual([]);
+    }
+  });
+
+  it('set the captain cap: a cap at the override price allows the mon, one point below blocks it', () => {
+    const id = ids.find((x) => getDraftMon(x) && !getDraftMon(x)!.isMega && PRICE_OVERRIDES[x]! > 1);
+    expect(id).toBeDefined();
+    const p = PRICE_OVERRIDES[id!]!;
+    expect(captainBlock({ captainMaxPoints: p }, id!)).toBeUndefined();
+    expect(captainBlock({ captainMaxPoints: p - 1 }, id!)).toBe('overCap');
   });
 });
