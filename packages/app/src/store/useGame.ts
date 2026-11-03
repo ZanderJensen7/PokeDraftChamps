@@ -14,7 +14,7 @@ import { downloadText } from '../game/download';
 import { getBridge, type PlayHumanMatchArgs } from '../game/bridge';
 import { isZCrystal, updateHumanSet } from '../game/sets';
 import { apiEnabled, postDailyScore, postRunSummary } from '../game/api';
-import { cleanNickname, useSettings } from './settings';
+import { cleanNickname, motionReduced, useSettings } from './settings';
 
 export type Screen =
   | 'title' | 'setup' | 'draft' | 'hub' | 'team' | 'prep' | 'battle' | 'recap' | 'end' | 'settings' | 'analytics'
@@ -256,6 +256,16 @@ export function weekLabel(run: RunState, week = run.week, match?: Match): string
   return `Week ${week} of ${run.config.weeks}`;
 }
 
+/** AI picks reveal one at a time from `shown`; under reduced motion they all show at once (no animation to skip). */
+function revealedAfter(run: RunState, shown: number): number {
+  return motionReduced() ? run.draft.picks.length : shown;
+}
+
+/** A new draft: every AI pick before the human's first turn animates in (or shows at once under reduced motion). */
+function revealedAtStart(run: RunState): number {
+  return revealedAfter(run, 0);
+}
+
 function freshRunState(run: RunState) {
   return {
     run,
@@ -325,7 +335,7 @@ export const useGame = create<GameStore>((set, get) => ({
     try {
       let run = createRun({ config, seed, humanName: name, humanAbbrev: abbrev });
       run = runAiDraftUntilHuman(run);
-      set({ ...freshRunState(run), draftShown: 0, toast: null });
+      set({ ...freshRunState(run), draftShown: revealedAtStart(run), toast: null });
     } catch (e) {
       set({ toast: errText(e) });
     }
@@ -359,7 +369,7 @@ export const useGame = create<GameStore>((set, get) => ({
       const { name, abbrev } = dailyIdentity();
       let next = createRun({ config: info.config, seed: info.seed, humanName: name, humanAbbrev: abbrev, daily: { date } });
       next = runAiDraftUntilHuman(next);
-      set({ ...freshRunState(next), draftShown: 0, toast: null });
+      set({ ...freshRunState(next), draftShown: revealedAtStart(next), toast: null });
     } catch (e) {
       set({ toast: errText(e) });
     }
@@ -431,7 +441,7 @@ export const useGame = create<GameStore>((set, get) => ({
     try {
       const picked = draftPick(run, species);
       const next = runAiDraftUntilHuman(picked);
-      set({ run: next, draftShown: picked.draft.picks.length });
+      set({ run: next, draftShown: revealedAfter(next, picked.draft.picks.length) });
     } catch (e) {
       set({ toast: errText(e) });
     }
@@ -443,7 +453,7 @@ export const useGame = create<GameStore>((set, get) => ({
     try {
       const stopped = draftStop(run);
       const next = runAiDraftUntilHuman(stopped);
-      set({ run: next, draftShown: stopped.draft.picks.length });
+      set({ run: next, draftShown: revealedAfter(next, stopped.draft.picks.length) });
     } catch (e) {
       set({ toast: errText(e) });
     }

@@ -12,6 +12,10 @@ every package.json. The build stamp shows the version and short commit in the co
   results (settings, result, score; never battles or names).
 - Backend (`packages/api`): a Cloudflare Worker for the daily leaderboard and the opt-in run summaries, plus
   an optional cookieless page-view beacon. Neither is needed to play.
+- Phones: drag a Pokemon's name strip onto another lineup slot to swap them (tap-two-slots still works).
+- Phone layout fixes: the draft Pool, Board and All-teams views scroll clear of the pinned DRAFT bar; landscape
+  battles fit the screen with compact HP boxes that no longer overlap the sprites; the draft header and the
+  AI-pick ticker name the same pick while picks reveal, and reduced motion shows them all at once.
 
 ## v0.3.1 — 2026-11-02
 

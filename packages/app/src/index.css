@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* `phone:` = portrait phones (below md) OR short landscape phones; the CSS twin of useIsMobile() || useIsLandscapePhone().
+   Battle layouts use it instead of max-md: so a 812x375 phone gets the compact styles too. */
+@custom-variant phone {
+  @media (max-width: 767px), ((orientation: landscape) and (max-height: 540px)) {
+    @slot;
+  }
+}
+
 /* UI_STYLE.md tokens. `static` so every token is emitted as a CSS variable (type/crest colors are picked at runtime). */
 @theme static {
   --font-display: "Fredoka", "Nunito", system-ui, sans-serif;
@@ -208,6 +216,12 @@ h1, h2, h3, .font-display {
   to { opacity: 1; transform: none; }
 }
 .anim-pick-in { animation: pick-in 220ms ease-out; }
+/* Draft ticker entries: a short slide with no fade, so the newest pick is readable the moment it lands (picks come 250 ms apart). */
+@keyframes pick-slide {
+  from { transform: translateY(-6px) scale(0.96); }
+  to { transform: none; }
+}
+.anim-pick-slide { animation: pick-slide 160ms ease-out; }
 
 @keyframes pulse-glow {
   0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-poke-yellow) 60%, transparent); }
@@ -352,10 +366,12 @@ summary {
   }
 }
 
-/* Landscape phones: the field sits beside the actions and fills the height. */
+/* Landscape phones: the field sits beside the actions and fills the height left by the page padding (1.5rem) and the
+   two compact team strips with the log toggle (4.5rem), plus a little slack. */
 @media (orientation: landscape) and (max-height: 540px) {
   .battle-field {
-    height: calc(100dvh - var(--topbar-h, 3.75rem) - 8rem);
+    height: calc(100dvh - var(--topbar-h, 3.75rem) - 6.25rem);
     min-height: 160px;
+    border-radius: 12px;
   }
 }

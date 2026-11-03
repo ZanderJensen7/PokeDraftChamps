@@ -4,12 +4,12 @@ import {
   ALL_TYPES, conflictsWithRoster, currentPicker, getDraftMon, humanCoach, isDoneDrafting, legalPicks, runPool,
 } from '@pdc/engine';
 import { useGame } from '../store/useGame';
-import { useSettings } from '../store/settings';
 import {
   Crest, DialogueBox, GameButton, IconBadge, Modal, Panel, PokeIcon, PokeSprite, PriceBadge, RoleTag, Sheet, SpriteCard,
   StatBlock, Tabs, TypePills,
 } from '../components/ui';
-import { useIsMobile } from '../hooks/useIsMobile';
+import { useIsMobile, useReducedMotion } from '../hooks/useIsMobile';
+import { useHeightVar } from '../hooks/useHeightVar';
 import { CaptainPicker } from '../components/CaptainPicker';
 import { FitBadge } from '../components/draft/FitBadge';
 import { MyTeamPanel } from '../components/draft/MyTeamPanel';
@@ -84,7 +84,7 @@ export function DraftScreen() {
   const humanPick = useGame((s) => s.humanPick);
   const stopDrafting = useGame((s) => s.stopDrafting);
   const setCaptainsWith = useGame((s) => s.setCaptainsWith);
-  const reducedMotion = useSettings((s) => s.reducedMotion);
+  const reducedMotion = useReducedMotion();
 
   const [search, setSearch] = useState('');
   const [type, setType] = useState('');
@@ -101,6 +101,8 @@ export function DraftScreen() {
   const [hovered, setHovered] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const isMobile = useIsMobile();
+  // Phones: the pinned DRAFT bar publishes its height so the tab under it can pad for it (it wraps to two lines).
+  const barRef = useHeightVar('--draftbar-h');
 
   const pool = run ? runPool(run) : [];
   const ownedIds = useMemo<SpeciesId[]>(() => (run ? humanCoach(run).roster.map((r) => r.species) : []), [run]);
@@ -116,6 +118,7 @@ export function DraftScreen() {
     if (draftOver && noCaptains) void setCaptainsWith({ tera: [], z: [] });
   }, [draftOver, noCaptains, setCaptainsWith]);
 
+  // The store already reveals everything at once under reduced motion; this covers the setting flipping mid-reveal.
   useEffect(() => {
     if (!animating) return;
     if (reducedMotion) {
@@ -134,11 +137,16 @@ export function DraftScreen() {
 
   if (!run) return null;
   const human = humanCoach(run);
-  const picker = animating ? run.draft.picks[draftShown]?.coach : currentPicker(run.draft, run.config);
+  // During the reveal, the header, round chips and ticker all read the same revealed count (`draftShown`): the header
+  // names the pick that just landed (the ticker's newest entry) with its round and number. Between reveals it names
+  // who is on the clock.
+  const landed = animating && draftShown > 0 ? run.draft.picks[draftShown - 1] : undefined;
+  const picker = animating ? (landed ?? run.draft.picks[0])?.coach : currentPicker(run.draft, run.config);
   const myTurn = !animating && picker === run.humanId && !run.draft.complete;
   const legal = myTurn ? new Set(legalPicks(run.draft, run.humanId, run.config, pool)) : new Set<string>();
-  const round = animating ? (run.draft.picks[draftShown]?.round ?? run.draft.round) : run.draft.round;
-  const overall = animating ? draftShown + 1 : run.draft.pickIndex + 1;
+  const round = animating ? ((landed ?? run.draft.picks[0])?.round ?? run.draft.round) : run.draft.round;
+  const overall = animating ? Math.max(1, draftShown) : run.draft.pickIndex + 1;
+  const landedName = landed ? displayName(getDraftMon(landed.species)?.name ?? landed.species) : '';
   const done = run.draft.complete && !animating;
   const spent = human.pointsSpent;
   const left = run.config.budget - spent;
@@ -373,7 +381,7 @@ export function DraftScreen() {
           const m = getDraftMon(p.species);
           const you = p.coach === run.humanId;
           return (
-            <li key={p.overall} className={`anim-pick-in flex items-center gap-2 rounded-lg px-2 py-0.5 ${you ? 'bg-you-soft' : 'bg-panel-inset'}`}>
+            <li key={p.overall} className={`anim-pick-slide flex items-center gap-2 rounded-lg px-2 py-0.5 ${you ? 'bg-you-soft' : 'bg-panel-inset'}`}>
               <span className="w-7 text-xs font-bold text-faint tabular-nums">#{p.overall}</span>
               <PokeIcon name={m?.name ?? p.species} title={displayName(m?.name ?? p.species)} />
               <span className="flex-1 truncate font-semibold">{displayName(m?.name ?? p.species)}</span>
@@ -436,7 +444,7 @@ export function DraftScreen() {
   // ---------- Phones: sticky status + POOL/BOARD tabs, filter sheet, sticky DRAFT button ----------
   if (isMobile && !done) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-3" style={myTurn ? { paddingBottom: 'var(--draftbar-h, 7.5rem)' } : undefined}>
         <div className="sticky top-[var(--topbar-h,3.75rem)] z-30 -mx-3 -mt-3 space-y-2 border-b-2 border-edge-dark bg-bg/95 px-3 pt-2 pb-2 backdrop-blur">
           <div
             className={`flex min-h-11 items-center gap-2 rounded-lg border-2 border-b-4 px-2.5 py-1 text-sm font-bold ${myTurn ? 'anim-clock border-poke-yellow-dark bg-poke-yellow text-cream-ink' : 'border-edge bg-panel'}`}
@@ -447,11 +455,11 @@ export function DraftScreen() {
             ) : (
               <span className="flex min-w-0 shrink items-center gap-1.5">
                 {picker && <Crest abbrev={abbrevOf(run, picker)} size={22} side="opp" />}
-                <span className="truncate font-display">{picker ? abbrevOf(run, picker) : ''} picking…</span>
+                <span className="truncate font-display">{picker ? abbrevOf(run, picker) : ''} {landed ? `takes ${landedName}` : 'picking…'}</span>
               </span>
             )}
             <span className={`ml-auto shrink-0 tabular-nums ${myTurn ? '' : 'text-muted'}`}>
-              <span className={myTurn ? '' : 'text-poke-yellow'}>{left}</span> pts · {required > 0 ? `${required} req` : `≤${picksLeft} more`} · R{round}
+              <span className={myTurn ? '' : 'text-poke-yellow'}>{left}</span> pts · {required > 0 ? `${required} req` : `≤${picksLeft} more`} · R{round}{animating ? ` #${overall}` : ''}
             </span>
             {animating && (
               <GameButton variant="secondary" size="sm" onClick={skip} className="min-h-9 shrink-0 !px-2 !py-1 text-xs">Skip</GameButton>
@@ -484,7 +492,7 @@ export function DraftScreen() {
                   const m = getDraftMon(p.species);
                   const you = p.coach === run.humanId;
                   return (
-                    <span key={p.overall} className={`anim-pick-in flex shrink-0 items-center gap-1 rounded-full border-2 py-0.5 pr-2.5 pl-1 text-xs font-bold ${you ? 'border-you bg-you-soft' : 'border-edge-dark bg-panel-inset'}`}>
+                    <span key={p.overall} className={`anim-pick-slide flex shrink-0 items-center gap-1 rounded-full border-2 py-0.5 pr-2.5 pl-1 text-xs font-bold ${you ? 'border-you bg-you-soft' : 'border-edge-dark bg-panel-inset'}`}>
                       <PokeIcon name={m?.name ?? p.species} title={displayName(m?.name ?? p.species)} />
                       <span className="max-w-24 truncate">{displayName(m?.name ?? p.species)}</span>
                       <span className="font-display text-muted">{abbrevOf(run, p.coach)}</span>
@@ -507,7 +515,6 @@ export function DraftScreen() {
               </GameButton>
             </div>
             {poolGrid}
-            {myTurn && <div className="h-20" aria-hidden="true" />}
           </>
         ) : tab === 'board' ? (
           <div className="space-y-3">
@@ -517,12 +524,11 @@ export function DraftScreen() {
         ) : (
           <>
             {myTeamPanel}
-            {myTurn && <div className="h-20" aria-hidden="true" />}
           </>
         )}
 
         {myTurn && (
-          <div className="pb-safe-3 fixed inset-x-0 bottom-0 z-40 flex gap-2 border-t-4 border-edge-dark bg-panel/95 px-3 pt-3 backdrop-blur">
+          <div ref={barRef} className="pb-safe-3 fixed inset-x-0 bottom-0 z-40 flex gap-2 border-t-4 border-edge-dark bg-panel/95 px-3 pt-3 backdrop-blur">
             {selectedMon ? (
               <>
                 <GameButton variant="ghost" onClick={() => setDetail(selectedMon)} className="min-h-12 shrink-0" aria-label={`About ${displayName(selectedMon.name)}`}>Info</GameButton>
@@ -591,7 +597,7 @@ export function DraftScreen() {
           <div className="flex items-center gap-3">
             {picker && <Crest abbrev={abbrevOf(run, picker)} size={36} side="opp" />}
             <div>
-              <div className="font-display text-xl font-bold">{picker ? abbrevOf(run, picker) : ''} is picking…</div>
+              <div className="font-display text-xl font-bold">{picker ? abbrevOf(run, picker) : ''} {landed ? `takes ${landedName}` : 'is picking…'}</div>
               <div className="text-sm text-muted">Round {round} · pick #{overall}</div>
             </div>
           </div>

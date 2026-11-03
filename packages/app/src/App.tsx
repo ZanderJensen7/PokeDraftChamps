@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { humanCoach } from '@pdc/engine';
 import { useGame, weekLabel, type Screen } from './store/useGame';
 import { useSettings } from './store/settings';
@@ -18,6 +18,8 @@ import { SettingsScreen } from './screens/SettingsScreen';
 import { AnalyticsScreen } from './screens/AnalyticsScreen';
 import { DailyScreen } from './screens/DailyScreen';
 import { BottomNav, useShowBottomNav } from './components/BottomNav';
+import { useHeightVar } from './hooks/useHeightVar';
+import { useIsLandscapePhone } from './hooks/useIsMobile';
 
 // The live battle (and @pkmn/sim behind it) loads on first use, outside the initial chunk.
 const LazyBattleScreen = lazy(() => import('./screens/BattleScreen').then((m) => ({ default: m.BattleScreen })));
@@ -52,17 +54,8 @@ function TopBar() {
   const openOverlay = useGame((s) => s.openOverlay);
   const navShown = useShowBottomNav();
   const [bug, setBug] = useState(false);
-  const headerRef = useRef<HTMLElement>(null);
   // Publish the bar's height so phone screens can stick their own bars right under it.
-  useLayoutEffect(() => {
-    const el = headerRef.current;
-    if (!el) return;
-    const publish = () => document.documentElement.style.setProperty('--topbar-h', `${el.offsetHeight}px`);
-    publish();
-    const ro = new ResizeObserver(publish);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  const headerRef = useHeightVar('--topbar-h');
   const human = run ? humanCoach(run) : null;
   const phaseText = !run
     ? ''
@@ -183,13 +176,18 @@ export function App() {
   const reducedMotion = useSettings((s) => s.reducedMotion);
   const Current = SCREENS[screen];
   const navShown = useShowBottomNav();
+  // Short landscape phones keep the phone gutters: the battle layout fills the height to the pixel.
+  const landscapePhone = useIsLandscapePhone();
+  const gutters = landscapePhone
+    ? (navShown ? 'pb-nav' : 'pb-safe-3')
+    : `sm:px-4 sm:py-6 ${navShown ? 'pb-nav md:pb-6' : 'pb-safe-3 sm:pb-6'}`;
   useEffect(() => {
     window.scrollTo({ top: 0 });
   }, [screen]);
   return (
     <div className={`min-h-screen ${reducedMotion ? 'reduce-motion' : ''}`}>
       {screen !== 'title' && <TopBar />}
-      <main className={`mx-auto max-w-6xl px-3 py-3 sm:px-4 sm:py-6 ${navShown ? 'pb-nav md:pb-6' : 'pb-safe-3 sm:pb-6'} ${screen === 'title' ? 'pt-safe' : ''}`}>
+      <main className={`mx-auto max-w-6xl px-3 py-3 ${gutters} ${screen === 'title' ? 'pt-safe' : ''}`}>
         <Current />
       </main>
       {navShown && <BottomNav />}

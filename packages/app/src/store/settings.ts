@@ -55,6 +55,12 @@ function load(): Settings {
   }
 }
 
+/** The setting or the OS preference, read outside React (store actions): with it on, reveals happen at once. */
+export function motionReduced(): boolean {
+  if (useSettings.getState().reducedMotion) return true;
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 interface SettingsStore extends Settings {
   update(patch: Partial<Settings>): void;
 }

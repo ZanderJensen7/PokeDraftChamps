@@ -33,7 +33,8 @@ Status: TODO · RUNNING · DONE. Keep this short; details live in the job report
   - Draft: a toggle for the draft recommendations (FIT badges, needs panel); no fit score before the first pick
     (nothing to fit yet). Keep the line between hand-holding and the prep/draft being part of the fun.
   - League setup: options for the number of free-agency moves and the total point budget (tier prices unchanged).
-  - Mobile: the "what everyone drafted" view is rough, it cannot scroll all the way.
+  - DONE 2026-11-02 — Mobile: the "what everyone drafted" view is rough, it cannot scroll all the way (the pinned
+    DRAFT bar now publishes its height and the draft tabs pad for it).
   - Traffic: a way to see how many people play (privacy-respecting analytics on the static site; decide what, see
     DECISIONS on no telemetry leaving the browser without opt-in).
 - Roster range follow-ups (2026-11-02): free agency is still drop-one/add-one, so a coach under `rosterMax`
@@ -41,9 +42,12 @@ Status: TODO · RUNNING · DONE. Keep this short; details live in the job report
   budget). The AI may also end a little below its rolled aim when its budget runs thin after the minimum.
 - Draft helper follow-ups: FIT badge uses the quick score (roles excluded) while the hover note uses the full one;
   hover popover covers the next card row; resistances table scrolls sideways in the narrow rail.
-- Mobile follow-ups from the pass: prove home-screen install on a real phone / desktop Chrome (service worker
-  did not register in the test pane); landscape battle HP boxes overlap the sprites; lineup reorder on phones
-  is tap-to-swap (no drag); AI-pick ticker lags the header during the draft animation.
+- Mobile follow-ups from the pass: home-screen install on a real phone is STILL UNCHECKED (the service worker
+  registers on the live site, but nobody has added it to a phone home screen yet; a desktop session cannot).
+  DONE 2026-11-02: landscape battle HP boxes overlapping the sprites (compact boxes, phone sprite scale, the
+  field and action column sized to the viewport at 812x375 and 667x375); lineup drag on phones (pointer-event
+  drag on the name strip, tap-to-swap kept); AI-pick ticker vs header (both read `draftShown`, the header names
+  the pick that just landed, ticker entries slide in without a fade, reduced motion reveals all picks at once).
 - DONE 2026-11-02: Mega Mewtwo X/Y banned (`BANNED_MEGAS`); see DECISIONS. Rerun the lab with Megas on to
   find the next outlier now that the top is gone.
 - Lab findings 2026-11-02 (40 leagues, 12 teams, Megas): fit score = 41.9 + 0.66 x price, i.e. tier price

@@ -205,7 +205,7 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
     <button
       type="button"
       onClick={skip}
-      className="dialogue block min-h-[5.5rem] w-full px-5 py-4 text-left font-display text-xl font-bold max-md:min-h-[4.5rem] max-md:px-4 max-md:py-3 max-md:text-lg"
+      className="dialogue block min-h-[5.5rem] w-full px-5 py-4 text-left font-display text-xl font-bold phone:min-h-[4.5rem] phone:px-4 phone:py-3 phone:text-lg"
       aria-live="polite"
       title={caughtUp ? undefined : 'Tap to skip'}
     >
@@ -216,7 +216,7 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
   const fieldStack = (
     <>
       <TeamStrip side={view.sides.p2} sideId="p2" bind={hover.bind} tone="opp" label={opp.name} />
-      <Field view={view} bind={hover.bind} fx={fx} effectsOn={effectsOn} />
+      <Field view={view} bind={hover.bind} fx={fx} effectsOn={effectsOn} phone={phone} landscape={landscape} />
       <TeamStrip side={view.sides.p1} sideId="p1" bind={hover.bind} tone="you" label={live.human.name} extra={phone ? logToggle : undefined} />
     </>
   );
@@ -225,22 +225,22 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
     <div
       className={landscape
         ? 'grid grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] items-start gap-3'
-        : 'mx-auto grid max-w-6xl gap-4 py-4 max-md:gap-2 max-md:py-0 lg:grid-cols-[minmax(0,1fr)_320px]'}
+        : 'mx-auto grid max-w-6xl gap-4 py-4 phone:gap-2 phone:py-0 lg:grid-cols-[minmax(0,1fr)_320px]'}
     >
       {landscape ? (
         <>
           <div className="min-w-0 space-y-1">{fieldStack}</div>
           {/* Landscape phones: the log fills the space above the action panel, which never scrolls away. */}
-          <div className={logOpen ? 'flex h-[calc(100dvh-var(--topbar-h,3.75rem)-1rem)] min-w-0 flex-col gap-2' : 'min-w-0'}>
-            {logOpen && <BattleLog entries={logEntries} className="min-h-[4.5rem] flex-1" />}
-            <div className="shrink-0">{actionArea}</div>
+          <div className="flex h-[calc(100dvh-var(--topbar-h,3.75rem)-1.5rem)] min-w-0 flex-col gap-2">
+            {logOpen && <BattleLog entries={logEntries} className="min-h-[3rem] flex-1" />}
+            <div className={`min-h-0 shrink-0 overflow-y-auto ${logOpen ? 'max-h-[calc(100%-3.5rem)]' : 'max-h-full'}`}>{actionArea}</div>
           </div>
         </>
       ) : (
-        <div className="min-w-0 space-y-2 max-md:flex max-md:min-h-[calc(100dvh-var(--topbar-h,3.75rem)-1.5rem-env(safe-area-inset-bottom))] max-md:flex-col max-md:gap-1.5 max-md:space-y-0">
+        <div className="min-w-0 space-y-2 phone:flex phone:min-h-[calc(100dvh-var(--topbar-h,3.75rem)-1.5rem-env(safe-area-inset-bottom))] phone:flex-col phone:gap-1.5 phone:space-y-0">
           {fieldStack}
           {/* Phones: the action panel stays pinned to the bottom of the screen. */}
-          <div className="max-md:pb-safe max-md:sticky max-md:bottom-0 max-md:z-20 max-md:mt-auto max-md:pt-1">{actionArea}</div>
+          <div className="phone:pb-safe phone:sticky phone:bottom-0 phone:z-20 phone:mt-auto phone:pt-1">{actionArea}</div>
           {!phone && <div className="flex justify-end lg:hidden">{logToggle}</div>}
           {!phone && logOpen && <BattleLog entries={logEntries} className="h-72 lg:hidden" />}
         </div>
@@ -277,12 +277,35 @@ function LiveBattleView({ live }: { live: LiveBattle }) {
 
 // ---------------------------------------------------------------- field
 
-function HpBox({ mon, mine }: { mon: MonView; mine: boolean }) {
+function HpBox({ mon, mine, compact }: { mon: MonView; mine: boolean; compact?: boolean }) {
+  const isMega = /-Mega\b/.test(mon.species);
+  const name = isMega ? displayName(mon.species) : (mon.nick ?? mon.species);
+  // Keyed by the mon so a switch-in shows its HP at once instead of counting up from the last mon's.
+  const number = mine && <span className="shrink-0 font-display text-sm font-bold tabular-nums"><TweenNumber key={mon.nick ?? mon.species} value={mon.hp} />/{mon.maxhp}</span>;
+  // Landscape phones: the field is short, so status and Tera share the name row and your HP number sits beside the bar.
+  if (compact) {
+    return (
+      <div className="battle-hpbox w-full px-2 py-1">
+        <div className="flex items-center gap-1">
+          <span className="truncate font-display text-sm font-bold leading-tight">{name}</span>
+          {isMega && <RoleTag role="mega" compact />}
+          <StatusBadge status={mon.status} />
+          {mon.tera && <TypePill type={mon.tera} size="xs" />}
+          <span className="ml-auto shrink-0 text-[11px] font-bold">Lv{mon.level}</span>
+        </div>
+        <div className="mt-0.5 flex items-center gap-1.5">
+          <HpBar value={mon.hp} max={mon.maxhp} className="min-w-0 flex-1" />
+          {number}
+        </div>
+        <BoostChips boosts={mon.boosts} className="mt-0.5" />
+      </div>
+    );
+  }
   return (
-    <div className="battle-hpbox w-full px-2 py-1.5 sm:px-3 sm:py-2">
+    <div className="battle-hpbox w-full px-3 py-2 phone:px-2 phone:py-1.5">
       <div className="flex items-center gap-1.5">
-        <span className="truncate font-display text-sm font-bold leading-tight sm:text-base">{/-Mega\b/.test(mon.species) ? displayName(mon.species) : (mon.nick ?? mon.species)}</span>
-        {/-Mega\b/.test(mon.species) && <RoleTag role="mega" compact />}
+        <span className="truncate font-display text-base font-bold leading-tight phone:text-sm">{name}</span>
+        {isMega && <RoleTag role="mega" compact />}
         <span className="ml-auto shrink-0 text-xs font-bold">Lv{mon.level}</span>
       </div>
       <div className="mb-1 flex min-h-[1.1rem] items-center gap-1">
@@ -290,8 +313,7 @@ function HpBox({ mon, mine }: { mon: MonView; mine: boolean }) {
         {mon.tera && <TypePill type={mon.tera} size="xs" />}
       </div>
       <HpBar value={mon.hp} max={mon.maxhp} />
-      {/* Keyed by the mon so a switch-in shows its HP at once instead of counting up from the last mon's. */}
-      {mine && <div className="mt-0.5 text-right font-display text-sm font-bold tabular-nums"><TweenNumber key={mon.nick ?? mon.species} value={mon.hp} />/{mon.maxhp}</div>}
+      {mine && <div className="mt-0.5 text-right">{number}</div>}
       <BoostChips boosts={mon.boosts} className="mt-1" />
     </div>
   );
@@ -320,11 +342,11 @@ function TweenNumber({ value, ms = 400 }: { value: number; ms?: number }) {
   return <>{shown}</>;
 }
 
-function FieldSprite({ mon, side, size }: { mon: MonView; side: 'p1' | 'p2'; size: number }) {
-  // Phones land around 115-125 px: 190 x 0.62 for the foe, 230 x 0.54 for your back sprite.
-  const phoneScale = side === 'p2' ? 'scale-[0.62]' : 'scale-[0.54]';
+function FieldSprite({ mon, side, size, phone }: { mon: MonView; side: 'p1' | 'p2'; size: number; phone: boolean }) {
+  // Phones (portrait or landscape) land around 115-125 px: 190 x 0.62 for the foe, 230 x 0.54 for your back sprite.
+  const scale = phone ? (side === 'p2' ? 'scale-[0.62]' : 'scale-[0.54]') : 'scale-90 lg:scale-100';
   return (
-    <div className={`battle-sprite anim-pick-in origin-bottom ${phoneScale} sm:scale-90 lg:scale-100 ${mon.fainted ? 'is-fainted' : ''}`}>
+    <div className={`battle-sprite anim-pick-in origin-bottom ${scale} ${mon.fainted ? 'is-fainted' : ''}`}>
       {/* The inner wrapper takes the hit flash / glow classes, so they never fight the scale transform above. */}
       <div data-fx={side}>
         <PokeSprite name={mon.species} side={side} size={size} />
@@ -344,7 +366,9 @@ function SpriteHit({ mon, side, index, bind, children }: { mon: MonView; side: S
   );
 }
 
-function Field({ view, bind, fx, effectsOn }: { view: FieldView; bind: BindFn; fx: Ref<FxHandle>; effectsOn: boolean }) {
+function Field({ view, bind, fx, effectsOn, phone, landscape }: {
+  view: FieldView; bind: BindFn; fx: Ref<FxHandle>; effectsOn: boolean; phone: boolean; landscape: boolean;
+}) {
   const foe = activeMon(view, 'p2');
   const me = activeMon(view, 'p1');
   const chips = [
@@ -366,26 +390,36 @@ function Field({ view, bind, fx, effectsOn }: { view: FieldView; bind: BindFn; f
           {chips.map((c) => <span key={c} className="rounded bg-cream-ink/75 px-1.5 text-[10px] font-bold text-cream">{c}</span>)}
         </div>
       )}
-      {/* opponent: HP box top-left, front sprite top-right on its platform */}
-      {foe && <div className="absolute left-2 top-2 z-10 w-[46%] max-w-[15rem] sm:left-3 sm:top-3 sm:w-[42%]"><HpBox mon={foe} mine={false} /></div>}
-      <div className="battle-platform right-[6%] top-[40%] h-[15%] w-[36%]" />
-      <div className="absolute right-[12%] top-[8%] flex w-[24%] justify-center">
+      {/* opponent: HP box top-left, front sprite top-right on its platform. Landscape phones: the field is wide and
+          short, so the boxes are compact and the sprites sit further out, clear of the opposite box. */}
+      {foe && (
+        <div className={`absolute z-10 ${landscape ? 'left-2 top-2 w-[40%] max-w-[13rem]' : 'left-3 top-3 w-[42%] max-w-[15rem] phone:left-2 phone:top-2 phone:w-[46%]'}`}>
+          <HpBox mon={foe} mine={false} compact={landscape} />
+        </div>
+      )}
+      <div className={`battle-platform h-[15%] w-[36%] ${landscape ? 'right-[4%] top-[43%]' : 'right-[6%] top-[40%]'}`} />
+      {/* The sprite scales from its bottom edge, so the landscape slot is anchored by its bottom (58% down the field). */}
+      <div className={`absolute flex w-[24%] justify-center ${landscape ? 'right-[10%] bottom-[42%]' : 'right-[12%] top-[8%]'}`}>
         {foe && (
           <SpriteHit mon={foe} side="p2" index={view.sides.p2.active} bind={bind}>
-            <FieldSprite key={`${foe.nick}|${foe.species}`} mon={foe} side="p2" size={190} />
+            <FieldSprite key={`${foe.nick}|${foe.species}`} mon={foe} side="p2" size={190} phone={phone} />
           </SpriteHit>
         )}
       </div>
       {/* you: back sprite bottom-left, HP box bottom-right */}
       <div className="battle-platform -bottom-[6%] left-[2%] h-[20%] w-[44%]" />
-      <div className="absolute bottom-0 left-[6%] flex w-[36%] justify-center">
+      <div className={`absolute bottom-0 flex w-[36%] justify-center ${landscape ? 'left-[4%]' : 'left-[6%]'}`}>
         {me && (
           <SpriteHit mon={me} side="p1" index={view.sides.p1.active} bind={bind}>
-            <FieldSprite key={`${me.nick}|${me.species}`} mon={me} side="p1" size={230} />
+            <FieldSprite key={`${me.nick}|${me.species}`} mon={me} side="p1" size={230} phone={phone} />
           </SpriteHit>
         )}
       </div>
-      {me && <div className="absolute bottom-2 right-2 z-10 w-[46%] max-w-[15rem] sm:bottom-3 sm:right-3 sm:w-[42%]"><HpBox mon={me} mine /></div>}
+      {me && (
+        <div className={`absolute z-10 ${landscape ? 'bottom-2 right-2 w-[40%] max-w-[13rem]' : 'bottom-3 right-3 w-[42%] max-w-[15rem] phone:bottom-2 phone:right-2 phone:w-[46%]'}`}>
+          <HpBox mon={me} mine compact={landscape} />
+        </div>
+      )}
     </div>
   );
 }
@@ -396,14 +430,14 @@ function TeamStrip({ side, sideId, bind, tone, label, extra }: {
   const slots: (MonView | null)[] = [...side.team];
   while (slots.length < 6) slots.push(null);
   return (
-    <div className={`flex items-center gap-2 max-md:gap-1.5 ${tone === 'opp' ? 'flex-row-reverse' : ''}`}>
-      <span className={`min-w-0 truncate font-display text-sm font-bold max-md:text-xs ${tone === 'you' ? 'text-you' : 'text-opp'}`}>{label}</span>
-      <div className="flex shrink-0 gap-1 max-md:gap-0.5">
+    <div className={`flex items-center gap-2 phone:gap-1.5 ${tone === 'opp' ? 'flex-row-reverse' : ''}`}>
+      <span className={`min-w-0 truncate font-display text-sm font-bold phone:text-xs ${tone === 'you' ? 'text-you' : 'text-opp'}`}>{label}</span>
+      <div className="flex shrink-0 gap-1 phone:gap-0.5">
         {slots.slice(0, 6).map((m, i) => (
           <SlotTag
             key={i}
             hit={m ? { ...bind({ side: sideId, index: i }), 'aria-label': `${displayName(m.species)} info` } : undefined}
-            className={`flex h-9 w-10 items-center justify-center overflow-hidden rounded-md max-md:h-7 max-md:w-8 [&>[role=img]]:max-md:scale-75 ${
+            className={`flex h-9 w-10 items-center justify-center overflow-hidden rounded-md phone:h-7 phone:w-8 [&>[role=img]]:phone:scale-75 ${
               m && side.active === i
                 ? `border-2 ${tone === 'you' ? 'border-you bg-you-soft' : 'border-opp bg-opp-soft'}`
                 : 'border border-edge bg-panel-inset'
@@ -442,7 +476,7 @@ function ActionPanel({ request, onChoose, onForfeit }: ChoiceProps & { onForfeit
   if (request.teamPreview) return <LeadPicker request={request} onChoose={onChoose} />;
   if (request.forceSwitch?.some(Boolean)) {
     return (
-      <div className="dialogue space-y-3 px-4 py-3 max-md:space-y-2 max-md:px-3 max-md:py-2.5">
+      <div className="dialogue space-y-3 px-4 py-3 phone:space-y-2 phone:px-3 phone:py-2.5">
         <div className="font-display text-lg font-bold">Choose who comes in next.</div>
         <Bench request={request} onChoose={onChoose} />
       </div>
@@ -482,14 +516,14 @@ function MovePanel({ request, onChoose, onForfeit }: ChoiceProps & { onForfeit: 
     );
   }
   return (
-    <div className="dialogue space-y-3 px-4 py-3 max-md:space-y-2 max-md:px-2.5 max-md:py-2.5">
+    <div className="dialogue space-y-3 px-4 py-3 phone:space-y-2 phone:px-2.5 phone:py-2.5">
       {/* Phones: the bench opens as a bottom sheet over the move grid. */}
       {mode === 'switch' && isMobile && (
         <Sheet title="Switch to…" onClose={() => setMode('moves')}>
           <Bench request={request} onChoose={onChoose} />
         </Sheet>
       )}
-      <div className="grid grid-cols-2 gap-2 max-md:gap-1.5">
+      <div className="grid grid-cols-2 gap-2 phone:gap-1.5">
         {(active?.moves ?? []).map((m, i) => {
           const move = dex9.moves.get(m.id);
           const type = move.exists ? move.type : 'Normal';
@@ -502,11 +536,11 @@ function MovePanel({ request, onChoose, onForfeit }: ChoiceProps & { onForfeit: 
                 type="button"
                 disabled={disabled}
                 onClick={() => onChoose(`move ${i + 1}${suffix(i)}`)}
-                className={`w-full rounded-lg border-2 px-3 py-2 text-left text-white shadow-[0_3px_0_rgb(0_0_0/0.3)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:grayscale max-md:flex max-md:min-h-14 max-md:flex-col max-md:justify-between max-md:px-2 max-md:py-1.5 ${zOn ? 'border-poke-yellow' : 'border-edge-dark'}`}
+                className={`w-full rounded-lg border-2 px-3 py-2 text-left text-white shadow-[0_3px_0_rgb(0_0_0/0.3)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:grayscale phone:flex phone:min-h-14 phone:flex-col phone:justify-between phone:px-2 phone:py-1.5 ${zOn ? 'border-poke-yellow' : 'border-edge-dark'}`}
                 style={{ background: typeColor(type) }}
               >
-                <div className={`truncate font-display text-lg font-bold leading-tight [text-shadow:0_1px_2px_rgb(0_0_0/0.6)] max-md:text-base ${z ? 'pr-9' : ''}`}>{zOn && z ? z.move : m.move}</div>
-                <div className="flex justify-between gap-1 text-xs font-bold [text-shadow:0_1px_2px_rgb(0_0_0/0.6)] max-md:text-[11px]">
+                <div className={`truncate font-display text-lg font-bold leading-tight [text-shadow:0_1px_2px_rgb(0_0_0/0.6)] phone:text-base ${z ? 'pr-9' : ''}`}>{zOn && z ? z.move : m.move}</div>
+                <div className="flex justify-between gap-1 text-xs font-bold [text-shadow:0_1px_2px_rgb(0_0_0/0.6)] phone:text-[11px]">
                   <span className="uppercase">{zOn ? `Z-Move · ${type}` : type}</span>
                   {m.maxpp !== undefined && <span className="tabular-nums">PP {m.pp ?? m.maxpp}/{m.maxpp}</span>}
                 </div>
@@ -527,7 +561,7 @@ function MovePanel({ request, onChoose, onForfeit }: ChoiceProps & { onForfeit: 
           );
         })}
       </div>
-      <div className="flex flex-wrap items-center gap-2 max-md:grid max-md:auto-cols-fr max-md:grid-flow-col max-md:gap-1.5 max-md:[&>button]:min-h-11 max-md:[&>button]:px-1 max-md:[&>button]:text-xs">
+      <div className="flex flex-wrap items-center gap-2 phone:grid phone:auto-cols-fr phone:grid-flow-col phone:gap-1.5 phone:[&>button]:min-h-11 phone:[&>button]:px-1 phone:[&>button]:text-xs">
         <GameButton size="sm" variant="secondary" disabled={trapped} onClick={() => setMode('switch')} title={trapped ? 'Trapped' : undefined}>
           SWITCH
         </GameButton>
@@ -539,7 +573,7 @@ function MovePanel({ request, onChoose, onForfeit }: ChoiceProps & { onForfeit: 
             className={`rounded-lg border-2 px-3 py-1.5 font-display text-sm font-bold ${tera ? 'border-poke-yellow text-white' : 'border-cream-edge bg-cream-mid text-cream-ink hover:brightness-105'}`}
             style={tera ? { background: typeColor(teraType) } : undefined}
           >
-            TERA <span className="max-md:hidden">{teraType.toUpperCase()} </span>{tera ? 'ON' : 'OFF'}
+            TERA <span className="phone:hidden">{teraType.toUpperCase()} </span>{tera ? 'ON' : 'OFF'}
           </button>
         )}
         {canMega && (
@@ -553,7 +587,7 @@ function MovePanel({ request, onChoose, onForfeit }: ChoiceProps & { onForfeit: 
             MEGA {megaOn ? 'ON' : 'OFF'}
           </button>
         )}
-        <GameButton size="sm" variant="danger" className="ml-auto max-md:ml-0" onClick={onForfeit}>FORFEIT</GameButton>
+        <GameButton size="sm" variant="danger" className="ml-auto phone:ml-0" onClick={onForfeit}>FORFEIT</GameButton>
       </div>
     </div>
   );
@@ -573,7 +607,7 @@ function Bench({ request, onChoose }: ChoiceProps) {
             type="button"
             disabled={p.active || fainted}
             onClick={() => onChoose(`switch ${i + 1}`)}
-            className="flex items-center gap-2 rounded-lg border-2 border-edge bg-panel px-2 py-1.5 text-left text-ink hover:border-poke-yellow disabled:cursor-not-allowed disabled:opacity-45 max-md:min-h-14"
+            className="flex items-center gap-2 rounded-lg border-2 border-edge bg-panel px-2 py-1.5 text-left text-ink hover:border-poke-yellow disabled:cursor-not-allowed disabled:opacity-45 phone:min-h-14"
           >
             <PokeIcon name={speciesOf(p)} faded={fainted} />
             <div className="min-w-0 flex-1">
@@ -598,8 +632,8 @@ function LeadPicker({ request, onChoose }: ChoiceProps) {
     onChoose(`team ${[...order, ...rest].join('')}`);
   };
   return (
-    <div className="dialogue space-y-3 px-4 py-3 max-md:space-y-2 max-md:px-3 max-md:py-2.5">
-      <div className="font-display text-lg font-bold max-md:text-base">Pick your lead, then more to set the order.</div>
+    <div className="dialogue space-y-3 px-4 py-3 phone:space-y-2 phone:px-3 phone:py-2.5">
+      <div className="font-display text-lg font-bold phone:text-base">Pick your lead, then more to set the order.</div>
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
         {mons.map((p, i) => {
           const pos = order.indexOf(i + 1);
@@ -623,8 +657,8 @@ function LeadPicker({ request, onChoose }: ChoiceProps) {
         })}
       </div>
       <div className="flex gap-2">
-        <GameButton variant="ghost" size="sm" onClick={() => setOrder([])} disabled={!order.length} className="max-md:min-h-11">RESET</GameButton>
-        <GameButton className="ml-auto max-md:min-h-11 max-md:flex-1" disabled={!order.length} onClick={send}>BATTLE!</GameButton>
+        <GameButton variant="ghost" size="sm" onClick={() => setOrder([])} disabled={!order.length} className="phone:min-h-11">RESET</GameButton>
+        <GameButton className="ml-auto phone:min-h-11 phone:flex-1" disabled={!order.length} onClick={send}>BATTLE!</GameButton>
       </div>
     </div>
   );
@@ -638,11 +672,11 @@ function ResultBanner({ result, live }: { result: MatchResult; live: LiveBattle 
   const mine = result.remaining[live.human.id] ?? 0;
   const theirs = result.remaining[live.opp.id] ?? 0;
   return (
-    <div className="dialogue anim-pick-in flex flex-wrap items-center gap-4 px-5 py-4 max-md:gap-2 max-md:px-4 max-md:py-3">
-      <div className={`font-display text-3xl font-bold max-md:text-2xl ${won ? 'text-win' : 'text-loss'}`}>
+    <div className="dialogue anim-pick-in flex flex-wrap items-center gap-4 px-5 py-4 phone:gap-2 phone:px-4 phone:py-3">
+      <div className={`font-display text-3xl font-bold phone:text-2xl ${won ? 'text-win' : 'text-loss'}`}>
         {won ? 'YOU WIN' : 'YOU LOSE'} {mine}-{theirs}
       </div>
-      <GameButton className="ml-auto max-md:ml-0 max-md:w-full max-md:min-h-12" size="lg" disabled={sent} onClick={() => { setSent(true); live.finish(); }}>
+      <GameButton className="ml-auto phone:ml-0 phone:w-full phone:min-h-12" size="lg" disabled={sent} onClick={() => { setSent(true); live.finish(); }}>
         CONTINUE
       </GameButton>
     </div>
