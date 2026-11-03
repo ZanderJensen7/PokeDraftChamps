@@ -68,6 +68,11 @@ Each line is one job. Sessions are started from the top; three at a time at most
     Tera/Mega pills in the battle log; the phone hover tap-sheet; attack-effect sizes and sound levels live.
 
 ## Done log (from the old Next section)
+- DONE 2026-11-02: mon detail sheet. Engine `prep/monDetail.ts` (card with ability descriptions, defensive type row
+  + grouped lists, Lv100 speed, randoms roles, notable moves, full Gen 9 learnset; Megas read their base form);
+  app `components/MonDetail.tsx` (one dialog mounted in App, `useMonDetail().open(species, { coachId })`, tabs
+  Overview / Matchups / Moves / Likely sets / Scouting) opened from the draft (pick card "Full details", roster,
+  board, all teams), hub rosters, free agency, prep (rosters, matchup rows, sets, scouting), team editor, analytics.
 - DONE 2026-11-02: Daily League (one seed per UTC day, own save slot, score + share line, leaderboard via
   `packages/api`), Settings > Online (nickname, opt-in run summaries), Cloudflare Web Analytics beacon hook,
   Worker deploy workflow. Answers the traffic note.

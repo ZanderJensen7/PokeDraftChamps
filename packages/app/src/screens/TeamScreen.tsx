@@ -7,6 +7,8 @@ import {
   DialogueBox, GameButton, IconBadge, ItemIcon, ResponsiveDialog, Panel, PokeSprite, PriceBadge, RoleTags, StatBlock, TypePill, TypePills,
 } from '../components/ui';
 import { displayName, rolesOf } from '../game/names';
+import { MonDetailButton } from '../components/MonDetail';
+import { useMonDetail } from '../store/monDetail';
 import {
   EV_STAT_CAP, EV_TOTAL_CAP, STAT_LABEL, STAT_NAMES, TERA_TYPES, Z_CRYSTALS, allItems, blankSet, completeSet, learnableMoves,
   lockedStone, moveInfo, natureNames, natureSummary, speciesAbilities, zCrystalType,
@@ -303,9 +305,17 @@ export function TeamScreen() {
         </Panel>
 
         {current && mon && (
-          <Panel title={displayName(mon.name)} aside={rolesOf(current).length ? <RoleTags roles={rolesOf(current)} /> : undefined}>
+          <Panel
+            title={displayName(mon.name)}
+            aside={(
+              <span className="flex items-center gap-2">
+                {rolesOf(current).length > 0 && <RoleTags roles={rolesOf(current)} />}
+                <GameButton variant="ghost" size="sm" onClick={() => useMonDetail.getState().open(current.species, { coachId: human.id })}>Details</GameButton>
+              </span>
+            )}
+          >
             <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center">
-              <PokeSprite name={mon.name} size={112} />
+              <MonDetailButton species={current.species} coachId={human.id} className="self-center"><PokeSprite name={mon.name} size={112} /></MonDetailButton>
               <div className="flex-1 space-y-2">
                 <div className="flex items-center gap-2"><TypePills types={mon.types} /><PriceBadge points={mon.points} /></div>
                 <StatBlock stats={mon.baseStats} compact />

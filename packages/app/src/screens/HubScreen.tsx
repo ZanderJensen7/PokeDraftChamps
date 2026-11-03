@@ -9,6 +9,7 @@ import { Crest, DialogueBox, GameButton, IconBadge, Panel, PriceBadge, Responsiv
 import { StandingsTable } from '../components/StandingsTable';
 import { Bracket } from '../components/Bracket';
 import { CaptainPicker } from '../components/CaptainPicker';
+import { MonDetailButton, MonInfoButton } from '../components/MonDetail';
 import { hasPlayedMatches } from '../analytics/useAnalytics';
 import { abbrevOf, coachName, displayName, rolesOf, scoreLine } from '../game/names';
 
@@ -16,12 +17,13 @@ function RosterRow({ coach, tone }: { coach: Coach; tone: 'you' | 'opp' }) {
   return (
     <div className="flex flex-wrap gap-1">
       {coach.roster.map((r) => (
-        <IconBadge
-          key={r.species}
-          name={getDraftMon(r.species)?.name ?? r.species}
-          tone={tone}
-          roles={rolesOf(r)}
-        />
+        <MonDetailButton key={r.species} species={r.species} coachId={coach.id}>
+          <IconBadge
+            name={getDraftMon(r.species)?.name ?? r.species}
+            tone={tone}
+            roles={rolesOf(r)}
+          />
+        </MonDetailButton>
       ))}
     </div>
   );
@@ -131,7 +133,7 @@ function FreeAgency({ run, onClose }: { run: RunState; onClose: () => void }) {
               const m = getDraftMon(r.species);
               const on = drop === r.species;
               return (
-                <li key={r.species}>
+                <li key={r.species} className="flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => { setDrop(on ? null : r.species); setAdd(null); }}
@@ -141,6 +143,7 @@ function FreeAgency({ run, onClose }: { run: RunState; onClose: () => void }) {
                     <span className="flex-1 truncate font-semibold">{displayName(m?.name ?? r.species)}</span>
                     <PriceBadge points={m?.points ?? 0} />
                   </button>
+                  <MonInfoButton species={r.species} coachId={human.id} />
                 </li>
               );
             })}
@@ -157,7 +160,7 @@ function FreeAgency({ run, onClose }: { run: RunState; onClose: () => void }) {
               const ok = !!drop && m.points <= room && !conflictsWithRoster(keep, m.id);
               const on = add === m.id;
               return (
-                <li key={m.id}>
+                <li key={m.id} className="flex items-center gap-1">
                   <button
                     type="button"
                     disabled={!ok}
@@ -169,6 +172,7 @@ function FreeAgency({ run, onClose }: { run: RunState; onClose: () => void }) {
                     <TypePills types={m.types} size="xs" />
                     <PriceBadge points={m.points} />
                   </button>
+                  <MonInfoButton species={m.id} />
                 </li>
               );
             })}

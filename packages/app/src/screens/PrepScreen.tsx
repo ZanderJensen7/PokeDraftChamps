@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import type { PrepDoc, PrepMoveCategory, RosterEntry, RunState, SpeciesId } from '@pdc/engine';
+import type { CoachId, PrepDoc, PrepMoveCategory, RosterEntry, RunState, SpeciesId } from '@pdc/engine';
 import { getDraftMon, humanCoach, nextHumanMatch, opponentOf, threatSummary } from '@pdc/engine';
 import { useGame, validLineup, weekLabel } from '../store/useGame';
 import { Crest, DialogueBox, GameButton, IconBadge, Panel, PokeIcon, PokeSprite, RoleTags, Tabs, TypePill, TypePills } from '../components/ui';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { MatchupTable } from '../components/prep/MatchupTable';
+import { MonDetailButton } from '../components/MonDetail';
 import { displayName, displayText, rolesOf, speciesName, spriteName } from '../game/names';
 
 type Tab = 'matchup' | 'speed' | 'moves' | 'sets' | 'scout';
@@ -135,7 +136,7 @@ function MovesTab({ doc }: { doc: PrepDoc }) {
   );
 }
 
-function SetsTab({ doc, roster }: { doc: PrepDoc; roster: readonly RosterEntry[] }) {
+function SetsTab({ doc, roster, coachId }: { doc: PrepDoc; roster: readonly RosterEntry[]; coachId: CoachId }) {
   return (
     <div className="grid gap-3 md:grid-cols-2">
       {doc.opp.map((c) => {
@@ -143,7 +144,9 @@ function SetsTab({ doc, roster }: { doc: PrepDoc; roster: readonly RosterEntry[]
         return (
           <div key={c.species} className="rounded-lg bg-panel-inset p-3">
             <div className="mb-2 flex items-center gap-2">
-              <IconBadge name={spriteName(c.species)} tone="opp" roles={rolesOf(roster.find((r) => r.species === c.species) ?? c)} />
+              <MonDetailButton species={c.species} coachId={coachId}>
+                <IconBadge name={spriteName(c.species)} tone="opp" roles={rolesOf(roster.find((r) => r.species === c.species) ?? c)} />
+              </MonDetailButton>
               <span className="flex-1 font-display font-bold">{displayName(spriteName(c.species))}</span>
               <TypePills types={c.types} size="xs" />
             </div>
@@ -170,7 +173,7 @@ function SetsTab({ doc, roster }: { doc: PrepDoc; roster: readonly RosterEntry[]
   );
 }
 
-function ScoutTab({ doc }: { doc: PrepDoc }) {
+function ScoutTab({ doc, coachId }: { doc: PrepDoc; coachId: CoachId }) {
   const ids = Object.keys(doc.scouted);
   if (ids.length === 0) {
     return <DialogueBox>Nothing yet. Once this coach has played battles, what they revealed shows up here.</DialogueBox>;
@@ -181,7 +184,7 @@ function ScoutTab({ doc }: { doc: PrepDoc }) {
         const s = doc.scouted[id]!;
         return (
           <div key={id} className="rounded-lg bg-panel-inset p-3 text-sm">
-            <div className="mb-1 flex items-center gap-2"><PokeIcon name={spriteName(id)} /><span className="font-display font-bold">{speciesName(id)}</span>
+            <div className="mb-1 flex items-center gap-2"><MonDetailButton species={id} coachId={coachId} className="flex items-center gap-2"><PokeIcon name={spriteName(id)} /><span className="font-display font-bold">{speciesName(id)}</span></MonDetailButton>
               <span className="ml-auto text-xs text-muted">brought {s.timesBrought}× · led {s.timesLed}×</span></div>
             {s.moves.length > 0 && <div><span className="text-muted">Moves: </span>{s.moves.join(', ')}</div>}
             {s.item && <div><span className="text-muted">Item: </span>{s.item}</div>}
@@ -315,7 +318,7 @@ function LineupPicker({ run }: { run: RunState }) {
             className="flex items-center gap-2 rounded-lg bg-you-soft px-2 py-0.5"
           >
             <span className="w-5 font-display font-bold text-muted">{i + 1}</span>
-            <IconBadge name={spriteName(id)} tone="you" roles={roles(id)} />
+            <MonDetailButton species={id} coachId={human.id}><IconBadge name={spriteName(id)} tone="you" roles={roles(id)} /></MonDetailButton>
             <span className="flex-1 truncate font-semibold">{speciesName(id)}{i === 0 && <span className="ml-2 text-xs font-bold text-poke-yellow">LEAD</span>}</span>
             <GameButton variant="ghost" size="sm" disabled={i === 0} onClick={() => move(i, i - 1)} aria-label={`Move ${speciesName(id)} up`}>▲</GameButton>
             <GameButton variant="ghost" size="sm" disabled={i === lineup.length - 1} onClick={() => move(i, i + 1)} aria-label={`Move ${speciesName(id)} down`}>▼</GameButton>
@@ -408,17 +411,17 @@ export function PrepScreen() {
                 <p className="text-muted">Loading…</p>
               ) : tab === 'matchup' ? (
                 <div className="space-y-4">
-                  <MatchupTable title="You" side="you" table={prep.matchup.you} />
-                  <MatchupTable title={opp.abbrev} side="opp" table={prep.matchup.opp} />
+                  <MatchupTable title="You" side="you" table={prep.matchup.you} coachId={human.id} />
+                  <MatchupTable title={opp.abbrev} side="opp" table={prep.matchup.opp} coachId={opp.id} />
                 </div>
               ) : tab === 'speed' ? (
                 <SpeedTab doc={prep} />
               ) : tab === 'moves' ? (
                 <MovesTab doc={prep} />
               ) : tab === 'sets' ? (
-                <SetsTab doc={prep} roster={opp.roster} />
+                <SetsTab doc={prep} roster={opp.roster} coachId={opp.id} />
               ) : (
-                <ScoutTab doc={prep} />
+                <ScoutTab doc={prep} coachId={opp.id} />
               )}
             </div>
           </Panel>
@@ -429,7 +432,9 @@ export function PrepScreen() {
           <Panel title={`${opp.abbrev} roster`}>
             <div className="flex flex-wrap gap-1">
               {opp.roster.map((r) => (
-                <IconBadge key={r.species} name={getDraftMon(r.species)?.name ?? r.species} tone="opp" roles={rolesOf(r)} />
+                <MonDetailButton key={r.species} species={r.species} coachId={opp.id}>
+                  <IconBadge name={getDraftMon(r.species)?.name ?? r.species} tone="opp" roles={rolesOf(r)} />
+                </MonDetailButton>
               ))}
             </div>
           </Panel>

@@ -1,7 +1,8 @@
-import type { PrepTeamMatchup } from '@pdc/engine';
+import type { CoachId, PrepTeamMatchup } from '@pdc/engine';
 import { ALL_TYPES } from '@pdc/engine';
 import { PokeIcon } from '../ui';
 import { speciesName, spriteName } from '../../game/names';
+import { MonDetailButton } from '../MonDetail';
 
 const TYPE_ABBR = (t: string) => t.slice(0, 3).toUpperCase();
 
@@ -39,6 +40,8 @@ interface MatchupTableProps {
   table: PrepTeamMatchup;
   /** Narrow-rail version (draft screen): icon-only rows, vertical type headers, tight cells. */
   compact?: boolean;
+  /** The team's coach: the detail sheet opened from a row shows their scouting. */
+  coachId?: CoachId;
 }
 
 function ImmunityNotes({ table }: { table: PrepTeamMatchup }) {
@@ -51,8 +54,8 @@ function ImmunityNotes({ table }: { table: PrepTeamMatchup }) {
 }
 
 /** Damage-taken type chart for one team: rows = mons, 18 type columns, STAB and Weak rows at the bottom. */
-export function MatchupTable({ title, side = 'you', table, compact }: MatchupTableProps) {
-  if (compact) return <CompactMatchupTable table={table} />;
+export function MatchupTable({ title, side = 'you', table, compact, coachId }: MatchupTableProps) {
+  if (compact) return <CompactMatchupTable table={table} coachId={coachId} />;
   return (
     <div>
       {title && <div className={`mb-1 font-display font-bold uppercase tracking-wide ${side === 'you' ? 'text-you' : 'text-opp'}`}>{title}: damage taken</div>}
@@ -72,7 +75,7 @@ export function MatchupTable({ title, side = 'you', table, compact }: MatchupTab
             {table.rows.map((r) => (
               <tr key={r.species} className="border-t border-edge-dark">
                 <th className="sticky left-0 z-10 bg-panel px-2 py-0.5 text-left font-semibold whitespace-nowrap">
-                  <span className="flex items-center gap-1"><PokeIcon name={spriteName(r.species)} />{speciesName(r.species)}</span>
+                  <MonDetailButton species={r.species} coachId={coachId} className="flex items-center gap-1"><PokeIcon name={spriteName(r.species)} />{speciesName(r.species)}</MonDetailButton>
                 </th>
                 {ALL_TYPES.map((t) => {
                   const m = r.byType[t] ?? 1;
@@ -99,7 +102,7 @@ export function MatchupTable({ title, side = 'you', table, compact }: MatchupTab
   );
 }
 
-function CompactMatchupTable({ table }: { table: PrepTeamMatchup }) {
+function CompactMatchupTable({ table, coachId }: { table: PrepTeamMatchup; coachId?: CoachId }) {
   return (
     <div>
       <div className="overflow-x-auto overscroll-x-contain rounded-lg border-2 border-edge-dark">
@@ -123,7 +126,9 @@ function CompactMatchupTable({ table }: { table: PrepTeamMatchup }) {
             {table.rows.map((r) => (
               <tr key={r.species} className="border-t border-edge-dark">
                 <th scope="row" className="sticky left-0 z-10 w-10 bg-panel p-0 text-left">
-                  <PokeIcon name={spriteName(r.species)} title={speciesName(r.species)} className="block" />
+                  <MonDetailButton species={r.species} coachId={coachId} className="block">
+                    <PokeIcon name={spriteName(r.species)} title={speciesName(r.species)} className="block" />
+                  </MonDetailButton>
                 </th>
                 {ALL_TYPES.map((t) => {
                   const m = r.byType[t] ?? 1;

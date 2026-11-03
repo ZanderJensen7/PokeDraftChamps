@@ -3,6 +3,8 @@ import type { PriceSuggestion, RunState, SpeciesAggregate } from '@pdc/engine';
 import { getDraftMon, humanCoach } from '@pdc/engine';
 import { useGame } from '../store/useGame';
 import { DialogueBox, GameButton, Panel, PokeIcon, PriceBadge, Tabs, TypePills } from '../components/ui';
+import { MonDetailButton } from '../components/MonDetail';
+import { useMonDetail } from '../store/monDetail';
 import { displayName } from '../game/names';
 import { useAnalytics } from '../analytics/useAnalytics';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -145,6 +147,7 @@ function SpeciesTable({ rows }: { rows: SpeciesAggregate[] }) {
                       {mon && <TypePills types={mon.types} size="xs" />}
                       {small && <span className="text-xs text-muted">small sample</span>}
                       <span className="ml-auto"><GimmickBadges a={a} /></span>
+                      <GameButton variant="ghost" size="sm" onClick={() => useMonDetail.getState().open(a.species)} className="min-h-11">Details</GameButton>
                     </div>
                     <dl className="grid grid-cols-5 gap-1 text-center">
                       {stats(a).map(([k, v]) => (
@@ -199,7 +202,7 @@ function SpeciesTable({ rows }: { rows: SpeciesAggregate[] }) {
               <tr key={a.species} className={`${i % 2 ? 'bg-panel' : 'bg-panel-hi/40'} border-b border-edge-dark ${small ? 'opacity-60' : ''}`}>
                 <td className="px-2 py-1">
                   <div className="flex min-w-0 items-center gap-2">
-                    <PokeIcon name={a.name} />
+                    <MonDetailButton species={a.species}><PokeIcon name={a.name} /></MonDetailButton>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="truncate font-semibold">{displayName(a.name)}</span>
@@ -249,7 +252,7 @@ function PriceWatch({ suggestions, gamesPlayed }: { suggestions: PriceSuggestion
                 className={`flex flex-col gap-1 rounded-lg border-2 bg-panel-inset px-3 py-2 sm:flex-row sm:items-center sm:gap-3 ${under ? 'border-opp' : 'border-win'}`}
               >
                 <div className="flex shrink-0 items-center gap-2 sm:w-72">
-                  <PokeIcon name={s.name} />
+                  <MonDetailButton species={s.species}><PokeIcon name={s.name} /></MonDetailButton>
                   <span className="min-w-0 flex-1 truncate font-semibold">{displayName(s.name)}</span>
                   <span className="flex shrink-0 items-center gap-1 font-display font-bold">
                     <PriceBadge points={s.price} />

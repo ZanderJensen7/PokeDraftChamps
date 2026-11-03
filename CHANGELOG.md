@@ -12,6 +12,9 @@ every package.json. The build stamp shows the version and short commit in the co
   results (settings, result, score; never battles or names).
 - Backend (`packages/api`): a Cloudflare Worker for the daily leaderboard and the opt-in run summaries, plus
   an optional cookieless page-view beacon. Neither is needed to play.
+- Mon detail sheet: tap a mon's icon or name on the draft board, hub rosters, prep doc, team editor, free agency
+  or analytics for its abilities, base stats, speed tiers, type matchups, notable moves, full learnset (with a
+  filter), likely sets and, for a league coach's mon, what their battles have revealed.
 
 ## v0.3.1 — 2026-11-02
 
