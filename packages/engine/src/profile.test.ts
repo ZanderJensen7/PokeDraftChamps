@@ -104,6 +104,10 @@ describe('profile', () => {
     expect(pd.runs[0]!.daily).toBe('2026-11-02');
     const top = { ...champ, config: { ...champ.config, stake: MAX_STAKE } };
     expect(recordRunEnd({ ...emptyProfile(), stakeUnlocked: MAX_STAKE }, top, 1).stakeUnlocked).toBe(MAX_STAKE);
+    const custom = { ...champ, config: { ...champ.config, custom: true } };
+    const pc = recordRunEnd(emptyProfile(), custom, 1);
+    expect(pc.stakeUnlocked).toBe(1);
+    expect(careerStats(pc)).toMatchObject({ titles: 1, bestStakeWon: 0 });
   });
 
   it('caps the run list newest last while trophies keep counting', () => {

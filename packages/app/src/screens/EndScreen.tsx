@@ -166,7 +166,7 @@ export function EndScreen() {
         <GameButton variant="secondary" onClick={() => go('analytics')}>Full analytics</GameButton>
         {daily
           ? <GameButton size="lg" onClick={() => go('daily')}>Back to Daily League</GameButton>
-          : <GameButton size="lg" onClick={() => go('setup')}>New league</GameButton>}
+          : <GameButton size="lg" onClick={() => go(run.config.custom ? 'setup' : 'badgerun')}>New league</GameButton>}
         <GameButton variant="ghost" onClick={() => go('title')}>Title screen</GameButton>
       </div>
     </div>

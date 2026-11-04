@@ -1,6 +1,6 @@
 import { DEFAULT_LEAGUE_CONFIG, type LeagueConfig } from '../types';
 import { validateLeagueConfig } from '../league/config';
-import { applyStake, MAX_STAKE, rulesAt, STAKES } from './stakes';
+import { applyStake, BADGE_FORMATS, badgeRunConfig, MAX_STAKE, rulesAt, STAKES } from './stakes';
 
 describe('stakes', () => {
   it('numbers the ladder 1..MAX_STAKE with stake 1 the base game', () => {
@@ -50,6 +50,19 @@ describe('stakes', () => {
     expect(applyStake({ ...DEFAULT_LEAGUE_CONFIG, teams: 12, playoffTeams: 8, stake: at }).playoffTeams).toBe(2);
     expect(applyStake({ ...DEFAULT_LEAGUE_CONFIG, teams: 8, playoffTeams: 4, stake: at }).playoffTeams).toBe(2);
     expect(applyStake({ ...DEFAULT_LEAGUE_CONFIG, teams: 16, playoffTeams: 8, stake: 1 }).playoffTeams).toBe(8);
+  });
+
+  it('has a valid Badge Run format per stake that never shrinks the league', () => {
+    expect(BADGE_FORMATS).toHaveLength(MAX_STAKE);
+    for (let stake = 1; stake <= MAX_STAKE; stake++) {
+      const cfg = badgeRunConfig(stake);
+      expect(validateLeagueConfig(cfg), `stake ${stake}`).toEqual([]);
+      expect(cfg.stake).toBe(stake);
+      expect(cfg.custom).toBeUndefined();
+      expect(cfg.weeks).toBeLessThan(cfg.teams);
+      expect(applyStake(cfg)).toEqual(cfg);
+      if (stake > 1) expect(cfg.teams).toBeGreaterThanOrEqual(badgeRunConfig(stake - 1).teams);
+    }
   });
 
   it('validateLeagueConfig wants an integer stake in range', () => {

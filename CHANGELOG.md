@@ -6,6 +6,12 @@ every package.json. The build stamp shows the version and short commit in the co
 
 ## Unreleased
 
+- Badge Run is the main way to play: pick a badge, name your team, draft. Each badge sets the whole league, from
+  8 coaches over 7 weeks at the Rookie Badge up to 16 coaches with a top-8 bracket, and the title screen leads
+  with it, showing your next badge and how many you have earned. Every setting now lives in the new Custom League,
+  which plays any unlocked badge's rules, counts in the Hall of Fame and never earns or unlocks a badge. Custom
+  unlocks once you earn the Rookie Badge (it stays open if you have played before). The badge card says "Losses
+  allowed" in place of "Loss cap".
 - Stakes are now Badges: ten badges (Rookie to Legend), each with its own emblem. The setup screen shows them as a
   badge case on a track, earned ones in gold and locked ones as padlocked ghosts. Hover, focus or click any badge,
   locked ones too, to see the rule it adds, the rules already in force and the loss cap, playoffs and budgets it

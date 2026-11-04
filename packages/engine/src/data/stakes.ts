@@ -1,6 +1,8 @@
-// Stakes (ascension): the difficulty ladder. Win the title at stake N to unlock N+1. Each stake adds exactly one
-// rule and keeps every rule below it; stakes never change battle math and never use mutators (docs/ROGUELIKE.md).
-import type { LeagueConfig } from '../types';
+// Stakes (ascension; "Badges" to players): the difficulty ladder. Win the title at stake N to unlock N+1. Each stake
+// adds exactly one rule and keeps every rule below it; stakes never change battle math and never use mutators
+// (docs/ROGUELIKE.md). A Badge Run also plays the stake's fixed league format (BADGE_FORMATS); a custom league
+// picks its own format, may play any unlocked stake's rules, and never earns or unlocks a stake.
+import { DEFAULT_LEAGUE_CONFIG, type LeagueConfig } from '../types';
 
 export interface StakeRules {
   /** Regular-season losses allowed, or null = the league's own setting. */
@@ -36,7 +38,7 @@ const BASE_RULES: StakeRules = {
 
 /** The ladder, cumulative from stake 1 upward: stake N plays every patch from 1 to N, later ones override. */
 export const STAKES: readonly Stake[] = [
-  { stake: 1, label: 'Base game', rule: 'The league as you set it up.', patch: {} },
+  { stake: 1, label: 'Base game', rule: 'Standard rules: lose 5 regular-season matches and the run ends.', patch: {} },
   { stake: 2, label: 'Loss cap 3', rule: 'The fourth regular-season loss ends the run.', patch: { lossCap: 3 } },
   { stake: 3, label: 'AI drafts by fit', rule: 'AI coaches draft for team fit, not just price.', patch: { aiDraftFit: true } },
   { stake: 4, label: 'AI knows your sets', rule: 'The battle AI reads your real moves, items and abilities.', patch: { aiKnowsSets: true } },
@@ -49,6 +51,28 @@ export const STAKES: readonly Stake[] = [
 ];
 
 export const MAX_STAKE = STAKES.length;
+
+/** The league shape a Badge Run plays at each stake (index 0 = stake 1): the stage grows as the ladder climbs. */
+export type BadgeFormat = Pick<LeagueConfig, 'teams' | 'weeks' | 'playoffTeams'>;
+
+export const BADGE_FORMATS: readonly BadgeFormat[] = [
+  { teams: 8, weeks: 7, playoffTeams: 4 },
+  { teams: 8, weeks: 7, playoffTeams: 4 },
+  { teams: 8, weeks: 7, playoffTeams: 4 },
+  { teams: 12, weeks: 9, playoffTeams: 8 },
+  { teams: 12, weeks: 9, playoffTeams: 8 },
+  { teams: 12, weeks: 9, playoffTeams: 4 },
+  { teams: 16, weeks: 9, playoffTeams: 8 },
+  { teams: 16, weeks: 9, playoffTeams: 8 },
+  { teams: 16, weeks: 9, playoffTeams: 8 },
+  { teams: 16, weeks: 9, playoffTeams: 8 },
+];
+
+/** The config a Badge Run at `stake` plays: standard rules, the stake's format, then the stake's own tightening. */
+export function badgeRunConfig(stake: number): LeagueConfig {
+  const n = Math.max(1, Math.min(MAX_STAKE, Math.floor(stake) || 1));
+  return applyStake({ ...DEFAULT_LEAGUE_CONFIG, ...BADGE_FORMATS[n - 1]!, stake: n });
+}
 
 /** The rules in force at `stake` (clamped to 1..MAX_STAKE): every patch up to it, in order. */
 export function rulesAt(stake: number): StakeRules {
