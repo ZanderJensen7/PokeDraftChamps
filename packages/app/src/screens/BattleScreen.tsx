@@ -12,6 +12,8 @@ import { getBridge } from '../game/bridge';
 import { useIsLandscapePhone, useIsMobile } from '../hooks/useIsMobile';
 import { displayName } from '../game/names';
 import { dex9 } from '../game/sets';
+import { moveRow } from '@pdc/engine';
+import { CategoryIcon, MoveDetails } from '../components/MoveTable';
 import type { BattleNames, LiveBattle } from '../battle/session';
 import { conditionName } from '../battle/conditions';
 import {
@@ -542,6 +544,27 @@ function ActionPanel({ request, names, onChoose, onForfeit }: ChoiceProps & { on
   return <MovePanel request={request} names={names} onChoose={onChoose} onForfeit={onForfeit} />;
 }
 
+/** A move's numbers and full effect text, for the battle's move buttons. */
+function MoveCard({ name, title }: { name: string; title?: boolean }) {
+  const row = moveRow(name);
+  if (!row) return null;
+  const stat = (label: string, value: string) => (
+    <span className="text-xs text-muted">{label} <span className="font-bold tabular-nums text-ink">{value}</span></span>
+  );
+  return (
+    <div className="space-y-2 text-ink">
+      <div className="flex flex-wrap items-center gap-2">
+        {title && <span className="font-display text-lg font-bold leading-none">{row.name}</span>}
+        <TypePill type={row.type} />
+        <CategoryIcon category={row.category} />
+        {stat('Power', row.category === 'Status' ? '—' : row.variablePower ? 'Var.' : String(row.power))}
+        {stat('Acc', row.accuracy === null ? '—' : String(row.accuracy))}
+      </div>
+      <MoveDetails row={row} />
+    </div>
+  );
+}
+
 function MovePanel({ request, names, onChoose, onForfeit }: ChoiceProps & { onForfeit: () => void }) {
   const [mode, setMode] = useState<'moves' | 'switch'>('moves');
   const [tera, setTera] = useState(false);
@@ -561,6 +584,15 @@ function MovePanel({ request, names, onChoose, onForfeit }: ChoiceProps & { onFo
   };
   const trapped = !!active?.trapped;
   const isMobile = useIsMobile();
+  // Move details: hover or focus on desktop, long-press on phones (a bottom sheet).
+  const [hovered, setHovered] = useState<number | null>(null);
+  const [sheetIdx, setSheetIdx] = useState<number | null>(null);
+  const press = useRef<{ timer: number; fired: boolean } | null>(null);
+  const endPress = () => { if (press.current) window.clearTimeout(press.current.timer); };
+  const shownMove = (i: number): string | undefined => {
+    const m = active?.moves[i];
+    return zSlot === i && zMoves[i] ? zMoves[i]!.move : m?.id;
+  };
   if (mode === 'switch' && !isMobile) {
     return (
       <div className="dialogue space-y-3 px-4 py-3">
@@ -580,7 +612,20 @@ function MovePanel({ request, names, onChoose, onForfeit }: ChoiceProps & { onFo
           <Bench request={request} names={names} onChoose={onChoose} />
         </Sheet>
       )}
-      <div className="grid grid-cols-2 gap-2 phone:gap-1.5">
+      {sheetIdx !== null && shownMove(sheetIdx) && (
+        <Sheet title={moveRow(shownMove(sheetIdx)!)?.name ?? 'Move'} onClose={() => setSheetIdx(null)}>
+          <MoveCard name={shownMove(sheetIdx)!} />
+        </Sheet>
+      )}
+      <div className="relative">
+      {!isMobile && hovered !== null && shownMove(hovered) && (
+        <div className={`pointer-events-none absolute bottom-full z-30 mb-2 w-[min(26rem,100%)] ${hovered % 2 ? 'right-0' : 'left-0'}`}>
+          <div className="rounded-xl border-2 border-edge-dark bg-panel p-3 text-left text-ink shadow-[0_6px_18px_rgb(0_0_0/0.45)]">
+            <MoveCard name={shownMove(hovered)!} title />
+          </div>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-2 phone:gap-1.5" onMouseLeave={() => setHovered(null)}>
         {(active?.moves ?? []).map((m, i) => {
           const move = dex9.moves.get(m.id);
           const type = move.exists ? move.type : 'Normal';
@@ -592,8 +637,23 @@ function MovePanel({ request, names, onChoose, onForfeit }: ChoiceProps & { onFo
               <button
                 type="button"
                 disabled={disabled}
-                onClick={() => onChoose(`move ${i + 1}${suffix(i)}`)}
-                className={`w-full rounded-lg border-2 px-3 py-2 text-left text-white shadow-[0_3px_0_rgb(0_0_0/0.3)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:grayscale phone:flex phone:min-h-14 phone:flex-col phone:justify-between phone:px-2 phone:py-1.5 ${zOn ? 'border-poke-yellow' : 'border-edge-dark'}`}
+                onClick={() => {
+                  if (press.current?.fired) { press.current = null; return; }
+                  onChoose(`move ${i + 1}${suffix(i)}`);
+                }}
+                onMouseEnter={() => setHovered(i)}
+                onFocus={() => setHovered(i)}
+                onBlur={() => setHovered(null)}
+                onPointerDown={(e) => {
+                  if (e.pointerType === 'mouse') return;
+                  endPress();
+                  press.current = { fired: false, timer: window.setTimeout(() => { if (press.current) press.current.fired = true; setSheetIdx(i); }, 420) };
+                }}
+                onPointerUp={endPress}
+                onPointerCancel={endPress}
+                onPointerLeave={endPress}
+                onContextMenu={(e) => e.preventDefault()}
+                className={`w-full select-none [-webkit-touch-callout:none] rounded-lg border-2 px-3 py-2 text-left text-white shadow-[0_3px_0_rgb(0_0_0/0.3)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:grayscale phone:flex phone:min-h-14 phone:flex-col phone:justify-between phone:px-2 phone:py-1.5 ${zOn ? 'border-poke-yellow' : 'border-edge-dark'}`}
                 style={{ background: typeColor(type) }}
               >
                 <div className={`truncate font-display text-lg font-bold leading-tight [text-shadow:0_1px_2px_rgb(0_0_0/0.6)] phone:text-base ${z ? 'pr-9' : ''}`}>{zOn && z ? z.move : m.move}</div>
@@ -617,6 +677,7 @@ function MovePanel({ request, names, onChoose, onForfeit }: ChoiceProps & { onFo
             </div>
           );
         })}
+      </div>
       </div>
       <div className="flex flex-wrap items-center gap-2 phone:grid phone:auto-cols-fr phone:grid-flow-col phone:gap-1.5 phone:[&>button]:min-h-11 phone:[&>button]:px-1 phone:[&>button]:text-xs">
         <GameButton size="sm" variant="secondary" disabled={trapped} onClick={() => setMode('switch')} title={trapped ? 'Trapped' : undefined}>

@@ -6,6 +6,10 @@ every package.json. The build stamp shows the version and short commit in the co
 
 ## Unreleased
 
+- Battle: hover a move button (long-press on phones) to see what it does: type, category, power, accuracy, PP,
+  priority, secondary effect chances ("10% chance to burn") and the full description.
+- Hub: the next match card has "Edit team", "Prep helper" and a big "Start battle" that goes straight to the
+  battle with your current six.
 - Guided prep: once your six are picked, the Lineup step offers "Edit manually" (the team editor), "Prep helper"
   (the optional Moves and EV steps) and a big "Start match". Coming back from the team editor returns you to the step
   you were on.
