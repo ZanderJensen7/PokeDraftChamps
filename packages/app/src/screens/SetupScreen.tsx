@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
 import type { LeagueConfig } from '@pdc/engine';
-import { applyStake, DEFAULT_LEAGUE_CONFIG, MAX_STAKE, minBudget, rulesAt, STAKES, validateLeagueConfig } from '@pdc/engine';
+import { applyStake, careerStats, DEFAULT_LEAGUE_CONFIG, MAX_STAKE, minBudget, rulesAt, STAKES, validateLeagueConfig } from '@pdc/engine';
 import { useGame } from '../store/useGame';
 import { useProfile } from '../store/profile';
-import { Crest, DialogueBox, GameButton, Panel, Segmented } from '../components/ui';
+import { BadgeEmblem, Crest, DialogueBox, GameButton, Panel, Segmented } from '../components/ui';
+import type { BadgeState } from '../components/ui';
+import { badgeLabel, badgeName, badgeOf } from '../game/badges';
 import { leagueCode, randomSeed, seedFromCode } from '../game/names';
 
 type Teams = LeagueConfig['teams'];
@@ -81,31 +83,126 @@ function Toggle({ label, on, onChange, hint }: { label: string; on: boolean; onC
   );
 }
 
-/** Stakes 1..MAX_STAKE; the ones above the unlocked stake are greyed out. */
-function StakePicker({ value, unlocked, onChange }: { value: number; unlocked: number; onChange: (v: number) => void }) {
+/**
+ * The badge case: every badge (stake) in a row, earned / open / locked. Hover, focus or click any of them to see what
+ * it brings, locked ones too; only an unlocked badge can be picked for the run.
+ */
+function BadgeCase({ value, unlocked, titlesPerStake, config, onChange }: {
+  value: number; unlocked: number; titlesPerStake: number[]; config: LeagueConfig; onChange: (v: number) => void;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const [pinned, setPinned] = useState<number | null>(null);
+  const shown = hover ?? pinned ?? value;
+  const stateOf = (stake: number): BadgeState =>
+    stake > unlocked ? 'locked' : (titlesPerStake[stake - 1] ?? 0) > 0 ? 'earned' : 'open';
+  const state = stateOf(shown);
+  const effective = applyStake({ ...config, stake: shown });
+  const rules = rulesAt(shown);
+  const { rule } = STAKES[shown - 1]!;
+  const earnedCount = titlesPerStake.filter((n) => n > 0).length;
+
   return (
-    <div role="radiogroup" aria-label="Stake" className="grid grid-cols-5 gap-2 sm:grid-cols-10">
-      {STAKES.map(({ stake, label }) => {
-        const on = stake === value;
-        const locked = stake > unlocked;
-        return (
-          <button
-            key={stake}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            disabled={locked}
-            aria-label={locked ? `Stake ${stake}, locked: win stake ${stake - 1} to unlock` : `Stake ${stake}: ${label}`}
-            title={locked ? `Win stake ${stake - 1} to unlock` : label}
-            onClick={() => onChange(stake)}
-            className={`focus-ring min-h-11 rounded-xl border-2 border-b-4 px-1 py-2 text-center transition-transform duration-150 active:translate-y-0.5
-              ${on ? 'border-poke-yellow bg-panel-hi' : 'border-edge bg-panel-inset hover:bg-panel'}
-              disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-panel-inset disabled:active:translate-y-0`}
-          >
-            <span className={`font-display text-2xl font-bold leading-none max-sm:text-xl ${on ? 'text-poke-yellow' : 'text-ink'}`}>{stake}</span>
-          </button>
-        );
-      })}
+    <div>
+      <div className="mb-3 flex items-center justify-between gap-2 text-sm">
+        <span className="text-muted">Win the title to earn a badge and unlock the next.</span>
+        <span className="shrink-0 font-display font-bold uppercase tracking-wide text-poke-yellow">{earnedCount}/{MAX_STAKE} earned</span>
+      </div>
+      <div role="radiogroup" aria-label="Badge" className="grid grid-cols-5 gap-x-1 gap-y-3 sm:grid-cols-10" onMouseLeave={() => setHover(null)}>
+        {STAKES.map(({ stake }) => {
+          const s = stateOf(stake);
+          const on = stake === value;
+          const looking = stake === shown;
+          return (
+            <button
+              key={stake}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              aria-disabled={s === 'locked'}
+              aria-label={`${badgeLabel(stake)}, ${badgeName(stake)}${s === 'locked' ? `, locked: win ${badgeLabel(stake - 1)} to unlock` : s === 'earned' ? ', earned' : ''}`}
+              onMouseEnter={() => setHover(stake)}
+              onFocus={() => setHover(stake)}
+              onBlur={() => setHover(null)}
+              onClick={() => {
+                if (s === 'locked') { setPinned(stake); return; }
+                setPinned(null);
+                onChange(stake);
+              }}
+              className={`focus-ring group relative flex flex-col items-center gap-1 rounded-xl py-1.5 transition-[background-color,transform] duration-150
+                ${s === 'locked' ? 'cursor-help' : 'cursor-pointer'} ${looking ? 'bg-panel-hi' : 'hover:bg-panel'}`}
+            >
+              {/* The track to the previous badge (one row from sm up): lit up to the highest unlocked badge. */}
+              {stake > 1 && (
+                <span
+                  aria-hidden="true"
+                  className={`absolute top-[calc(50%-0.6rem)] right-1/2 z-0 hidden h-1 w-full rounded-full sm:block ${stake <= unlocked ? 'bg-poke-yellow-dark' : 'bg-edge-dark'}`}
+                />
+              )}
+              <span className={`relative z-10 transition-transform duration-150 ${on ? '-translate-y-1 scale-110' : 'group-hover:-translate-y-0.5'}`}>
+                <BadgeEmblem stake={stake} state={s} size={44} />
+              </span>
+              <span className={`relative font-display text-sm font-bold leading-none tabular-nums ${on ? 'text-poke-yellow' : s === 'locked' ? 'text-faint' : 'text-ink'}`}>
+                {stake}
+              </span>
+              {on && <span aria-hidden="true" className="absolute -bottom-1 h-1 w-6 rounded-full bg-poke-yellow" />}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* What the badge in view brings. Keyed so each new badge pops in. */}
+      <div key={shown} className={`anim-pick-in mt-4 rounded-xl border-2 p-3 sm:p-4 ${state === 'locked' ? 'border-dashed border-edge bg-panel-inset' : 'border-edge-dark bg-panel-inset'}`}>
+        <div className="flex gap-3 sm:gap-4">
+          <BadgeEmblem stake={shown} state={state} size={76} className={state === 'locked' ? '' : 'drop-shadow-[0_4px_0_var(--color-edge-dark)]'} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-display text-sm font-bold uppercase tracking-wide text-muted">{badgeLabel(shown)}</span>
+              {shown === value && <span className="rounded-full bg-poke-yellow px-2 py-px font-display text-xs font-bold uppercase text-cream-ink">Your league</span>}
+              {state === 'earned' && <span className="rounded-full border border-poke-yellow-dark px-2 py-px font-display text-xs font-bold uppercase text-poke-yellow">Earned</span>}
+              {state === 'locked' && <span className="rounded-full bg-edge-dark px-2 py-px font-display text-xs font-bold uppercase text-muted">Locked</span>}
+            </div>
+            <h3 className="font-display text-2xl font-bold leading-tight">{badgeName(shown)}</h3>
+            <p className="mt-1 border-l-4 pl-2 text-sm" style={{ borderColor: badgeOf(shown).color }}>
+              <span className="font-bold">{shown === 1 ? 'The base game. ' : 'New: '}</span>{rule}
+            </p>
+          </div>
+        </div>
+
+        {shown > 1 && (
+          <div className="mt-3">
+            <div className="mb-1 text-xs font-bold uppercase tracking-wide text-muted">Also in force</div>
+            <ul className="flex flex-wrap gap-1.5">
+              {STAKES.slice(1, shown - 1).map((s) => (
+                <li key={s.stake} title={s.rule} className="flex items-center gap-1 rounded-full bg-panel px-2 py-0.5 text-xs font-semibold">
+                  <BadgeEmblem stake={s.stake} state={stateOf(s.stake)} size={14} />
+                  {s.label}
+                </li>
+              ))}
+              {shown === 2 && <li className="text-xs text-muted">Nothing else: this is the first step up.</li>}
+            </ul>
+          </div>
+        )}
+
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Fixed label="Loss cap" value={effective.lossCap} />
+          <Fixed label="Playoffs" value={`Top ${effective.playoffTeams}`} />
+          <Fixed label="AI budget" value={effective.budget + rules.aiBudgetBonus} />
+          <Fixed label="Your budget" value={effective.budget} />
+        </div>
+
+        <p className="mt-3 text-sm text-muted">
+          {state === 'locked'
+            ? <>Preview only. Win the title at {badgeLabel(shown - 1)} to unlock it.{' '}</>
+            : shown === value && state === 'open'
+              ? `Win the title here to earn the ${badgeName(shown)}${shown < MAX_STAKE ? ` and unlock ${badgeLabel(shown + 1)}` : ''}.`
+              : shown !== value ? 'Click to play at this badge.' : `You have earned the ${badgeName(shown)}. Play it again or climb higher.`}
+          {state === 'locked' && pinned !== null && (
+            <button type="button" onClick={() => setPinned(null)} className="focus-ring rounded font-bold text-poke-yellow underline">
+              Back to {badgeLabel(value)}
+            </button>
+          )}
+        </p>
+      </div>
     </div>
   );
 }
@@ -121,6 +218,9 @@ export function SetupScreen() {
   const go = useGame((s) => s.go);
   const hasSave = useGame((s) => s.hasSave);
   const stakeUnlocked = useProfile((s) => s.stakeUnlocked);
+  const runs = useProfile((s) => s.runs);
+  const trophies = useProfile((s) => s.trophies);
+  const { titlesPerStake } = useMemo(() => careerStats({ version: 2, stakeUnlocked, runs, trophies }), [stakeUnlocked, runs, trophies]);
   const [stake, setStake] = useState(stakeUnlocked);
   const [name, setName] = useState('Pallet Town Pidgeots');
   const [abbrev, setAbbrev] = useState('PAL');
@@ -153,7 +253,6 @@ export function SetupScreen() {
   // What the run will actually play: the stake tightens the loss cap and the bracket where it is stricter.
   const effective = applyStake(config);
   const stakeRules = rulesAt(stake);
-  const nextLocked = stakeUnlocked < MAX_STAKE ? stakeUnlocked + 1 : null;
   const errors = validateLeagueConfig(config);
   const valid = name.trim().length >= 2 && /^[A-Z0-9]{3}$/.test(tag) && seed !== null && errors.length === 0;
   const activePreset = PRESETS.find((p) => p.megas === megas && p.tera === teraCaptains && p.z === zCaptains)?.id;
@@ -204,33 +303,8 @@ export function SetupScreen() {
         </div>
       </Panel>
 
-      <Panel title="Stake" aside={<span>{stakeUnlocked}/{MAX_STAKE} unlocked</span>}>
-        <StakePicker value={stake} unlocked={stakeUnlocked} onChange={setStake} />
-        {stake === 1 ? (
-          <p className="mt-3 text-sm text-muted">
-            The base game.{nextLocked !== null && ` Win the title at stake ${stakeUnlocked} to unlock stake ${nextLocked}.`}
-          </p>
-        ) : (
-          <>
-            <ol className="mt-3 space-y-1 text-sm">
-              {STAKES.slice(1, stake).map((s) => (
-                <li key={s.stake} className="flex gap-2">
-                  <span className="w-6 shrink-0 text-right font-display font-bold text-poke-yellow tabular-nums">{s.stake}</span>
-                  <span><span className="font-bold">{s.label}.</span> <span className="text-muted">{s.rule}</span></span>
-                </li>
-              ))}
-            </ol>
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Fixed label="Loss cap" value={effective.lossCap} />
-              <Fixed label="Playoffs" value={`Top ${effective.playoffTeams}`} />
-              <Fixed label="AI budget" value={effective.budget + stakeRules.aiBudgetBonus} />
-              <Fixed label="Your budget" value={effective.budget} />
-            </div>
-            {nextLocked !== null && stake === stakeUnlocked && (
-              <p className="mt-2 text-sm text-muted">Win the title here to unlock stake {nextLocked}.</p>
-            )}
-          </>
-        )}
+      <Panel title="Badges">
+        <BadgeCase value={stake} unlocked={stakeUnlocked} titlesPerStake={titlesPerStake} config={config} onChange={setStake} />
       </Panel>
 
       <Panel title="League size">
@@ -253,7 +327,7 @@ export function SetupScreen() {
             options={PLAYOFF_OPTIONS[teams].map((n) => ({ value: n, label: `Top ${n}`, sub: n === 4 ? '2 rounds' : '3 rounds' }))}
           />
           {effective.playoffTeams < playoffTeams && (
-            <p className="mt-1 text-sm font-semibold text-poke-yellow">Stake {stake}: only the top {effective.playoffTeams} make the playoffs.</p>
+            <p className="mt-1 text-sm font-semibold text-poke-yellow">{badgeLabel(stake)}: only the top {effective.playoffTeams} make the playoffs.</p>
           )}
         </div>
       </Panel>
@@ -266,7 +340,7 @@ export function SetupScreen() {
             hint="Regular-season matches before the playoffs. At most one match against each coach."
           />
           <Slider label="Loss cap" value={lossCap} min={2} max={6} onChange={setLossCap} hint={effective.lossCap < lossCap
-            ? `Stake ${stake} caps it at ${effective.lossCap}: loss number ${effective.lossCap + 1} ends the run.`
+            ? `${badgeLabel(stake)} caps it at ${effective.lossCap}: loss number ${effective.lossCap + 1} ends the run.`
             : `Loss number ${lossCap + 1} ends the run.`} />
         </div>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
@@ -284,7 +358,7 @@ export function SetupScreen() {
           <Slider
             label="Budget" value={budget} min={budgetMin} max={BUDGET_MAX} step={BUDGET_STEP} onChange={setBudget}
             hint={`${rosterMin} mons at the cheapest price (${floor.cheapest}) need ${floor.need}. Tier prices stay as they are.${stakeRules.aiBudgetBonus > 0
-              ? ` Stake ${stake}: AI coaches draft with ${budget + stakeRules.aiBudgetBonus}.` : ''}`}
+              ? ` ${badgeLabel(stake)}: AI coaches draft with ${budget + stakeRules.aiBudgetBonus}.` : ''}`}
           />
           <Stepper
             label="Free agency" value={freeAgencyMoves} min={0} max={MAX_FREE_AGENCY} onChange={setFreeAgencyMoves}

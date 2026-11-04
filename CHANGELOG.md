@@ -6,6 +6,11 @@ every package.json. The build stamp shows the version and short commit in the co
 
 ## Unreleased
 
+- Stakes are now Badges: ten badges (Rookie to Legend), each with its own emblem. The setup screen shows them as a
+  badge case on a track, earned ones in gold and locked ones as padlocked ghosts. Hover, focus or click any badge,
+  locked ones too, to see the rule it adds, the rules already in force and the loss cap, playoffs and budgets it
+  means; only unlocked badges can be picked. The Hall of Fame, run-end screen and header say Badge N too, and a
+  title shows the badge you earned.
 - Analytics: the Price watch panel is internal balance tooling and no longer shows to players; Performance stays.
 - Title screen: a menu instead of a stack of buttons. Continue is a card with your team crest, week and record;
   New League and Daily sit side by side (Daily says whether today's league is new, in progress or played); Hall

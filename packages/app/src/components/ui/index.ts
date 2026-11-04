@@ -10,6 +10,8 @@ export type { MonRole } from './IconBadge';
 export { Crest, crestColor } from './Crest';
 export { Modal } from './Modal';
 export { PokeBallLogo } from './PokeBallLogo';
+export { BadgeEmblem } from './BadgeEmblem';
+export type { BadgeState } from './BadgeEmblem';
 export { Tabs, Segmented } from './Tabs';
 export { Sheet } from './Sheet';
 export { ResponsiveDialog } from './ResponsiveDialog';

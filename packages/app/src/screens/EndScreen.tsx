@@ -4,7 +4,8 @@ import { computeStandings, decisiveMatch, humanCoach, opponentOf, regularSeasonR
 import { useGame, weekLabel } from '../store/useGame';
 import { useProfile } from '../store/profile';
 import { PostScoreButton, ShareLine } from '../components/DailyBits';
-import { Crest, DialogueBox, GameButton, Panel, PokeIcon } from '../components/ui';
+import { BadgeEmblem, Crest, DialogueBox, GameButton, Panel, PokeIcon } from '../components/ui';
+import { badgeLabel, badgeName } from '../game/badges';
 import { scoreLine, speciesName, spriteName } from '../game/names';
 import { StandingsTable } from '../components/StandingsTable';
 import { Bracket } from '../components/Bracket';
@@ -76,12 +77,12 @@ function DecisiveMatch({ run }: { run: RunState }) {
   );
 }
 
-/** Runs, titles and the stake ladder so far, with the way into the Hall of Fame. */
+/** Runs, titles and the badge ladder so far, with the way into the Hall of Fame. */
 function CareerStrip({ onOpen }: { onOpen: () => void }) {
   const runs = useProfile((s) => s.runs);
   const stakeUnlocked = useProfile((s) => s.stakeUnlocked);
   const titles = runs.filter((r) => r.phase === 'champion').length;
-  const cells: [string, number][] = [['Runs', runs.length], ['Titles', titles], ['Stake unlocked', stakeUnlocked]];
+  const cells: [string, number][] = [['Runs', runs.length], ['Titles', titles], ['Badge unlocked', stakeUnlocked]];
   return (
     <Panel title="Career so far">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -125,8 +126,13 @@ export function EndScreen() {
             {daily ? `Daily League · ${daily.date}` : outcome}
           </h1>
           {daily && <div className={`font-display text-2xl font-bold uppercase ${champion ? 'text-poke-yellow' : ''}`}>{outcome}</div>}
-          {!daily && <div className="rounded-full bg-panel-inset px-3 py-1 font-display font-bold uppercase tracking-wide">Stake {run.config.stake}</div>}
-          {unlocked && <div className="font-display text-2xl font-bold uppercase text-poke-yellow">Stake {run.config.stake + 1} unlocked</div>}
+          {!daily && (
+            <div className="flex items-center gap-2 rounded-full bg-panel-inset py-1 pl-1.5 pr-3 font-display font-bold uppercase tracking-wide">
+              <BadgeEmblem stake={run.config.stake} state={champion ? 'earned' : 'open'} size={24} />
+              {champion ? `${badgeName(run.config.stake)} earned` : badgeLabel(run.config.stake)}
+            </div>
+          )}
+          {unlocked && <div className="font-display text-2xl font-bold uppercase text-poke-yellow">{badgeLabel(run.config.stake + 1)} unlocked</div>}
           <div className="font-display text-xl font-bold">{human.name}</div>
           <div className="text-lg">
             Regular season <b className="tabular-nums">{rec.wins}-{rec.losses}</b>
@@ -137,7 +143,7 @@ export function EndScreen() {
         {champion && !daily && (
           <DialogueBox>
             {unlocked
-              ? `You drafted, prepped and survived the bracket. Stake ${run.config.stake + 1} is open on the setup screen.`
+              ? `You drafted, prepped and survived the bracket. You earned the ${badgeName(run.config.stake)}, and ${badgeLabel(run.config.stake + 1)} is open on the setup screen.`
               : 'You drafted, prepped and survived the bracket. Try a bigger league or a tighter loss cap next.'}
           </DialogueBox>
         )}

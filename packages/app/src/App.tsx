@@ -7,6 +7,7 @@ import { BugReport } from './components/BugReport';
 import { MonDetailHost } from './components/MonDetail';
 import { GameButton, ResponsiveDialog, PokeBallLogo } from './components/ui';
 import { leagueCode } from './game/names';
+import { badgeLabel } from './game/badges';
 import { TitleScreen } from './screens/TitleScreen';
 import { SetupScreen } from './screens/SetupScreen';
 import { DraftScreen } from './screens/DraftScreen';
@@ -93,7 +94,7 @@ function TopBar() {
             <span className="hidden truncate text-muted md:inline">
               {run.daily
                 ? `Daily league · ${run.daily.date}`
-                : `${run.config.stake > 1 ? `Stake ${run.config.stake} · ` : ''}${run.config.teams}-team league · code ${leagueCode(run.seed)}`}
+                : `${run.config.stake > 1 ? `${badgeLabel(run.config.stake)} · ` : ''}${run.config.teams}-team league · code ${leagueCode(run.seed)}`}
             </span>
             <span className="truncate rounded-full bg-panel-inset px-3 py-1 font-display font-bold text-poke-yellow">{phaseText}</span>
             {human && <span className="shrink-0 rounded-md bg-you px-2 py-1 font-display font-bold">{human.abbrev}</span>}
