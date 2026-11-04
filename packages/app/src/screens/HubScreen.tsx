@@ -43,6 +43,7 @@ function MatchupCard({ run, match }: { run: RunState; match: Match }) {
   const oppRoster = visibleRoster(run, opp.id, rulesAt(run.config.stake).fogOfWar ? getBridge().scout?.(run, opp.id) : undefined);
   const go = useGame((s) => s.go);
   const openOverlay = useGame((s) => s.openOverlay);
+  const playMatch = useGame((s) => s.playMatch);
   return (
     <Panel title="Next match" aside={<span>{match.home === run.humanId ? 'Home' : 'Away'}</span>}>
       <div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-start">
@@ -73,9 +74,10 @@ function MatchupCard({ run, match }: { run: RunState; match: Match }) {
           <FogNote shown={oppRoster.length} total={opp.roster.length} />
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end">
-        <GameButton variant="secondary" onClick={() => openOverlay('team')} className="max-sm:min-h-12">Team</GameButton>
-        <GameButton size="lg" onClick={() => go('prep')} className="max-sm:min-h-12">Prep &amp; battle</GameButton>
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:items-center sm:justify-end">
+        <GameButton variant="secondary" onClick={() => openOverlay('team')} className="max-sm:min-h-12">Edit team</GameButton>
+        <GameButton variant="secondary" onClick={() => go('prep')} className="max-sm:min-h-12">Prep helper</GameButton>
+        <GameButton size="lg" onClick={() => void playMatch()} className="col-span-2 whitespace-nowrap max-sm:min-h-12">Start battle</GameButton>
       </div>
     </Panel>
   );

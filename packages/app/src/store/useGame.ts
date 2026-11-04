@@ -528,8 +528,11 @@ export const useGame = create<GameStore>((set, get) => ({
   },
 
   async playMatch() {
-    const { run, lineup } = get();
+    const { run } = get();
     if (!run) return;
+    // Straight from the hub, a lineup that went stale (roster changed) falls back to the default six.
+    if (!validLineup(run, get().lineup)) set({ lineup: defaultLineup(run) });
+    const { lineup } = get();
     const match = nextHumanMatch(run);
     if (!match) {
       set({ toast: 'No match to play this week.' });
