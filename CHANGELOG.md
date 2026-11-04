@@ -6,6 +6,16 @@ every package.json. The build stamp shows the version and short commit in the co
 
 ## Unreleased
 
+- Badge ladder, reworked: rival coaches now play at three levels. Rookie AI (Badge 1) hits hard but never switches
+  on purpose or uses Tera; Trainer AI (Badge 3) is the old AI; Ace AI (Badge 6) knows your sets and reads your
+  switches. Badge 4 "Stronger rivals" makes the AI draft by fit with +5 budget. Badge 9 is the Elite Four (you bring
+  5, the AI brings 6) and Badge 10 the Champion (you bring 4). The badges are renamed (Rookie to Crown), the badge
+  card shows the rival AI and how many you bring, smaller playoffs are gone, and the Likely sets tab always shows.
+  League matches between AI coaches always play at Trainer level.
+- Run end: the final score is the big number at the top, with where it comes from underneath (regular-season wins,
+  Pokemon differential, playoff wins, the title).
+- Title screen: once a league is over (champion or out), there is no Continue tile; a small "Last run" row under Badge
+  Run opens its results or clears it.
 - Battle: hover a move button (long-press on phones) to see what it does: type, category, power, accuracy, PP,
   priority, secondary effect chances ("10% chance to burn") and the full description.
 - Hub: the next match card has "Edit team", "Prep helper" and a big "Start battle" that goes straight to the

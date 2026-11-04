@@ -63,7 +63,7 @@ export interface PlayerContext {
   opponentTeam: SpeciesId[];
   /** This side's own sets (what a real player knows about their own team). */
   ownTeam: BattleSet[];
-  /** The opponent's real sets, only for an AI side under the stake rule aiKnowsSets. */
+  /** The opponent's real sets, only for an AI side at the Ace AI skill. */
   opponentSets?: BattleSet[];
 }
 

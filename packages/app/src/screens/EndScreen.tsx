@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import type { EliminationReason, RunState, SpeciesId } from '@pdc/engine';
-import { computeStandings, decisiveMatch, humanCoach, opponentOf, regularSeasonRecord, runScore } from '@pdc/engine';
+import { computeStandings, decisiveMatch, humanCoach, opponentOf, regularSeasonRecord, runScore, scoreBreakdown } from '@pdc/engine';
 import { useGame, weekLabel } from '../store/useGame';
 import { useProfile } from '../store/profile';
 import { PostScoreButton, ShareLine } from '../components/DailyBits';
@@ -100,6 +100,41 @@ function CareerStrip({ onOpen }: { onOpen: () => void }) {
   );
 }
 
+/** The final score, big, with the lines it adds up from (a minus differential shows as a deduction). */
+function ScoreHero({ run }: { run: RunState }) {
+  const lines = scoreBreakdown(run).filter((l) => l.count !== 0);
+  const total = runScore(run);
+  const raw = lines.reduce((t, l) => t + l.points, 0);
+  const fmt = (n: number) => Math.abs(n).toLocaleString('en-US');
+  return (
+    <div className="mx-auto w-full max-w-sm">
+      <div className="text-center">
+        <div className="font-display text-sm font-bold uppercase tracking-widest text-muted">Final score</div>
+        <div className="font-display text-6xl font-bold leading-none text-poke-yellow tabular-nums sm:text-7xl">{total.toLocaleString('en-US')}</div>
+        <div className="font-display text-sm font-bold uppercase tracking-widest text-muted">points</div>
+      </div>
+      {lines.length > 0 && (
+        <dl className="mt-3 divide-y divide-edge rounded-xl bg-panel-inset px-3 py-1 text-sm">
+          {lines.map((l) => (
+            <div key={l.key} className="flex items-baseline justify-between gap-3 py-1.5">
+              <dt>
+                {l.label}
+                {l.key !== 'title' && <span className="text-muted tabular-nums"> {l.count} × {l.each}</span>}
+              </dt>
+              <dd className={`font-bold tabular-nums ${l.points < 0 ? 'text-loss' : ''}`}>{l.points < 0 ? '−' : '+'}{fmt(l.points)}</dd>
+            </div>
+          ))}
+          {raw < 0 && (
+            <div className="flex items-baseline justify-between gap-3 py-1.5 text-muted">
+              <dt>Scores never go below 0</dt><dd className="tabular-nums">+{fmt(raw)}</dd>
+            </div>
+          )}
+        </dl>
+      )}
+    </div>
+  );
+}
+
 export function EndScreen() {
   const run = useGame((s) => s.run);
   const go = useGame((s) => s.go);
@@ -138,6 +173,7 @@ export function EndScreen() {
             Regular season <b className="tabular-nums">{rec.wins}-{rec.losses}</b>
             {hadPlayoffs && <> · playoff wins <b className="tabular-nums">{playoffWins}</b></>}
           </div>
+          <ScoreHero run={run} />
         </div>
         {!champion && reason && <DialogueBox>{REASON[reason]}</DialogueBox>}
         {champion && !daily && (
@@ -149,7 +185,7 @@ export function EndScreen() {
         )}
         {champion && daily && <DialogueBox>You drafted, prepped and survived the bracket. Post your score and see how the rest of today’s coaches did.</DialogueBox>}
       </Panel>
-      <Panel title="Score" aside={<span className="font-display text-xl font-bold text-poke-yellow tabular-nums">{runScore(run).toLocaleString('en-US')} pts</span>}>
+      <Panel title="Share">
         <ShareLine run={run} />
         {daily && <div className="mt-3 flex justify-center"><PostScoreButton run={run} /></div>}
       </Panel>

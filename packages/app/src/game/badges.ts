@@ -2,6 +2,8 @@
 // title at Badge N earns it and opens Badge N+1. Presentation only: names, colors and emblem shapes, one per stake.
 // Names are our own (never the games' official badge names).
 
+import type { AiSkill } from '@pdc/engine';
+
 export interface BadgeLook {
   name: string;
   /** Emblem fill: a CSS color. */
@@ -27,20 +29,26 @@ const SHAPES = {
 export const BADGES: readonly BadgeLook[] = [
   { name: 'Rookie', color: 'var(--color-type-steel)', shape: SHAPES.hex },
   { name: 'Grit', color: 'var(--color-type-fighting)', shape: SHAPES.shield },
-  { name: 'Scout', color: 'var(--color-type-grass)', shape: SHAPES.leaf },
-  { name: 'Mind', color: 'var(--color-type-psychic)', shape: SHAPES.diamond },
-  { name: 'Veil', color: 'var(--color-type-ghost)', shape: SHAPES.octagon },
+  { name: 'Rival', color: 'var(--color-type-grass)', shape: SHAPES.leaf },
   { name: 'Tycoon', color: 'var(--color-poke-yellow)', shape: SHAPES.star5 },
   { name: 'Mist', color: 'var(--color-type-ice)', shape: SHAPES.cross },
-  { name: 'Summit', color: 'var(--color-type-ground)', shape: SHAPES.triangle },
+  { name: 'Mind', color: 'var(--color-type-psychic)', shape: SHAPES.diamond },
   { name: 'Underdog', color: 'var(--color-type-fire)', shape: SHAPES.spark },
-  { name: 'Legend', color: 'var(--color-type-dragon)', shape: SHAPES.star8 },
+  { name: 'Summit', color: 'var(--color-type-ground)', shape: SHAPES.triangle },
+  { name: 'Elite', color: 'var(--color-type-ghost)', shape: SHAPES.octagon },
+  { name: 'Crown', color: 'var(--color-type-dragon)', shape: SHAPES.star8 },
 ];
 
 export const badgeOf = (stake: number): BadgeLook => BADGES[Math.max(1, Math.min(BADGES.length, stake)) - 1]!;
 
-/** "Badge 4" (the short form every screen uses). */
-export const badgeLabel = (stake: number): string => `Badge ${stake}`;
+/** What players call each rival AI level (stake rule aiSkill). */
+export const AI_SKILL_NAMES: Record<AiSkill, string> = { rookie: 'Rookie', trainer: 'Trainer', ace: 'Ace' };
+
+/** The ladder's last two steps, named like the games' challenge after the eight gym badges. */
+const FINAL_LABELS: Record<number, string> = { 9: 'Elite Four', 10: 'Champion' };
+
+/** "Badge 4", "Elite Four", "Champion" (the short form every screen uses). */
+export const badgeLabel = (stake: number): string => FINAL_LABELS[stake] ?? `Badge ${stake}`;
 
 /** "Mind Badge". */
 export const badgeName = (stake: number): string => `${badgeOf(stake).name} Badge`;

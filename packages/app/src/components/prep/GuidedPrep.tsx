@@ -1,11 +1,11 @@
-// Guided prep: scout the opponent, pick your six, then (skippable) a move helper for coverage and an EV helper for
+// Guided prep: scout the opponent, pick your lineup, then (skippable) a move helper for coverage and an EV helper for
 // Speed, then battle. The full prep doc stays one switch away (Settings > Prep, or the button in the title band).
 import { useEffect, useMemo, useState } from 'react';
 import type { CoachId, MoveRow, RosterEntry, RunState, SpeciesId, SpeedStanding } from '@pdc/engine';
 import {
   applyMoveSwap, currentSpeed, deriveSeed, getDraftMon, humanCoach, lineupCoverage, moveRows, spreadOptions, suggestMoveSwaps,
 } from '@pdc/engine';
-import { useGame, validLineup } from '../../store/useGame';
+import { bringSize, useGame, validLineup } from '../../store/useGame';
 import { BackButton, GameButton, IconBadge, Panel, PokeIcon } from '../ui';
 import { LineupPicker } from './LineupPicker';
 import { MonDetailButton } from '../MonDetail';
@@ -107,7 +107,7 @@ function MovesStep({ run, oppIds }: { run: RunState; oppIds: SpeciesId[] }) {
       <div>
         <h2 className="font-display text-lg font-bold">Coverage</h2>
         <p className="text-sm text-muted">
-          Your six hit {cover.length - missed.length} of {cover.length} opposing Pokemon super effectively with the moves they carry.
+          Your lineup hits {cover.length - missed.length} of {cover.length} opposing Pokemon super effectively with the moves they carry.
         </p>
         <ul className="mt-2 grid gap-1 sm:grid-cols-2">
           {cover.map((c) => (
@@ -132,7 +132,7 @@ function MovesStep({ run, oppIds }: { run: RunState; oppIds: SpeciesId[] }) {
         ) : !learnable ? (
           <p className="text-sm text-muted">Reading learnsets…</p>
         ) : swaps.length === 0 ? (
-          <p className="text-sm text-muted">No legal attack in your six covers the gaps without giving up a STAB move or another hit. Plan around them.</p>
+          <p className="text-sm text-muted">No legal attack in your lineup covers the gaps without giving up a STAB move or another hit. Plan around them.</p>
         ) : (
           <ul className="mt-2 space-y-2">
             {swaps.map((s) => (
@@ -236,7 +236,7 @@ export function GuidedPrep({ run, opp, oppRoster, threats }: GuidedPrepProps) {
     try {
       const { chooseLineup } = await import('@pdc/engine/battle');
       const human = humanCoach(run);
-      setLineup(chooseLineup(human.roster, human.sets, oppRoster, deriveSeed(run.seed, 'suggest', run.week)));
+      setLineup(chooseLineup(human.roster, human.sets, oppRoster, deriveSeed(run.seed, 'suggest', run.week)).slice(0, bringSize(run)));
     } finally {
       setSuggesting(false);
     }
@@ -284,7 +284,7 @@ export function GuidedPrep({ run, opp, oppRoster, threats }: GuidedPrepProps) {
             ))}
           </div>
           <p className="mt-2 text-sm text-muted">
-            Your six have a super-effective hit on {lineupCoverage(lineup.map((s) => ({ species: s, set: humanCoach(run).sets[s]! })).filter((m) => m.set), oppIds).filter((c) => c.hitBy.length).length} of
+            Your lineup has a super-effective hit on {lineupCoverage(lineup.map((s) => ({ species: s, set: humanCoach(run).sets[s]! })).filter((m) => m.set), oppIds).filter((c) => c.hitBy.length).length} of
             their {oppIds.length} Pokemon.
           </p>
         </Panel>
@@ -309,7 +309,7 @@ export function GuidedPrep({ run, opp, oppRoster, threats }: GuidedPrepProps) {
         {step === 'battle' ? (
           <GameButton size="lg" disabled={!ready} onClick={() => void playMatch()}>To battle!</GameButton>
         ) : step === 'lineup' ? (
-          !ready && <GameButton disabled>Pick {6 - lineup.length} more</GameButton>
+          !ready && <GameButton disabled>Pick {bringSize(run) - lineup.length} more</GameButton>
         ) : (
           <GameButton onClick={() => next && go(next)}><span className="max-sm:hidden">Next: </span>{STEPS[at + 1]!.label} →</GameButton>
         )}

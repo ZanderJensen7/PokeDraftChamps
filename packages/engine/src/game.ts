@@ -9,9 +9,8 @@ import { simulateMatch } from './battle/simulateMatch';
 export const buildSets: BuildSets = (coach: Coach, seed: number): Record<SpeciesId, BattleSet> =>
   buildSeasonSets(coach.roster, seed);
 
-/** Simulates one AI-vs-AI match with the heuristic AI on both sides, under the run's stake rules. */
-export const simulateLeagueMatch: SimulateMatch = (home, away, seed, rules) =>
-  simulateMatch(home, away, seed, { knowSets: !!rules?.aiKnowsSets });
+/** Simulates one AI-vs-AI match with the Trainer AI on both sides. */
+export const simulateLeagueMatch: SimulateMatch = (home, away, seed) => simulateMatch(home, away, seed);
 
 /** Everything the league transitions need, in one object. */
 export const engineDeps = { buildSets, simulateMatch: simulateLeagueMatch };

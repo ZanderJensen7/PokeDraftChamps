@@ -8,6 +8,9 @@ export type StatName = 'hp' | 'atk' | 'def' | 'spa' | 'spd' | 'spe';
 export type StatsTable = Record<StatName, number>;
 export type TypeName = string;
 
+/** How well an AI side plays its battles (badge rule): Rookie is predictable, Trainer is the standard AI, Ace reads you. */
+export type AiSkill = 'rookie' | 'trainer' | 'ace';
+
 export interface LeagueConfig {
   teams: 8 | 12 | 16;
   weeks: number;            // regular-season weeks, default 9

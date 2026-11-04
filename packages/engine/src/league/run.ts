@@ -37,16 +37,11 @@ export interface CreateRunOptions {
 
 /** Builds a coach's season sets. Injected (the battle module owns the real one). */
 export type BuildSets = (coach: Coach, seed: number) => Record<SpeciesId, BattleSet>;
-/** The stake rules an AI-vs-AI simulation reads (plain JSON: it crosses the worker boundary). */
-export type SimRules = Pick<StakeRules, 'aiKnowsSets'>;
-
 /**
- * Simulates one AI-involved match. Injected (the battle module owns the real one). `rules` carries the run's stake
- * rules the battle AI reads (resolveWeek passes rulesAt(config.stake)).
+ * Simulates one AI-vs-AI match. Injected (the battle module owns the real one). League sims ignore the stake: both
+ * sides always play the Trainer AI, so the table does not shift with the badge.
  */
-export type SimulateMatch = (
-  home: Coach, away: Coach, seed: number, rules?: SimRules,
-) => MatchResult | Promise<MatchResult>;
+export type SimulateMatch = (home: Coach, away: Coach, seed: number) => MatchResult | Promise<MatchResult>;
 
 const HUMAN_ID: CoachId = 'c0';
 
@@ -391,14 +386,11 @@ export async function resolveWeek(
   const week = run.week;
   const log = [...run.log];
   const matches: Match[] = [];
-  const rules = rulesAt(run.config.stake);
   for (const m of run.matches) {
     if (m.week !== week || m.result) { matches.push(m); continue; }
     const result = m.id === humanMatch.id
       ? humanResult
-      : await deps.simulateMatch(
-        coachById(run, m.home), coachById(run, m.away), deriveSeed(run.seed, 'week', week, m.id), { aiKnowsSets: rules.aiKnowsSets },
-      );
+      : await deps.simulateMatch(coachById(run, m.home), coachById(run, m.away), deriveSeed(run.seed, 'week', week, m.id));
     matches.push({ ...m, result });
   }
   for (const m of matches) if (m.week === week && m.result) log.push(resultLine(run, m));

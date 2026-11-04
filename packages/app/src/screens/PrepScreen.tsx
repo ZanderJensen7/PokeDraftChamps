@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CoachId, PrepDoc, PrepMoveCategory, RosterEntry, RunState, SpeciesId } from '@pdc/engine';
 import { getDraftMon, humanCoach, nextHumanMatch, opponentOf, rulesAt, threatSummary, visibleRoster } from '@pdc/engine';
-import { useGame, validLineup, weekLabel } from '../store/useGame';
+import { bringSize, useGame, validLineup, weekLabel } from '../store/useGame';
 import { BackButton, Crest, DialogueBox, GameButton, IconBadge, Panel, PokeIcon, Tabs, TypePill, TypePills } from '../components/ui';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { MatchupTable } from '../components/prep/MatchupTable';
@@ -234,8 +234,6 @@ export function PrepScreen() {
   const threats = prep ? threatSummary(prep) : [];
   const ready = validLineup(run, lineup);
   const rules = rulesAt(run.config.stake);
-  const tabs = rules.hideLikelySets ? TABS.filter((t) => t.id !== 'sets') : TABS;
-  const shownTab: Tab = tabs.some((t) => t.id === tab) ? tab : 'matchup';
   const oppRoster = rules.fogOfWar ? visibleRoster(run, opp.id, getBridge().scout?.(run, opp.id)) : opp.roster;
 
   return (
@@ -276,20 +274,20 @@ export function PrepScreen() {
           </Panel>
 
           <Panel>
-            <Tabs tabs={tabs} value={shownTab} onChange={setTab} />
+            <Tabs tabs={TABS} value={tab} onChange={setTab} />
             <div className="mt-3 min-w-0">
               {!prep ? (
                 <p className="text-muted">Loading…</p>
-              ) : shownTab === 'matchup' ? (
+              ) : tab === 'matchup' ? (
                 <div className="space-y-4">
                   <MatchupTable title="You" side="you" table={prep.matchup.you} coachId={human.id} />
                   <MatchupTable title={opp.abbrev} side="opp" table={prep.matchup.opp} coachId={opp.id} />
                 </div>
-              ) : shownTab === 'speed' ? (
+              ) : tab === 'speed' ? (
                 <SpeedTab doc={prep} />
-              ) : shownTab === 'moves' ? (
+              ) : tab === 'moves' ? (
                 <MovesTab doc={prep} />
-              ) : shownTab === 'sets' ? (
+              ) : tab === 'sets' ? (
                 <SetsTab doc={prep} roster={opp.roster} coachId={opp.id} />
               ) : (
                 <ScoutTab doc={prep} coachId={opp.id} />
@@ -312,7 +310,7 @@ export function PrepScreen() {
           </Panel>
           <div className="max-md:fixed max-md:inset-x-0 max-md:bottom-[calc(3.75rem+env(safe-area-inset-bottom))] max-md:z-30 max-md:border-t-4 max-md:border-edge-dark max-md:bg-panel/95 max-md:px-3 max-md:py-2 max-md:backdrop-blur">
             <GameButton size="lg" block disabled={!ready} onClick={() => void playMatch()} className="max-md:min-h-12">
-              {ready ? 'To battle!' : `Pick ${6 - lineup.length} more`}
+              {ready ? 'To battle!' : `Pick ${bringSize(run) - lineup.length} more`}
             </GameButton>
           </div>
           <div className="h-16 md:hidden" aria-hidden="true" />

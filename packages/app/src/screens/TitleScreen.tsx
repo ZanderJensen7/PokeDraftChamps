@@ -97,6 +97,8 @@ export function TitleScreen() {
     ? go(run.phase === 'draft' ? 'draft' : run.phase === 'season' || run.phase === 'playoffs' ? 'hub' : 'end')
     : continueRun());
   const human = league?.coaches.find((c) => c.id === league.humanId);
+  // A finished league is history (the Hall of Fame has it): no Continue tile, just a small "Last run" row.
+  const leagueOver = !!league && isRunOver(league);
   const stakeUnlocked = useProfile((s) => s.stakeUnlocked);
   const careerRuns = useProfile((s) => s.runs);
   const trophies = useProfile((s) => s.trophies);
@@ -127,7 +129,7 @@ export function TitleScreen() {
       </div>
 
       <nav className="flex w-full max-w-md flex-col gap-3" aria-label="Main menu">
-        {hasSave && (
+        {hasSave && !leagueOver && (
           <button type="button" onClick={onContinue} className="menu-tile tile-continue items-center gap-3 px-4 py-3.5">
             {human ? <Crest abbrev={human.abbrev} size={44} side="you" /> : <Icon name="ball" size={36} />}
             <span className="min-w-0 flex-1">
@@ -141,7 +143,7 @@ export function TitleScreen() {
             <span className="font-display text-3xl font-bold leading-none opacity-70" aria-hidden="true">›</span>
           </button>
         )}
-        {hasSave && (
+        {hasSave && !leagueOver && (
           <button
             type="button"
             onClick={() => setEnding(true)}
@@ -162,6 +164,16 @@ export function TitleScreen() {
           <span className="font-display text-3xl font-bold leading-none opacity-70" aria-hidden="true">›</span>
           <BadgeEmblem stake={stakeUnlocked} state="open" size={120} className="tile-mark" />
         </button>
+        {hasSave && leagueOver && league && (
+          <div className="-mt-1 flex items-center gap-2 rounded-xl bg-panel-inset px-3 py-2 text-left text-sm">
+            {human && <Crest abbrev={human.abbrev} size={28} side="you" />}
+            <span className="min-w-0 flex-1 truncate font-semibold">
+              <span className="text-muted">Last run · </span>{human ? `${human.name} · ` : ''}{league.phase === 'champion' ? 'Champion' : 'Season over'}
+            </span>
+            <button type="button" onClick={onContinue} className="focus-ring rounded px-1 font-bold text-poke-yellow hover:underline">Results</button>
+            <button type="button" onClick={() => clearSave('league')} className="focus-ring rounded px-1 text-xs font-semibold text-muted hover:text-ink hover:underline">Clear</button>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <button type="button" onClick={() => go('daily')} className="menu-tile tile-daily min-h-28 flex-col justify-between gap-2 p-3.5">

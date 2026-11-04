@@ -36,28 +36,37 @@ still Showdown. A flat damage or stat bonus is never on the table.
 
 ## In-run layer: the season as the Spire
 
-### Stakes (ascension)
+### Stakes (ascension; "Badges" to players)
 A run is played at a stake. Win the title at stake N to unlock stake N+1. Each stake adds exactly one
 rule and keeps every rule below it. Stakes never use mutators: the ladder is about skill, not variance.
 The rules are one data table (`engine/src/data/stakes.ts`, `STAKES` / `rulesAt`) and will be tuned against
-humans. Shipped ladder:
+humans. Ten steps, named like the games' challenge: eight gym badges, then the Elite Four and the Champion
+(user ruling 2026-11-04). Every step should be one the player can feel.
 
-| Stake | Added rule | Where it acts |
-|---|---|---|
-| 1 | Base game | the league as set up |
-| 2 | Loss cap 3 | `applyStake` (never loosens a lower league cap) |
-| 3 | AI drafts by fit, not just price | `aiChoosePick(..., { fit })` in `runAiDraftUntilHuman` |
-| 4 | AI knows your sets: the battle AI reads your real moves, item, ability and spread | `PlayerContext.opponentSets`, AI sides only (league sims and the human's battle) |
-| 5 | Prep doc loses the Likely sets tab | prep screen |
-| 6 | AI coaches get +5 budget | `createRun` |
-| 7 | Fog of war: you only see opposing mons once they have been brought to a battle | hub + prep (`visibleRoster`) |
-| 8 | Playoffs take the top quarter of the league | `applyStake` (8 → 2, 12 / 16 → 4, never above the setup's choice) |
-| 9 | You draft last in round 1 | `createRun` draft order |
-| 10 | Loss cap 2 | `applyStake` |
+| Stake | Name | Added rule | Where it acts |
+|---|---|---|---|
+| 1 | Badge 1 | Base game, **Rookie** rival AI | the human's battle (`aiSkill`) |
+| 2 | Badge 2 | Loss cap 3 | `applyStake` (never loosens a lower league cap) |
+| 3 | Badge 3 | **Trainer** rival AI | the human's battle |
+| 4 | Badge 4 | Stronger rivals: AI coaches draft by fit and get +5 budget | `createRun`, `runAiDraftUntilHuman` |
+| 5 | Badge 5 | Fog of war: you only see opposing mons once they have been brought to a battle | hub + prep (`visibleRoster`) |
+| 6 | Badge 6 | **Ace** rival AI | the human's battle |
+| 7 | Badge 7 | You draft last in round 1 | `createRun` draft order |
+| 8 | Badge 8 | Loss cap 2 | `applyStake` |
+| 9 | Elite Four | You bring 5 (the AI still brings 6) | lineup size of the human's match |
+| 10 | Champion | You bring 4 | lineup size of the human's match |
 
-Winning the title at a stake unlocks the next (`pdc.profile.v1` `stakeUnlocked`). Stake 4 replaced a first
-"AI switches on predicted KOs" that measured at ~50% against the default AI; the knowing AI wins ~58% (see
-DECISIONS 2026-11-03). Rival Megas / Z on top of your settings (an early idea for stake 9) did not ship.
+Rival AI levels (`AiSkill`, `HeuristicPlayer`): **Rookie** is predictable: it nearly always throws its
+hardest-hitting move and never switches by choice. **Trainer** is the standard damage-calc AI (speed order,
+setup, hazards, recovery, Tera). **Ace** reads you: it knows your real sets and predicts your switches. The
+level only changes the AI that faces you; AI-vs-AI league matches always play Trainer, so the league table
+does not shift with the badge.
+
+History: the first ladder (2026-11-03) had "AI knows your sets" at 4, "No Likely Sets tab" at 5 and
+"Playoffs take the top quarter" at 8. User ruling 2026-11-04: knowing sets is not something a player feels
+(it became part of Ace), hiding a prep tab is an accessibility setting, not a difficulty (the tab is always
+there), and the two hidden draft rules (fit, +5 budget) merge into one step. Unlocks are a number, so a
+profile keeps its `stakeUnlocked` and plays the new rules.
 
 ### Perk beats ("front office")
 At fixed beats — after the draft, after week 3, after week 6, and on making the playoffs — the player
@@ -120,21 +129,45 @@ The same screen whether you won or lost: final record and seed, the bracket, you
 the stats module, the match that decided it, points per win, the perks you took, and a share string. A
 lost run that ends on a good screen is what starts the next one.
 
-### Pool progression
-The draft pool grows through play. Two rules keep it honest:
+### Pool progression (user ruling 2026-11-04)
+The draft pool grows through play, and **winning with new mons is what grows it**: the same strong team
+every run still wins, it just stops moving you forward. Rules:
 
 1. **The pool is the league's, not yours.** Every coach drafts from the same pool, so the AI never has
-   mons you don't.
+   mons you don't, and unlocks are never pure power for you.
 2. **Start with half of every tier, not the cheap tiers.** A draft with no 15–20 pointers has no stars,
    no captain decisions and no budget tension. Half of every tier gives a full draft on day one and makes
    each unlock a new name in a tier you already understand. Which half is seeded per profile so two players'
    first pools differ.
+3. **First wins earn packs.** The first match you win with a species in your six earns one progress point;
+   every 3 points (tunable) earns a **scouting pack**: three locked species revealed, keep one (the Slay the
+   Spire card reward), weighted toward tiers you have unlocked least, no duplicates, a pity rule that
+   guarantees a 15+ pointer every few packs.
+4. **A floor for losing runs.** Every finished run, won or lost, opens at least one pack, so a losing streak
+   never leaves a player stuck with a small pool.
+5. **NEW flair.** A freshly unlocked species shows a NEW badge in the draft pool (and sorts up in its tier)
+   until you have drafted it once. It nudges, never forces.
+6. **Daily and the leaderboard use the full pool**, so everyone plays the same game. Custom leagues may
+   pick either.
 
-Unlock paths: **scouting packs** at the end of every run, won or lost — three species revealed, keep one
-(the Slay the Spire card reward), weighted toward tiers you have drafted least, no currency, no duplicates,
-a pity rule that guarantees a 15+ pointer every few packs; and **earned unlocks** through play ("any mon
-you beat in a playoff match", "the opposing MVP of a league you won"), so a player who wants Dragapult has
-a way to earn Dragapult instead of hoping. Never moves, never sets: species only.
+Never moves, never sets: species only.
+
+### Pokedex (the tracker)
+Next to the Hall of Fame. Every species in the game shows its state for this profile: **Locked → Unlocked
+→ Drafted → Won with → Champion** (won a title with it), with match wins and titles counted. Filters by
+tier and type, a completion percentage on "Won with". It records from the first build, before unlocks
+ship, so nobody loses progress.
+
+### Rewards (no currency)
+Free and never monetized, so no shop and no second economy beside the draft budget:
+- **Species**, through packs (the main reward).
+- **Shiny sprites**: 10 match wins (tunable) with a species unlocks its shiny for your roster (`@pkmn/img`
+  has shinies).
+- **Dex milestones**: 25 / 50 / 75 / 100% "Won with" earn a trainer card stamp, a title, crest colours.
+- **Ribbons per mon**: "Won a playoff match", "Champion at Badge 6+", shown on the mon's card.
+
+Build order: badge ladder + rival AI levels → Pokedex tracker → locked pool + packs + NEW flair → shinies
+and milestones.
 
 ### Daily league
 Seed from the date, one fixed config and mutator set, one attempt. The run is already deterministic from

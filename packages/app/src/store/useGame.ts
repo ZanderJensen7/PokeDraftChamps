@@ -8,7 +8,7 @@ import type {
 import {
   buildPrepDoc, computeStandings, createRun, dailyDate, dailyInfo, deserializeRun, draftPick, draftStop,
   finishDraft, freeAgency, humanCoach, nextHumanMatch, opponentOf, playoffRoundName, resolveWeek, resultLabel,
-  runAiDraftUntilHuman, serializeRun, setCaptains, summarizeRun, visibleRoster,
+  rulesAt, runAiDraftUntilHuman, serializeRun, setCaptains, summarizeRun, visibleRoster,
 } from '@pdc/engine';
 import { downloadText } from '../game/download';
 import { getBridge, type PlayHumanMatchArgs } from '../game/bridge';
@@ -231,13 +231,19 @@ function screenFor(run: RunState): Screen {
   return 'end';
 }
 
+/** How many mons the human brings to a match: 6, fewer at the Elite Four / Champion badges (the AI always brings 6). */
+export function bringSize(run: RunState): number {
+  return rulesAt(run.config.stake).bringSize;
+}
+
 function defaultLineup(run: RunState): SpeciesId[] {
-  return humanCoach(run).roster.slice(0, 6).map((r) => r.species);
+  return humanCoach(run).roster.slice(0, bringSize(run)).map((r) => r.species);
 }
 
 export function validLineup(run: RunState, lineup: SpeciesId[]): boolean {
   const roster = new Set(humanCoach(run).roster.map((r) => r.species));
-  return lineup.length === 6 && new Set(lineup).size === 6 && lineup.every((s) => roster.has(s));
+  const n = bringSize(run);
+  return lineup.length === n && new Set(lineup).size === n && lineup.every((s) => roster.has(s));
 }
 
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
