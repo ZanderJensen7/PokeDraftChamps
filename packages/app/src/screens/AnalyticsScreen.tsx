@@ -316,7 +316,8 @@ export function AnalyticsScreen() {
         )}
         <p className="mt-2 text-xs text-muted"><span className="max-md:hidden">Click a column to sort. </span><span className="md:hidden">Tap a row for its numbers. </span>Dimmed rows have fewer than {SMALL_SAMPLE} games.</p>
       </Panel>
-      <PriceWatch suggestions={data.suggestions} gamesPlayed={played} />
+      {/* Internal balance tooling: dev builds only, never shown to players. */}
+      {import.meta.env.DEV && <PriceWatch suggestions={data.suggestions} gamesPlayed={played} />}
     </div>
   );
 }

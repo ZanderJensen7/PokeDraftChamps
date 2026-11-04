@@ -6,6 +6,7 @@ every package.json. The build stamp shows the version and short commit in the co
 
 ## Unreleased
 
+- Analytics: the Price watch panel is internal balance tooling and no longer shows to players; Performance stays.
 - Title screen: a menu instead of a stack of buttons. Continue is a card with your team crest, week and record;
   New League and Daily sit side by side (Daily says whether today's league is new, in progress or played); Hall
   of Fame gets a trophy row; How to play, Settings, Import and Bug report move to a small icon row.
