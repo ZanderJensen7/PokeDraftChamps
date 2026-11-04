@@ -318,6 +318,19 @@ input[type="range"] {
 }
 .battle-sprite { transition: opacity 500ms ease-out, transform 500ms ease-out; }
 .battle-sprite.is-fainted { opacity: 0; transform: translateY(24px); }
+/* Terastallized: a crystal outline in the Tera type's color and a gem over the head, for as long as the mon is out. */
+.is-tera {
+  position: relative;
+  filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 6px var(--tera-color)) drop-shadow(0 0 14px var(--tera-color));
+}
+.tera-gem {
+  position: absolute; left: 50%; top: 4%; width: 22px; height: 26px; translate: -50% 0;
+  clip-path: polygon(50% 0, 100% 30%, 82% 100%, 18% 100%, 0 30%);
+  background: linear-gradient(160deg, #fff 0 22%, var(--tera-color) 45%, color-mix(in srgb, var(--tera-color) 55%, #000) 100%);
+  filter: drop-shadow(0 0 4px var(--tera-color));
+  animation: tera-gem-bob 2.4s ease-in-out infinite;
+}
+@keyframes tera-gem-bob { 50% { translate: -50% -4px; } }
 
 /* Attack effects (drawn by FxLayer's canvas): the sprite flashes white and shudders when hit, the whole field
    shakes on crits / super-effective hits, and Tera / Mega / Z light the sprite up in their color. */
