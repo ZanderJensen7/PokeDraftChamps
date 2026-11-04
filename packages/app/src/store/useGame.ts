@@ -18,7 +18,7 @@ import { cleanNickname, motionReduced, useSettings } from './settings';
 import { useProfile } from './profile';
 
 export type Screen =
-  | 'title' | 'setup' | 'draft' | 'hub' | 'team' | 'prep' | 'battle' | 'recap' | 'end' | 'settings' | 'analytics'
+  | 'title' | 'badgerun' | 'setup' | 'draft' | 'hub' | 'team' | 'prep' | 'battle' | 'recap' | 'end' | 'settings' | 'analytics'
   | 'daily' | 'hall' | 'replay';
 
 /** The league slot (any run without `daily`). */

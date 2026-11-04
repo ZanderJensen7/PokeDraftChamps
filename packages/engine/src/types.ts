@@ -28,6 +28,8 @@ export interface LeagueConfig {
   freeAgencyMoves: number;  // per season, default 2
   /** Difficulty ladder level, 1..MAX_STAKE (data/stakes.ts). Default 1 = the base game. */
   stake: number;
+  /** A custom league: the player's own format. Plays its stake's rules but never earns or unlocks a badge. */
+  custom?: boolean;
 }
 
 export const DEFAULT_LEAGUE_CONFIG: LeagueConfig = {

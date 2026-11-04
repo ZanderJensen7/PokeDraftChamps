@@ -5,7 +5,7 @@ import { hasPlayedMatches } from '../analytics/useAnalytics';
 
 const NAV_SCREENS: readonly Screen[] = ['hub', 'team', 'prep', 'analytics', 'settings', 'recap', 'end'];
 /** Screens an overlay can return to that sit outside the season loop. */
-const OUTSIDE_LOOP: readonly Screen[] = ['title', 'setup', 'draft', 'battle'];
+const OUTSIDE_LOOP: readonly Screen[] = ['title', 'badgerun', 'setup', 'draft', 'battle'];
 
 /** True when the phone bottom nav should show (season screens only, never title/setup/draft/battle). */
 export function useShowBottomNav(): boolean {

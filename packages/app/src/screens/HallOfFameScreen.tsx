@@ -174,7 +174,7 @@ export function HallOfFameScreen() {
           <Panel>
             <DialogueBox>No finished runs yet. Every league you finish, won or lost, lands here with its record, its score and its MVP.</DialogueBox>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-center">
-              <GameButton size="lg" onClick={() => go('setup')}>Start your first league</GameButton>
+              <GameButton size="lg" onClick={() => go('badgerun')}>Start your first league</GameButton>
               <GameButton variant="secondary" onClick={() => go('daily')}>Daily League</GameButton>
             </div>
           </Panel>

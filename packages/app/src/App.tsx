@@ -10,6 +10,7 @@ import { leagueCode } from './game/names';
 import { badgeLabel } from './game/badges';
 import { TitleScreen } from './screens/TitleScreen';
 import { SetupScreen } from './screens/SetupScreen';
+import { BadgeRunScreen } from './screens/BadgeRunScreen';
 import { DraftScreen } from './screens/DraftScreen';
 import { HubScreen } from './screens/HubScreen';
 import { TeamScreen } from './screens/TeamScreen';
@@ -48,6 +49,7 @@ function ReplayRoute() {
 
 const SCREENS: Record<Screen, () => React.JSX.Element | null> = {
   title: TitleScreen,
+  badgerun: BadgeRunScreen,
   setup: SetupScreen,
   draft: DraftScreen,
   hub: HubScreen,

@@ -1,10 +1,12 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
-import { computeStandings, dailyDate, type RunState } from '@pdc/engine';
+import { careerStats, computeStandings, dailyDate, MAX_STAKE, type RunState } from '@pdc/engine';
 import { loadDailySave, loadLeagueSave, useGame, weekLabel } from '../store/useGame';
+import { useProfile } from '../store/profile';
+import { badgeLabel, badgeName } from '../game/badges';
 import { APP_VERSION } from '../app/version';
 import { BugReport } from '../components/BugReport';
 import { isRunOver } from '../components/DailyBits';
-import { Crest, DialogueBox, GameButton, ResponsiveDialog, PokeBallLogo, PokeSprite } from '../components/ui';
+import { BadgeEmblem, Crest, DialogueBox, GameButton, ResponsiveDialog, PokeBallLogo, PokeSprite } from '../components/ui';
 
 const PARADE = ['Great Tusk', 'Dragapult', 'Gholdengo', 'Kingambit', 'Iron Valiant', 'Meowscarada'];
 
@@ -93,6 +95,16 @@ export function TitleScreen() {
     ? go(run.phase === 'draft' ? 'draft' : run.phase === 'season' || run.phase === 'playoffs' ? 'hub' : 'end')
     : continueRun());
   const human = league?.coaches.find((c) => c.id === league.humanId);
+  const stakeUnlocked = useProfile((s) => s.stakeUnlocked);
+  const careerRuns = useProfile((s) => s.runs);
+  const trophies = useProfile((s) => s.trophies);
+  const earned = useMemo(
+    () => careerStats({ version: 2, stakeUnlocked, runs: careerRuns, trophies }).titlesPerStake.filter((n) => n > 0).length,
+    [stakeUnlocked, careerRuns, trophies],
+  );
+  // Custom leagues open once you have a badge (or any finished run, so older saves keep them): new players meet the
+  // Badge Run first.
+  const customOpen = stakeUnlocked > 1 || careerRuns.length > 0;
 
   return (
     <div className="flex min-h-[85vh] flex-col items-center justify-center gap-7 py-8 text-center">
@@ -128,14 +140,31 @@ export function TitleScreen() {
           </button>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
-          <button type="button" onClick={() => go('setup')} className="menu-tile tile-league min-h-28 flex-col justify-between gap-2 p-3.5">
-            <Icon name="ball" size={26} />
-            <span>
-              <span className="block font-display text-xl font-bold uppercase leading-tight tracking-wide">New League</span>
-              <span className="block text-xs font-semibold text-ink/75">Your rules, full season</span>
+        <button type="button" onClick={() => go('badgerun')} className="menu-tile tile-league items-center gap-3.5 px-4 py-4">
+          <BadgeEmblem stake={stakeUnlocked} state="open" size={52} className="drop-shadow-[0_3px_0_rgba(0,0,0,0.3)]" />
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-2xl font-bold uppercase leading-tight tracking-wide">Badge Run</span>
+            <span className="block truncate text-sm font-bold text-ink/80">
+              {earned === 0 ? `Earn your first badge · ${badgeName(1)}` : `Next: ${badgeLabel(stakeUnlocked)} · ${earned}/${MAX_STAKE} earned`}
             </span>
-            <Icon name="ball" size={96} className="tile-mark" />
+          </span>
+          <span className="font-display text-3xl font-bold leading-none opacity-70" aria-hidden="true">›</span>
+          <BadgeEmblem stake={stakeUnlocked} state="open" size={120} className="tile-mark" />
+        </button>
+
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => customOpen && go('setup')}
+            aria-disabled={!customOpen}
+            className={`menu-tile min-h-28 flex-col justify-between gap-2 p-3.5 ${customOpen ? '' : 'cursor-not-allowed opacity-60 hover:filter-none'}`}
+          >
+            <Icon name="settings" size={26} />
+            <span>
+              <span className="block font-display text-xl font-bold uppercase leading-tight tracking-wide">Custom</span>
+              <span className="block text-xs font-semibold text-muted">{customOpen ? 'Your rules, no badges' : `Earn the ${badgeName(1)} to unlock`}</span>
+            </span>
+            <Icon name="settings" size={96} className="tile-mark" />
           </button>
           <button type="button" onClick={() => go('daily')} className="menu-tile tile-daily min-h-28 flex-col justify-between gap-2 p-3.5">
             <span className="flex items-start justify-between gap-2">

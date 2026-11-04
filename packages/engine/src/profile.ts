@@ -112,10 +112,10 @@ function addTrophies(trophies: Record<SpeciesId, Trophy>, r: CareerRun): Record<
   return out;
 }
 
-/** The stake rule: a league title at (or above) the highest unlocked stake opens the next one. Dailies never do. */
+/** The stake rule: a league title at (or above) the highest unlocked stake opens the next one. Dailies and custom leagues never do. */
 function nextStake(stakeUnlocked: number, r: Pick<RunSummary, 'daily' | 'phase' | 'config'>): number {
   const stake = r.config.stake;
-  if (r.daily || r.phase !== 'champion' || stake < stakeUnlocked || stake >= MAX_STAKE) return stakeUnlocked;
+  if (r.daily || r.config.custom || r.phase !== 'champion' || stake < stakeUnlocked || stake >= MAX_STAKE) return stakeUnlocked;
   return stake + 1;
 }
 
@@ -188,7 +188,7 @@ export function careerStats(profile: Profile): CareerStats {
       titles++;
       streak++;
       longestTitleStreak = Math.max(longestTitleStreak, streak);
-      if (!r.daily) titlesPerStake[clampStake(r.config.stake) - 1]!++;
+      if (!r.daily && !r.config.custom) titlesPerStake[clampStake(r.config.stake) - 1]!++;
     } else {
       streak = 0;
     }
