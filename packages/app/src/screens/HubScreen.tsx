@@ -325,7 +325,7 @@ export function HubScreen() {
             Captains
           </GameButton>
         )}
-        <GameButton variant="ghost" onClick={() => go('title')}>Title</GameButton>
+        <GameButton variant="ghost" onClick={() => go('title')}>Title screen</GameButton>
       </div>
 
       {playoffs && (

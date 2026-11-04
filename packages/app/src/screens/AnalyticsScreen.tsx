@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { PriceSuggestion, RunState, SpeciesAggregate } from '@pdc/engine';
 import { getDraftMon, humanCoach } from '@pdc/engine';
 import { useGame } from '../store/useGame';
-import { DialogueBox, GameButton, Panel, PokeIcon, PriceBadge, Tabs, TypePills } from '../components/ui';
+import { BackButton, DialogueBox, GameButton, Panel, PokeIcon, PriceBadge, Tabs, TypePills } from '../components/ui';
 import { MonDetailButton } from '../components/MonDetail';
 import { useMonDetail } from '../store/monDetail';
 import { displayName } from '../game/names';
@@ -293,9 +293,9 @@ export function AnalyticsScreen() {
   const back = run.phase === 'season' || run.phase === 'playoffs' ? 'hub' : 'end';
   return (
     <div className="space-y-4">
-      <div className="title-band flex items-center justify-between gap-2">
+      <div className="title-band flex items-center gap-3">
+        <BackButton onClick={() => go(back)} to={back === 'hub' ? 'hub' : 'run summary'} />
         <h1 className="font-display text-3xl font-bold uppercase leading-none">Analytics</h1>
-        <GameButton variant="ghost" size="sm" onClick={() => go(back)}>Back</GameButton>
       </div>
       <Panel title="Performance" aside={<span>{played} matches played</span>}>
         <div className="mb-3">

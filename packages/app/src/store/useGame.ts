@@ -121,7 +121,8 @@ interface GameActions {
   saveSet(species: SpeciesId, set: BattleSet): void;
   exportSave(): void;
   importSave(file: File): Promise<void>;
-  clearSave(): void;
+  /** Deletes the loaded run's save (or the league save with `league`, leaving a loaded daily run alone). */
+  clearSave(slot?: 'league'): void;
   setToast(msg: string | null): void;
 }
 
@@ -630,9 +631,10 @@ export const useGame = create<GameStore>((set, get) => ({
     }
   },
 
-  clearSave() {
+  clearSave(slot) {
     const { run } = get();
-    const key = run ? slotOf(run) : RUN_KEY;
+    const key = slot === 'league' || !run ? RUN_KEY : slotOf(run);
+    const unloads = !run || slotOf(run) === key;
     try {
       localStorage.removeItem(key);
     } catch {
@@ -640,8 +642,10 @@ export const useGame = create<GameStore>((set, get) => ({
     }
     set({
       ...(key === DAILY_KEY ? { hasDaily: false, dailySaveDate: null } : { hasSave: false }),
-      run: null, screen: 'title', returnTo: 'title', prep: null, prepKey: null,
-      lastWeekResults: null, battle: null, simulatingWeek: false, leaveBattleTo: null,
+      ...(unloads ? {
+        run: null, screen: 'title', returnTo: 'title', prep: null, prepKey: null,
+        lastWeekResults: null, battle: null, simulatingWeek: false, leaveBattleTo: null,
+      } : {}),
     });
   },
 

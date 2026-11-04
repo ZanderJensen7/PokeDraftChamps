@@ -63,7 +63,6 @@ function MonDetail({ mon, canDraft, reason, onDraft, onClose, sheet, impact }: {
       onClose={onClose}
       footer={
         <>
-          <GameButton variant="ghost" onClick={onClose} className="max-md:min-h-11">Back</GameButton>
           <GameButton variant="secondary" onClick={() => useMonDetail.getState().open(mon.id)} className="max-md:min-h-11">Full details</GameButton>
           <GameButton disabled={!canDraft} onClick={onDraft} className="max-md:min-h-11">Draft {displayName(mon.name)} ({mon.points})</GameButton>
         </>

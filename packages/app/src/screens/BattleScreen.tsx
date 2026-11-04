@@ -5,7 +5,7 @@ import type { MatchResult } from '@pdc/engine';
 import type { ParsedRequest, RequestPokemon } from '@pdc/engine/battle';
 import { useGame } from '../store/useGame';
 import { useSettings } from '../store/settings';
-import { GameButton, HpBar, ResponsiveDialog, PokeIcon, PokeSprite, RoleTag, Sheet, TypePill, typeColor } from '../components/ui';
+import { BackButton, GameButton, HpBar, ResponsiveDialog, PokeIcon, PokeSprite, RoleTag, Sheet, TypePill, typeColor } from '../components/ui';
 import { BoostChips, MonHoverLayer, StatusBadge, useMonHover, type MonHoverBind } from '../components/battle/MonHoverCard';
 import { buildMonInfo, type MonInfoContext, type MonTarget } from '../battle/monInfo';
 import { getBridge } from '../game/bridge';
@@ -551,9 +551,9 @@ function MovePanel({ request, names, onChoose, onForfeit }: ChoiceProps & { onFo
   if (mode === 'switch' && !isMobile) {
     return (
       <div className="dialogue space-y-3 px-4 py-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <BackButton onClick={() => setMode('moves')} to="moves" />
           <div className="font-display text-lg font-bold">Switch to…</div>
-          <GameButton size="sm" variant="ghost" onClick={() => setMode('moves')}>BACK</GameButton>
         </div>
         <Bench request={request} names={names} onChoose={onChoose} />
       </div>

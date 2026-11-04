@@ -332,7 +332,6 @@ export function MoveTable({ rows, chosen, types, onChange }: MoveTableProps) {
           onClose={() => setSheet(null)}
           footer={(
             <>
-              <GameButton variant="ghost" onClick={() => setSheet(null)}>Close</GameButton>
               <GameButton disabled={full || taken.has(sheet.name.toLowerCase())} onClick={() => { add(sheet.name); setSheet(null); }}>Add to set</GameButton>
             </>
           )}

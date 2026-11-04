@@ -78,7 +78,9 @@ export function TitleScreen() {
   const continueRun = useGame((s) => s.continueRun);
   const importSave = useGame((s) => s.importSave);
   const openOverlay = useGame((s) => s.openOverlay);
+  const clearSave = useGame((s) => s.clearSave);
   const [howTo, setHowTo] = useState(false);
+  const [ending, setEnding] = useState(false);
   const [bug, setBug] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -139,6 +141,15 @@ export function TitleScreen() {
             <span className="font-display text-3xl font-bold leading-none opacity-70" aria-hidden="true">›</span>
           </button>
         )}
+        {hasSave && (
+          <button
+            type="button"
+            onClick={() => setEnding(true)}
+            className="focus-ring -mt-1.5 self-end rounded px-1 text-xs font-semibold text-muted underline-offset-2 hover:text-ink hover:underline"
+          >
+            End this run
+          </button>
+        )}
 
         <button type="button" onClick={() => go('badgerun')} className="menu-tile tile-league items-center gap-3.5 px-4 py-4">
           <BadgeEmblem stake={stakeUnlocked} state="open" size={52} className="drop-shadow-[0_3px_0_rgba(0,0,0,0.3)]" />
@@ -153,6 +164,17 @@ export function TitleScreen() {
         </button>
 
         <div className="grid grid-cols-2 gap-3">
+          <button type="button" onClick={() => go('daily')} className="menu-tile tile-daily min-h-28 flex-col justify-between gap-2 p-3.5">
+            <span className="flex items-start justify-between gap-2">
+              <Icon name="calendar" size={26} />
+              <span className="whitespace-nowrap rounded-full bg-black/25 px-2 py-0.5 text-[0.7rem] font-bold uppercase tracking-wide">{dailyNote}</span>
+            </span>
+            <span>
+              <span className="block font-display text-xl font-bold uppercase leading-tight tracking-wide">Daily</span>
+              <span className="block text-xs font-semibold text-ink/75">Same league for everyone</span>
+            </span>
+            <Icon name="calendar" size={96} className="tile-mark" />
+          </button>
           <button
             type="button"
             onClick={() => customOpen && go('setup')}
@@ -165,17 +187,6 @@ export function TitleScreen() {
               <span className="block text-xs font-semibold text-muted">{customOpen ? 'Your rules, no badges' : `Earn the ${badgeName(1)} to unlock`}</span>
             </span>
             <Icon name="settings" size={96} className="tile-mark" />
-          </button>
-          <button type="button" onClick={() => go('daily')} className="menu-tile tile-daily min-h-28 flex-col justify-between gap-2 p-3.5">
-            <span className="flex items-start justify-between gap-2">
-              <Icon name="calendar" size={26} />
-              <span className="whitespace-nowrap rounded-full bg-black/25 px-2 py-0.5 text-[0.7rem] font-bold uppercase tracking-wide">{dailyNote}</span>
-            </span>
-            <span>
-              <span className="block font-display text-xl font-bold uppercase leading-tight tracking-wide">Daily</span>
-              <span className="block text-xs font-semibold text-ink/75">Same league for everyone</span>
-            </span>
-            <Icon name="calendar" size={96} className="tile-mark" />
           </button>
         </div>
 
@@ -210,6 +221,17 @@ export function TitleScreen() {
       </p>
       {howTo && <HowToPlay onClose={() => setHowTo(false)} />}
       {bug && <BugReport onClose={() => setBug(false)} />}
+      {ending && (
+        <ResponsiveDialog
+          title="End this run?"
+          onClose={() => setEnding(false)}
+          footer={<><GameButton variant="ghost" onClick={() => setEnding(false)}>Keep playing</GameButton><GameButton variant="danger" onClick={() => { clearSave('league'); setEnding(false); }}>End run</GameButton></>}
+        >
+          <DialogueBox>
+            Your league{human ? ` (${human.name})` : ''} is deleted for good and does not count in the Hall of Fame. Your daily run and career are not touched.
+          </DialogueBox>
+        </ResponsiveDialog>
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { DAILY_SCORE, dailyDate, dailyInfo, resultLabel, summarizeRun } from '@p
 import { apiEnabled, apiHost, fetchDailyBoard, type DailyEntry } from '../game/api';
 import { loadDailySave, useGame } from '../store/useGame';
 import { isRunOver, NicknameField, PostScoreButton, ShareLine } from '../components/DailyBits';
-import { Crest, DialogueBox, GameButton, Panel } from '../components/ui';
+import { BackButton, Crest, DialogueBox, GameButton, Panel } from '../components/ui';
 
 type Board =
   | { status: 'off' }
@@ -104,9 +104,10 @@ export function DailyScreen() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <div className="title-band flex flex-wrap items-center justify-between gap-2">
+      <div className="title-band flex flex-wrap items-center gap-3">
+        <BackButton onClick={() => go('title')} to="title screen" />
         <h1 className="font-display text-3xl font-bold uppercase leading-none">Daily League</h1>
-        <span className="rounded-full bg-panel-inset px-3 py-1 font-display font-bold text-poke-yellow tabular-nums">{today} UTC</span>
+        <span className="ml-auto rounded-full bg-panel-inset px-3 py-1 font-display font-bold text-poke-yellow tabular-nums">{today} UTC</span>
       </div>
 
       <Panel title="Today’s league">
@@ -157,10 +158,6 @@ export function DailyScreen() {
       )}
 
       <Leaderboard date={today} board={board} mine={saved?.id} onRetry={refresh} />
-
-      <div className="flex justify-start">
-        <GameButton variant="ghost" onClick={() => go('title')}>Back to title</GameButton>
-      </div>
     </div>
   );
 }

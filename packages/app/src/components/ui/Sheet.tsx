@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { GameButton } from './GameButton';
+import { CloseButton } from './CloseButton';
 
 interface SheetProps {
   title: ReactNode;
@@ -34,7 +34,7 @@ export function Sheet({ title, onClose, children, footer, full }: SheetProps) {
       >
         <div className="flex shrink-0 items-center justify-between gap-2 border-b-2 border-edge-dark py-1 pr-1.5 pl-4">
           <h2 className="title-band text-lg leading-tight">{title}</h2>
-          <GameButton variant="ghost" size="sm" onClick={onClose} aria-label="Close" className="min-h-11 min-w-11">✕</GameButton>
+          <CloseButton onClick={onClose} className="min-h-11 min-w-11" />
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">{children}</div>
         {footer && <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t-2 border-edge px-3 pt-3 pb-safe-3">{footer}</div>}

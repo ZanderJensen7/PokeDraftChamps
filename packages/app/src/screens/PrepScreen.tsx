@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { CoachId, PrepDoc, PrepMoveCategory, RosterEntry, RunState, SpeciesId } from '@pdc/engine';
 import { getDraftMon, humanCoach, nextHumanMatch, opponentOf, rulesAt, threatSummary, visibleRoster } from '@pdc/engine';
 import { useGame, validLineup, weekLabel } from '../store/useGame';
-import { Crest, DialogueBox, GameButton, IconBadge, Panel, PokeIcon, Tabs, TypePill, TypePills } from '../components/ui';
+import { BackButton, Crest, DialogueBox, GameButton, IconBadge, Panel, PokeIcon, Tabs, TypePill, TypePills } from '../components/ui';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { MatchupTable } from '../components/prep/MatchupTable';
 import { LineupPicker } from '../components/prep/LineupPicker';
@@ -242,6 +242,7 @@ export function PrepScreen() {
     <div className="space-y-4">
       <div className="title-band flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <BackButton onClick={() => go('hub')} to="hub" className="shrink-0" />
           <Crest abbrev={human.abbrev} size={40} side="you" />
           <span className="font-display text-xl font-bold sm:text-2xl">VS</span>
           <Crest abbrev={opp.abbrev} size={40} side="opp" />
@@ -254,7 +255,6 @@ export function PrepScreen() {
           <GameButton variant="secondary" size="sm" onClick={() => updateSettings({ prepStyle: prepStyle === 'guided' ? 'full' : 'guided' })}>
             {prepStyle === 'guided' ? 'Full prep doc' : 'Guided prep'}
           </GameButton>
-          <GameButton variant="ghost" size="sm" onClick={() => go('hub')} className="max-sm:hidden">Back</GameButton>
         </div>
       </div>
 
