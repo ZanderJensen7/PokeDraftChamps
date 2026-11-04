@@ -150,6 +150,17 @@ function dailyDateOf(raw: string | null): string | null {
   return /"daily":\{"date":"(\d{4}-\d{2}-\d{2})"\}/.exec(raw)?.[1] ?? null;
 }
 
+/** The saved league run, parsed, or null (none / unreadable). The title screen's Continue card reads it. */
+export function loadLeagueSave(): RunState | null {
+  const raw = readSave();
+  if (!raw) return null;
+  try {
+    return deserializeRun(raw);
+  } catch {
+    return null;
+  }
+}
+
 /** The saved daily run, parsed, or null (none / unreadable). */
 export function loadDailySave(): RunState | null {
   const raw = readKey(DAILY_KEY);
