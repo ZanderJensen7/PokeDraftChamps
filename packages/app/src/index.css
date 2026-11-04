@@ -183,6 +183,49 @@ h1, h2, h3, .font-display {
   .btn-danger { --btn-bg: var(--color-poke-red); --btn-edge: var(--color-poke-red-dark); --btn-ink: var(--color-ink); }
   .btn-ghost { --btn-bg: var(--color-panel-hi); --btn-edge: var(--color-edge-dark); --btn-ink: var(--color-ink); }
 
+  /* Title screen menu tiles: the chunky button edge, but a card body (icon, label, one line of detail). */
+  .menu-tile {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    text-align: left;
+    border: 2px solid var(--tile-edge, var(--color-edge));
+    border-bottom-width: 5px;
+    border-bottom-color: var(--tile-edge-dark, var(--color-edge-dark));
+    border-radius: 14px;
+    background: var(--tile-bg, var(--color-panel));
+    color: var(--tile-ink, var(--color-ink));
+    transition: transform 120ms ease, border-bottom-width 120ms ease, filter 120ms ease;
+    cursor: pointer;
+  }
+  .menu-tile:hover { filter: brightness(1.1); transform: translateY(-1px); }
+  .menu-tile:active { transform: translateY(2px); border-bottom-width: 3px; }
+  .menu-tile:focus-visible { outline: 3px solid var(--color-poke-yellow); outline-offset: 2px; }
+  .tile-continue {
+    --tile-bg: linear-gradient(135deg, #ffd83a 0%, var(--color-poke-yellow) 55%, #f2b700 100%);
+    --tile-edge: var(--color-poke-yellow-dark);
+    --tile-edge-dark: #8a6c00;
+    --tile-ink: var(--color-cream-ink);
+  }
+  .tile-league {
+    --tile-bg: linear-gradient(160deg, #4d5ee0 0%, var(--color-poke-blue) 60%, #2f3eb0 100%);
+    --tile-edge: #5a6be6;
+    --tile-edge-dark: var(--color-poke-blue-dark);
+  }
+  .tile-daily {
+    --tile-bg: linear-gradient(160deg, #f0532d 0%, var(--color-poke-red) 60%, #b92a09 100%);
+    --tile-edge: #f2704f;
+    --tile-edge-dark: var(--color-poke-red-dark);
+  }
+  /* A big faint watermark glyph in a tile's corner. */
+  .tile-mark {
+    position: absolute;
+    right: -14px;
+    bottom: -18px;
+    opacity: 0.16;
+    pointer-events: none;
+  }
+
   .type-pill {
     font-family: var(--font-display);
     font-weight: 700;
