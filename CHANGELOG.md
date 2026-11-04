@@ -6,6 +6,9 @@ every package.json. The build stamp shows the version and short commit in the co
 
 ## Unreleased
 
+- Team editor: your edits stay when you switch to another Pokemon (it says EDITED in the roster), and one "Save all"
+  saves every changed set at once. Closing with unsaved edits asks to save or discard them; leaving through the
+  bottom bar keeps them for when you come back. A move the Pokemon can't learn is flagged right in the editor.
 - Battle: a Terastallized Pokemon now looks it for the rest of the battle: a crystal glow in its Tera type's color, a
   gem over its head, and a "TERA" tag with the type on its HP box (also after it switches out and back in).
 - One way back, one way out: every screen you open from somewhere else (Badge Run, Custom League, Daily, Hall of

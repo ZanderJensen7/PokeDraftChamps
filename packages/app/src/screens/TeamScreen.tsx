@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Sets } from '@pkmn/sets';
 import { toID } from '@pkmn/dex';
 import type { BattleSet, MoveRow, RosterEntry, SampleSet, SpeciesId, StatsTable } from '@pdc/engine';
@@ -14,6 +14,7 @@ import { MoveTable } from '../components/MoveTable';
 import { ItemPicker } from '../components/ItemPicker';
 import { TeamStats } from '../components/TeamStats';
 import { useMonDetail } from '../store/monDetail';
+import { useTeamDrafts } from '../store/teamDrafts';
 import {
   EV_STAT_CAP, EV_TOTAL_CAP, STAT_LABEL, STAT_NAMES, TERA_TYPES, Z_CRYSTALS, abilityShortDesc, battleSpecies, blankSet, dex9, itemShortDesc,
   lockedStone, moveInfo, natureNames, natureStats, natureSummary, speciesAbilities, zCrystalType,
@@ -21,28 +22,28 @@ import {
 
 type StatName = keyof StatsTable;
 
+const andList = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+
 function spreadText(evs: StatsTable): string {
   return STAT_NAMES.filter((k) => (evs[k] ?? 0) > 0).map((k) => `${evs[k]} ${STAT_LABEL[k]}`).join(' / ') || 'no EVs';
 }
 
-function SetEditor({ entry, saved, showTera, opponents }: {
+function SetEditor({ entry, saved, draft, setDraft, pendingCount, onSave, showTera, opponents }: {
   entry: RosterEntry; saved: BattleSet | undefined; showTera: boolean; opponents: SpeciesId[];
+  /** This mon's unsaved edit, else its saved set (the screen keeps every mon's edits until Save). */
+  draft: BattleSet | null; setDraft: (d: BattleSet | null) => void;
+  /** Mons with unsaved edits, this one included. */
+  pendingCount: number; onSave: () => void;
 }) {
   const species = entry.species;
   const isZCaptain = !!entry.isZCaptain;
-  const saveSet = useGame((s) => s.saveSet);
   const setToast = useGame((s) => s.setToast);
   const mon = getDraftMon(species);
   const name = displayName(mon?.name ?? species);
   const stone = lockedStone(species);
-  const [draft, setDraft] = useState<BattleSet | null>(saved ?? null);
   const [rows, setRows] = useState<MoveRow[] | null>(null);
   const [io, setIo] = useState<'import' | 'export' | null>(null);
   const [ioText, setIoText] = useState('');
-
-  useEffect(() => {
-    setDraft(saved ?? null);
-  }, [species, saved]);
 
   useEffect(() => {
     let live = true;
@@ -128,16 +129,6 @@ function SetEditor({ entry, saved, showTera, opponents }: {
   const zMoves = zType ? moveList.filter((m) => m && moveInfo(m)?.type === zType && moveInfo(m)?.category !== 'Status') : [];
   const abilityDesc = abilityShortDesc(draft.ability);
   const nat = natureStats(draft.nature);
-
-  const save = () => {
-    if (illegal.length) {
-      setToast(`${name} can't learn ${illegal.join(', ')}.`);
-      return;
-    }
-    const clean: BattleSet = { ...draft, moves: moveList.filter(Boolean) };
-    saveSet(species, clean);
-    setToast(`Saved ${name}'s set.`);
-  };
 
   return (
     <div className="space-y-4">
@@ -228,13 +219,14 @@ function SetEditor({ entry, saved, showTera, opponents }: {
 
       <MoveTable rows={rows} chosen={moveList} types={battleSp.types} onChange={(m) => patch({ moves: m })} />
 
+      {illegal.length > 0 && <p className="text-sm font-semibold text-poke-red">{name} can't learn {illegal.join(', ')}. Swap {illegal.length === 1 ? 'it' : 'them'} out before saving.</p>}
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
         <div className="flex flex-wrap gap-2">
           <GameButton variant="ghost" size="sm" onClick={() => { setIoText(''); setIo('import'); }}>Import</GameButton>
           <GameButton variant="ghost" size="sm" onClick={() => { setIoText(exportSetText(draft, { teraCaptain: showTera })); setIo('export'); }}>Export</GameButton>
           <GameButton variant="ghost" size="sm" disabled={!dirty} onClick={() => setDraft(saved ?? null)}>Revert</GameButton>
         </div>
-        <GameButton disabled={!dirty} onClick={save}>Save set</GameButton>
+        <GameButton disabled={pendingCount === 0} onClick={onSave}>{pendingCount > 1 ? `Save all (${pendingCount})` : 'Save'}</GameButton>
       </div>
 
       {io === 'import' && (
@@ -278,7 +270,49 @@ export function TeamScreen() {
   const human = run ? humanCoach(run) : null;
   const [sel, setSel] = useState<SpeciesId | null>(human?.roster[0]?.species ?? null);
   const [roster, setRoster] = useState<'import' | 'export' | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const saveSet = useGame((s) => s.saveSet);
+  const setToast = useGame((s) => s.setToast);
+  const draftsRun = useTeamDrafts((s) => s.runId);
+  const allDrafts = useTeamDrafts((s) => s.drafts);
+  const drafts = run && draftsRun === run.id ? allDrafts : {};
+  const pending = Object.keys(drafts);
+  const sets = human?.sets;
+  // A saved set that changes (Save, Import sets) replaces that mon's unsaved edits.
+  const prevSets = useRef(sets);
+  useEffect(() => {
+    const prev = prevSets.current;
+    prevSets.current = sets;
+    if (!prev || !sets || prev === sets) return;
+    const changed = Object.keys(useTeamDrafts.getState().drafts).filter((sp) => sets[sp] !== prev[sp]);
+    if (changed.length) useTeamDrafts.getState().drop(changed);
+  }, [sets]);
+  // Closing the tab with unsaved edits asks first.
+  useEffect(() => {
+    if (pending.length === 0) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [pending.length]);
   if (!run || !human) return null;
+  const monName = (sp: SpeciesId) => displayName(getDraftMon(sp)?.name ?? sp);
+  /** Saves every mon's edits at once, or none if any has a move it can't learn (that mon opens). */
+  const saveAll = async (): Promise<boolean> => {
+    const entries = Object.entries(drafts);
+    for (const [sp, d] of entries) {
+      const rows = await moveRows(sp).catch(() => null);
+      const bad = rows ? d.moves.filter((m) => m && !rows.some((r) => r.name.toLowerCase() === m.toLowerCase())) : [];
+      if (bad.length) {
+        setSel(sp);
+        setToast(`${monName(sp)} can't learn ${bad.join(', ')}. Nothing saved yet.`);
+        return false;
+      }
+    }
+    for (const [sp, d] of entries) saveSet(sp, { ...d, moves: d.moves.filter(Boolean) });
+    setToast(entries.length === 1 ? `Saved ${monName(entries[0]![0])}'s set.` : `Saved ${entries.length} sets.`);
+    return true;
+  };
+  const close = () => (pending.length ? setLeaving(true) : closeOverlay());
   const current = human.roster.find((r) => r.species === sel) ?? human.roster[0];
   const mon = current ? getDraftMon(current.species) : undefined;
   const teraEnabled = run.config.teraCaptains > 0;
@@ -288,7 +322,7 @@ export function TeamScreen() {
     <div className="space-y-4">
       <div className="title-band flex flex-wrap items-center justify-between gap-2">
         <h1 className="mr-auto font-display text-3xl font-bold uppercase leading-none">{human.abbrev} team</h1>
-        <CloseButton onClick={closeOverlay} label="Close team editor" className="sm:order-last" />
+        <CloseButton onClick={close} label="Close team editor" className="sm:order-last" />
         <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
           <GameButton variant="secondary" size="sm" onClick={() => setRoster('import')}>Import sets</GameButton>
           <GameButton
@@ -311,6 +345,7 @@ export function TeamScreen() {
               const m = getDraftMon(r.species);
               const on = r.species === current?.species;
               const hasSet = !!human.sets[r.species];
+              const edited = !!drafts[r.species];
               return (
                 <li key={r.species} className="max-md:shrink-0 max-md:snap-start">
                   <button
@@ -320,7 +355,9 @@ export function TeamScreen() {
                   >
                     <IconBadge name={m?.name ?? r.species} roles={rolesOf(r)} tone="you" />
                     <span className="flex-1 truncate font-semibold max-md:flex-none">{displayName(m?.name ?? r.species)}</span>
-                    {!hasSet && <span className="text-xs font-bold text-poke-yellow">NO SET</span>}
+                    {edited
+                      ? <span className="text-xs font-bold text-poke-yellow" title="Unsaved changes">EDITED</span>
+                      : !hasSet && <span className="text-xs font-bold text-poke-yellow">NO SET</span>}
                   </button>
                 </li>
               );
@@ -349,12 +386,33 @@ export function TeamScreen() {
               key={current.species}
               entry={current}
               saved={human.sets[current.species]}
+              draft={drafts[current.species] ?? human.sets[current.species] ?? null}
+              setDraft={(d) => useTeamDrafts.getState().put(run.id, current.species, d, human.sets[current.species])}
+              pendingCount={pending.length}
+              onSave={() => void saveAll()}
               showTera={teraEnabled && current.isTeraCaptain}
               opponents={opponents}
             />
           </Panel>
         )}
       </div>
+      {leaving && (
+        <ResponsiveDialog
+          title="Unsaved changes"
+          onClose={() => setLeaving(false)}
+          footer={(
+            <>
+              <GameButton variant="ghost" onClick={() => { useTeamDrafts.getState().clear(); setLeaving(false); closeOverlay(); }}>Discard</GameButton>
+              <GameButton onClick={() => void saveAll().then((ok) => { setLeaving(false); if (ok) closeOverlay(); })}>Save and close</GameButton>
+            </>
+          )}
+        >
+          <DialogueBox>
+            You changed {pending.length === 1 ? 'the set' : 'the sets'} of {andList(pending.map(monName))} without saving.
+            Save {pending.length === 1 ? 'it' : 'them'} before you go?
+          </DialogueBox>
+        </ResponsiveDialog>
+      )}
     </div>
   );
 }
