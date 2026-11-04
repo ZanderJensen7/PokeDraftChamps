@@ -8,3 +8,4 @@ export * from './monDetail';
 export * from './sampleSets';
 export * from './calcStats';
 export * from './moveRows';
+export * from './setHelper';

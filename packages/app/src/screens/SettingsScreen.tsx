@@ -23,6 +23,7 @@ export function SettingsScreen() {
   const sound = useSettings((s) => s.sound);
   const shareRuns = useSettings((s) => s.shareRuns);
   const draftHelper = useSettings((s) => s.draftHelper);
+  const prepStyle = useSettings((s) => s.prepStyle);
   const update = useSettings((s) => s.update);
   // Clear save acts on the active run's slot (the league slot when no run is loaded).
   const clearsDaily = run?.daily !== undefined;
@@ -66,6 +67,13 @@ export function SettingsScreen() {
           Recommendations (FIT badges, what your team needs, sort by fit)
         </label>
         <p className="mt-1 text-sm text-muted">Off: you read the pool yourself. Your team's resistances and speed tiers stay.</p>
+      </Panel>
+      <Panel title="Prep">
+        <label className="flex items-center gap-3 font-semibold">
+          <input type="checkbox" className="h-5 w-5 accent-poke-yellow" checked={prepStyle === 'guided'} onChange={(e) => update({ prepStyle: e.target.checked ? 'guided' : 'full' })} />
+          Guided prep (scout, lineup, then optional move and EV helpers)
+        </label>
+        <p className="mt-1 text-sm text-muted">Off: the full prep doc with every table. Either one is a tap away on the prep screen.</p>
       </Panel>
       <Panel title="Motion">
         <label className="flex items-center gap-3 font-semibold">

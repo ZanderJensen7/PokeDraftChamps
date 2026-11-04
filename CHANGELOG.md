@@ -6,6 +6,12 @@ every package.json. The build stamp shows the version and short commit in the co
 
 ## Unreleased
 
+- Guided prep: before each match, prep now walks you through steps: Scout (threats and their roster), Lineup (pick
+  your six, or "Suggest lineup"), Moves, EVs, Battle. Moves shows which of their Pokemon your six hit super
+  effectively and suggests up to three legal swaps to cover the gaps (it never drops a status move, your last STAB
+  attack or anyone's only answer); one tap applies a swap. EVs shows each of your six with every preset spread and
+  how many of their Pokemon it outspeeds. Moves and EVs are optional ("Skip to battle"). The full prep doc is a tap
+  away ("Full prep doc"), and Settings > Prep remembers which one you use.
 - Badge Run is the main way to play: pick a badge, name your team, draft. Each badge sets the whole league, from
   8 coaches over 7 weeks at the Rookie Badge up to 16 coaches with a top-8 bracket, and the title screen leads
   with it, showing your next badge and how many you have earned. Every setting now lives in the new Custom League,
