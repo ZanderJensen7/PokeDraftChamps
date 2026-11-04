@@ -1,6 +1,6 @@
 // The live battle: the human (p1) against the league AI (p2), driven by the engine's interactive battle.
 // Protocol lines are narrated one sentence at a time; the action panel appears once narration catches up.
-import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode, type Ref } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode, type Ref } from 'react';
 import type { MatchResult } from '@pdc/engine';
 import type { ParsedRequest, RequestPokemon } from '@pdc/engine/battle';
 import { useGame } from '../store/useGame';
@@ -326,7 +326,7 @@ function HpBox({ mon, name, mine, compact }: { mon: MonView; name: string; mine:
           <span className="truncate font-display text-sm font-bold leading-tight">{name}</span>
           {isMega && <RoleTag role="mega" compact />}
           <StatusBadge status={mon.status} />
-          {mon.tera && <TypePill type={mon.tera} size="xs" />}
+          {mon.tera && <TeraPill type={mon.tera} />}
           <span className="ml-auto shrink-0 text-[11px] font-bold">Lv{mon.level}</span>
         </div>
         <div className="mt-0.5 flex items-center gap-1.5">
@@ -346,12 +346,21 @@ function HpBox({ mon, name, mine, compact }: { mon: MonView; name: string; mine:
       </div>
       <div className="mb-1 flex min-h-[1.1rem] items-center gap-1">
         <StatusBadge status={mon.status} />
-        {mon.tera && <TypePill type={mon.tera} size="xs" />}
+        {mon.tera && <TeraPill type={mon.tera} />}
       </div>
       <HpBar value={mon.hp} max={mon.maxhp} />
       {mine && <div className="mt-0.5 text-right">{number}</div>}
       <BoostChips boosts={mon.boosts} className="mt-1" />
     </div>
+  );
+}
+
+/** A Terastallized mon keeps this on its HP box for the rest of the battle. */
+function TeraPill({ type }: { type: string }) {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full pl-1.5 text-[10px] font-bold leading-none text-white" style={{ background: typeColor(type) }} title={`Terastallized: ${type}`}>
+      TERA <TypePill type={type} size="xs" />
+    </span>
   );
 }
 
@@ -383,9 +392,13 @@ function FieldSprite({ mon, side, size, phone }: { mon: MonView; side: 'p1' | 'p
   const scale = phone ? (side === 'p2' ? 'scale-[0.62]' : 'scale-[0.54]') : 'scale-90 lg:scale-100';
   return (
     <div className={`battle-sprite anim-pick-in origin-bottom ${scale} ${mon.fainted ? 'is-fainted' : ''}`}>
-      {/* The inner wrapper takes the hit flash / glow classes, so they never fight the scale transform above. */}
-      <div data-fx={side}>
-        <PokeSprite name={mon.species} side={side} size={size} />
+      {/* The Tera wrapper keeps its crystal glow and gem for the rest of the battle; the inner one takes the hit flash /
+          glow classes, so neither fights the scale transform above. */}
+      <div className={mon.tera ? 'is-tera' : undefined} style={mon.tera ? { '--tera-color': typeColor(mon.tera) } as CSSProperties : undefined}>
+        <div data-fx={side}>
+          <PokeSprite name={mon.species} side={side} size={size} />
+        </div>
+        {mon.tera && <span className="tera-gem" aria-hidden="true" />}
       </div>
     </div>
   );

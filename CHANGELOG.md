@@ -6,6 +6,8 @@ every package.json. The build stamp shows the version and short commit in the co
 
 ## Unreleased
 
+- Battle: a Terastallized Pokemon now looks it for the rest of the battle: a crystal glow in its Tera type's color, a
+  gem over its head, and a "TERA" tag with the type on its HP box (also after it switches out and back in).
 - One way back, one way out: every screen you open from somewhere else (Badge Run, Custom League, Daily, Hall of
   Fame, Analytics, Prep, Replays) has "‹ Back" at the top left of its title. Dialogs, sheets, Settings and the
   Team editor close with the ✕ at their top right, and the extra Close / Back buttons in dialog footers are gone
