@@ -7,7 +7,7 @@ import { visibleRoster } from './stakes';
 import { createRng, deriveSeed } from './rng';
 import {
   captainBlock, createRun, deserializeRun, draftPick, draftStop, finishDraft, freeAgency, nextHumanMatch, opponentOf,
-  regularSeasonRecord, resolveWeek, runAiDraftUntilHuman, serializeRun, setCaptains, setTeraCaptains, setZCaptains,
+  regularSeasonRecord, resolveWeek, runAiDraftUntilHuman, RUN_SAVE_VERSION, serializeRun, setCaptains, setTeraCaptains, setZCaptains,
 } from './run';
 
 function result(winner: string, loser: string, wr = 3): MatchResult {
@@ -421,15 +421,15 @@ describe('save migration + config validation', () => {
     for (const c of v1.coaches) for (const r of c.roster) delete r.isZCaptain;
     const back = deserializeRun(JSON.stringify(v1));
     expect(back).toEqual(run);
-    expect(back.version).toBe(4);
-    expect(() => deserializeRun(JSON.stringify({ ...v1, version: 5 }))).toThrow(/version/);
+    expect(back.version).toBe(RUN_SAVE_VERSION);
+    expect(() => deserializeRun(JSON.stringify({ ...v1, version: RUN_SAVE_VERSION + 1 }))).toThrow(/version/);
   });
 
   it('migrates a version-2 save: rosterMin = rosterMax = the old size, no captain cap', () => {
     const run = finishDraft(draftedRun(9, fixed(10)), { buildSets: fakeSets });
     const back = deserializeRun(JSON.stringify(asV2(run, 10)));
     expect(back).toEqual(run);
-    expect(back.version).toBe(4);
+    expect(back.version).toBe(RUN_SAVE_VERSION);
     expect(back.config).toMatchObject({ rosterMin: 10, rosterMax: 10, captainMaxPoints: 20 });
     expect('rosterSize' in back.config).toBe(false);
     // Mid-draft: the clock resumes on the same coach the v2 snake would name.

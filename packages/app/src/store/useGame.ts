@@ -19,7 +19,7 @@ import { useProfile } from './profile';
 
 export type Screen =
   | 'title' | 'badgerun' | 'setup' | 'draft' | 'hub' | 'team' | 'prep' | 'battle' | 'recap' | 'end' | 'settings' | 'analytics'
-  | 'daily' | 'hall' | 'replay';
+  | 'daily' | 'hall' | 'dex' | 'replay';
 
 /** The league slot (any run without `daily`). */
 export const RUN_KEY = 'pdc.run.v1';
@@ -53,6 +53,8 @@ export interface NewLeagueOptions {
   abbrev: string;
   seed: number;
   config: LeagueConfig;
+  /** Draft from these unlocked species (Badge Run, or a custom league on "my pool"); omit = the full pool. */
+  pool?: readonly SpeciesId[];
 }
 
 interface GameState {
@@ -361,9 +363,9 @@ export const useGame = create<GameStore>((set, get) => ({
     set({ screen: get().returnTo });
   },
 
-  newLeague({ name, abbrev, seed, config }) {
+  newLeague({ name, abbrev, seed, config, pool }) {
     try {
-      let run = createRun({ config, seed, humanName: name, humanAbbrev: abbrev });
+      let run = createRun({ config, seed, humanName: name, humanAbbrev: abbrev, ...(pool ? { pool } : {}) });
       run = runAiDraftUntilHuman(run);
       set({ ...freshRunState(run), draftShown: revealedAtStart(run), toast: null });
     } catch (e) {
@@ -470,6 +472,7 @@ export const useGame = create<GameStore>((set, get) => ({
     if (!run) return;
     try {
       const picked = draftPick(run, species);
+      useProfile.getState().markDrafted(species);
       const next = runAiDraftUntilHuman(picked);
       set({ run: next, draftShown: revealedAfter(next, picked.draft.picks.length) });
     } catch (e) {
@@ -592,6 +595,7 @@ export const useGame = create<GameStore>((set, get) => ({
       const { run } = get();
       if (!run) return false;
       const next = freeAgency(run, drop, add, { buildSets });
+      useProfile.getState().markDrafted(add);
       const lineup = get().lineup.map((s) => (s === drop ? add : s));
       set({ run: next, lineup, prep: null, prepKey: null });
       return true;

@@ -6,8 +6,9 @@ import {
 } from '@pdc/engine';
 import { useGame } from '../store/useGame';
 import { useSettings } from '../store/settings';
+import { useProfile } from '../store/profile';
 import {
-  Crest, DialogueBox, GameButton, IconBadge, Modal, Panel, PokeIcon, PokeSprite, PriceBadge, RoleTag, Sheet, SpriteCard,
+  Crest, DialogueBox, GameButton, IconBadge, Modal, NewTag, Panel, PokeIcon, PokeSprite, PriceBadge, RoleTag, Sheet, SpriteCard,
   StatBlock, Tabs, TypePills,
 } from '../components/ui';
 import { useIsMobile, useReducedMotion } from '../hooks/useIsMobile';
@@ -111,6 +112,8 @@ export function DraftScreen() {
   const reducedMotion = useReducedMotion();
   const draftHelper = useSettings((s) => s.draftHelper);
   const updateSettings = useSettings((s) => s.update);
+  const freshIds = useProfile((s) => s.pool.fresh);
+  const fresh = useMemo(() => new Set(freshIds), [freshIds]);
 
   const [search, setSearch] = useState('');
   const [type, setType] = useState('');
@@ -208,7 +211,8 @@ export function DraftScreen() {
     .filter((m) => m.points <= maxPrice)
     .filter((m) => !onlyLegal || !myTurn || legal.has(m.id))
     .sort((a, b) =>
-      sortKey === 'price' ? b.points - a.points || b.bst - a.bst
+      // Price sort keeps each price together and floats NEW species (pack unlocks not drafted yet) to its top.
+      sortKey === 'price' ? b.points - a.points || Number(fresh.has(b.id)) - Number(fresh.has(a.id)) || b.bst - a.bst
         : sortKey === 'fit' ? (fit.get(b.id) ?? 0) - (fit.get(a.id) ?? 0) || b.points - a.points
         : sortKey === 'bst' ? b.bst - a.bst
           : sortKey === 'spe' ? b.baseStats.spe - a.baseStats.spe
@@ -315,13 +319,14 @@ export function DraftScreen() {
                   <span className="flex flex-col items-start gap-1">
                     {showFit && <FitBadge score={score} pending={fitPending(m.id)} />}
                     {m.isMega && <RoleTag role="mega" />}
+                    {fresh.has(m.id) && <NewTag />}
                   </span>
                 )}
                 disabled={myTurn && !can}
                 selected={expanded}
                 onClick={() => onCard(m)}
                 title={reasonFor(m)}
-                ariaLabel={`${displayName(m.name)}, ${m.points} points, ${m.types.join('/')}, BST ${m.bst}${showFit ? `, team fit ${score}` : ''}`}
+                ariaLabel={`${fresh.has(m.id) ? 'New: ' : ''}${displayName(m.name)}, ${m.points} points, ${m.types.join('/')}, BST ${m.bst}${showFit ? `, team fit ${score}` : ''}`}
               >
                 <div className="truncate text-center font-display font-bold leading-tight">{displayName(m.name)}</div>
                 <div className="mt-1 flex justify-center"><TypePills types={m.types} size="xs" /></div>

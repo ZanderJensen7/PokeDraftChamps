@@ -2,8 +2,9 @@
 // Shared by the full prep doc and the guided prep's Lineup step.
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import type { RunState, SpeciesId } from '@pdc/engine';
-import { getDraftMon, humanCoach } from '@pdc/engine';
+import { getDraftMon, hasShiny, humanCoach } from '@pdc/engine';
 import { bringSize, useGame } from '../../store/useGame';
+import { useProfile } from '../../store/profile';
 import { GameButton, IconBadge, Panel, PokeIcon, PokeSprite, RoleTags } from '../ui';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { MonDetailButton } from '../MonDetail';
@@ -37,6 +38,7 @@ function LineupAside({ count, size, action }: { count: number; size: number; act
 export function LineupPicker({ run, action }: { run: RunState; action?: ReactNode }) {
   const lineup = useGame((s) => s.lineup);
   const setLineup = useGame((s) => s.setLineup);
+  const trophies = useProfile((s) => s.trophies);
   const human = humanCoach(run);
   const size = bringSize(run);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -150,7 +152,7 @@ export function LineupPicker({ run, action }: { run: RunState; action?: ReactNod
                     target ? 'border-poke-yellow bg-panel-hi shadow-[0_0_0_4px_var(--color-poke-yellow)]' : picked ? 'border-poke-yellow bg-panel-hi' : 'border-edge-dark bg-you-soft'
                   } ${lifted ? 'opacity-40' : ''}`}
                 >
-                  <PokeSprite name={spriteName(id)} size={76} className="-mb-1" />
+                  <PokeSprite name={spriteName(id)} size={76} className="-mb-1" shiny={hasShiny(trophies[id])} />
                   <span
                     className="flex min-h-7 w-full touch-none items-center justify-center gap-1 bg-edge-dark/40 px-1 text-xs font-bold leading-tight"
                     onPointerDown={(e) => onGripDown(e, i)}
@@ -189,7 +191,7 @@ export function LineupPicker({ run, action }: { run: RunState; action?: ReactNod
             style={{ left: drag.x, top: drag.y, transform: 'translate(-50%, -60%) scale(1.1)' }}
             aria-hidden="true"
           >
-            <PokeSprite name={spriteName(lineup[drag.from]!)} size={76} />
+            <PokeSprite name={spriteName(lineup[drag.from]!)} size={76} shiny={hasShiny(trophies[lineup[drag.from]!])} />
             <span className="-mt-1 rounded-md bg-panel px-1.5 text-xs font-bold">{dragName}</span>
           </div>
         )}

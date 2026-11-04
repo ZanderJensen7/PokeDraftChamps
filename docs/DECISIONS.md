@@ -98,3 +98,17 @@
   every finished run opens at least one; freshly unlocked mons carry a NEW flair; daily uses the full pool.
   A Pokedex tracks Locked / Unlocked / Drafted / Won with / Champion per species; rewards are species,
   shiny sprites (10 wins), Dex milestones and ribbons, no currency. Details in `docs/ROGUELIKE.md`.
+- **2026-11-04 — Pool progression, the build.** One table, `POOL_PROGRESSION` (`engine/src/data/progression.ts`).
+  The starting pool is a seeded half of every pricing tier, except ZU / NFE / LC which start fully open: a half
+  pool of cheap mons left 16-team leagues short of affordable picks (measured on seed 21, 326 of 458 species:
+  minimum roster 9 and the reserve after the cheapest roster equal to the full pool at Badges 1 / 4 / 7 / 10;
+  average AI spend 115–120 of 120 vs 120–124 with the full pool). Pack offers are seeded by (pool seed, packs
+  opened), so reloading never rerolls a pack; tiers are weighted by (1 − share unlocked)^2, and no more than two
+  packs in a row go without a species priced 15+ while one is still locked. Points come from any recorded run (Badge Run, Daily,
+  Custom), even though the Daily drafts from the full pool. The run-end floor pack needs at least one played
+  match, so quitting at the draft earns nothing. A Mega is in the pool when its base species is; the Pokedex
+  lists base species only. NEW mons sort first within their price in the draft list, and the flag clears when
+  the player drafts them (AI picks do not clear it). The pool is fixed in the run save (`RunState.pool`, run save
+  v5); a v4 save without one plays the full pool. Profile v3: a v2 profile gets a fresh seeded starting pool plus
+  every species it has a trophy for, and Trophy / CareerRun gain match wins. Importing a profile unions the
+  unlocked species, keeps the local seed and packs opened, and adds pending packs only for runs the import added.

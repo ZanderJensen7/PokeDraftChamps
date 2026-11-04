@@ -1,8 +1,9 @@
 // Tera / Z captain picker: ends the draft (DraftScreen) and reopens from the Hub during the regular season.
 import { useEffect, useState } from 'react';
 import type { RunState, SpeciesId } from '@pdc/engine';
-import { captainBlock, captainQuota, getDraftMon, humanCoach } from '@pdc/engine';
+import { captainBlock, captainQuota, getDraftMon, hasShiny, humanCoach } from '@pdc/engine';
 import { useGame } from '../store/useGame';
+import { useProfile } from '../store/profile';
 import { getBridge } from '../game/bridge';
 import { DialogueBox, GameButton, Panel, PokeSprite, PriceBadge, RoleTag, SpriteCard, TypePills } from './ui';
 import { displayName } from '../game/names';
@@ -19,6 +20,7 @@ interface Props {
 
 export function CaptainPicker({ run, mode, onDone }: Props) {
   const save = useGame((s) => s.setCaptainsWith);
+  const trophies = useProfile((s) => s.trophies);
   const human = humanCoach(run);
   // The engine's quota: config counts, cut down when too few roster mons may be captains (captainBlock).
   const { tera: needTera, z: needZ } = captainQuota(run.config, human.roster);
@@ -87,7 +89,7 @@ export function CaptainPicker({ run, mode, onDone }: Props) {
             const name = mon?.name ?? r.species;
             return (
               <li key={r.species} className={`game-panel flex items-center gap-2 py-1 pr-2 pl-1 ${blocked ? 'opacity-60' : ''}`}>
-                <PokeSprite name={name} size={56} className="shrink-0" />
+                <PokeSprite name={name} size={56} className="shrink-0" shiny={hasShiny(trophies[r.species])} />
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-display text-lg font-bold leading-tight">{displayName(name)}</div>
                   <div className="mt-0.5 flex items-center gap-1.5">

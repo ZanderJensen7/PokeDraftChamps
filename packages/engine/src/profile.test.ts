@@ -7,7 +7,9 @@ import { createRun, draftPick, finishDraft, humanCoach, nextHumanMatch, opponent
 import { DAILY_CONFIG } from './league/daily';
 import { decisiveMatch, summarizeRun } from './league/summary';
 import { MAX_STAKE } from './data/stakes';
-import { careerStats, emptyProfile, mergeProfiles, migrateProfile, PROFILE_RUN_CAP, recordRunEnd, type Profile } from './profile';
+import { POOL_PROGRESSION } from './data/progression';
+import { packOffer } from './poolProgress';
+import { careerStats, emptyProfile, firstWinsOf, markDrafted, mergeProfiles, migrateProfile, openPack, PROFILE_RUN_CAP, recordRunEnd, type Profile } from './profile';
 
 /** A result with real lineups: each side brings its first six roster mons. */
 function result(winner: Coach, loser: Coach): MatchResult {
@@ -52,13 +54,66 @@ beforeAll(async () => {
 });
 
 describe('profile', () => {
-  it('migrates v1 and garbage to a v2 profile with an empty career', () => {
-    expect(migrateProfile({ version: 1, stakeUnlocked: 3 })).toEqual({ version: 2, stakeUnlocked: 3, runs: [], trophies: {} });
-    expect(migrateProfile(null)).toEqual(emptyProfile());
-    expect(migrateProfile('nope')).toEqual(emptyProfile());
-    expect(migrateProfile({ version: 1, stakeUnlocked: 99 }).stakeUnlocked).toBe(MAX_STAKE);
+  it('migrates v1 and garbage to a v3 profile with an empty career and a seeded pool', () => {
+    expect(migrateProfile({ version: 1, stakeUnlocked: 3 }, 5)).toEqual({ ...emptyProfile(5), stakeUnlocked: 3 });
+    expect(migrateProfile(null, 5)).toEqual(emptyProfile(5));
+    expect(migrateProfile('nope', 5)).toEqual(emptyProfile(5));
+    expect(migrateProfile({ version: 1, stakeUnlocked: 99 }, 5).stakeUnlocked).toBe(MAX_STAKE);
     const p = recordRunEnd(emptyProfile(), champ, 10);
-    expect(migrateProfile(JSON.parse(JSON.stringify(p)))).toEqual(p);
+    expect(migrateProfile(JSON.parse(JSON.stringify(p)), 5)).toEqual(p);
+  });
+
+  it('migrates a v2 profile: its pool is the seeded start plus everything it drafted, wins start at playoff wins', () => {
+    const v3 = recordRunEnd(emptyProfile(), champ, 10);
+    const v2 = {
+      version: 2, stakeUnlocked: v3.stakeUnlocked,
+      runs: v3.runs.map(({ winsBy: _w, ...r }) => r),
+      trophies: Object.fromEntries(Object.entries(v3.trophies).map(([id, { wins: _w, ...t }]) => [id, t])),
+    };
+    const m = migrateProfile(JSON.parse(JSON.stringify(v2)), 77);
+    expect(m.version).toBe(3);
+    expect(m.runs.map((r) => r.runId)).toEqual([champ.id]);
+    const have = new Set(m.pool.unlocked);
+    for (const id of humanCoach(champ).roster.map((r) => r.species)) {
+      expect(have.has(id)).toBe(true);
+      expect(m.trophies[id]!.wins).toBe(m.trophies[id]!.playoffWins);
+    }
+    for (const id of emptyProfile(77).pool.unlocked) expect(have.has(id)).toBe(true);
+    expect(m.pool).toMatchObject({ seed: 77, packs: 0, points: 0, opened: 0, fresh: [] });
+  });
+
+  it('pays the pool: a point per first-win species, a floor pack per finished run, never twice', () => {
+    const p = recordRunEnd(emptyProfile(), champ, 10);
+    const won = Object.keys(p.runs[0]!.winsBy ?? {});
+    expect(won.length).toBeGreaterThan(0);
+    expect(p.pool.packs * POOL_PROGRESSION.pointsPerPack + p.pool.points)
+      .toBe(won.length + POOL_PROGRESSION.floorPacksPerRun * POOL_PROGRESSION.pointsPerPack);
+    for (const id of won) expect(p.trophies[id]!.wins).toBeGreaterThan(0);
+    // The same species winning again pays no new points; the lost run still opens its floor pack.
+    const again = recordRunEnd(p, { ...champ, id: 'again' }, 11);
+    expect(again.pool.packs - p.pool.packs).toBe(POOL_PROGRESSION.floorPacksPerRun);
+    expect(again.pool.points).toBe(p.pool.points);
+    const lost = recordRunEnd(emptyProfile(), bust, 10);
+    expect(lost.pool.packs).toBeGreaterThanOrEqual(POOL_PROGRESSION.floorPacksPerRun);
+    expect(firstWinsOf(emptyProfile(), champ).sort()).toEqual(won.sort());
+    expect(firstWinsOf(p, champ)).toEqual([]);
+  });
+
+  it('opens a pack into the pool and drafting clears its NEW flair', () => {
+    const p = recordRunEnd(emptyProfile(3), bust, 10);
+    const offer = packOffer(p.pool);
+    expect(offer.length).toBe(POOL_PROGRESSION.packSize);
+    const opened = openPack(p, offer[1]!.id);
+    expect(opened.pool.packs).toBe(p.pool.packs - 1);
+    expect(opened.pool.unlocked).toContain(offer[1]!.id);
+    expect(opened.pool.fresh).toEqual([offer[1]!.id]);
+    expect(() => openPack(p, 'notamon')).toThrow();
+    expect(markDrafted(opened, ['pikachu'])).toBe(opened);
+    expect(markDrafted(opened, [offer[1]!.id]).pool.fresh).toEqual([]);
+    let empty = emptyProfile(3);
+    expect(() => openPack(empty, offer[0]!.id)).toThrow();
+    empty = { ...empty, pool: { ...empty.pool, packs: 1 } };
+    expect(openPack(empty, packOffer(empty.pool)[0]!.id).pool.packs).toBe(0);
   });
 
   it('ignores a run in progress and records a finished run exactly once', () => {
@@ -150,8 +205,14 @@ describe('profile', () => {
     expect(mergeProfiles(m, b)).toBe(m);
     const both = recordRunEnd(recordRunEnd(emptyProfile(), { ...champ, id: 'a' }, 1), { ...bust, id: 'b' }, 2);
     expect(m.trophies).toEqual(both.trophies);
+    expect(m.pool).toEqual(both.pool);
     expect(m.stakeUnlocked).toBe(2);
     expect(mergeProfiles(emptyProfile(), b).trophies).toEqual(b.trophies);
+    // Species unlocked elsewhere join the pool even with no new runs.
+    const other = { ...a, pool: { ...a.pool, unlocked: [...a.pool.unlocked, ...emptyProfile(9).pool.unlocked] } };
+    const u = mergeProfiles(a, other);
+    expect(new Set(u.pool.unlocked)).toEqual(new Set(other.pool.unlocked));
+    expect(u.pool.unlocked).toEqual([...new Set(u.pool.unlocked)].sort());
   });
 });
 

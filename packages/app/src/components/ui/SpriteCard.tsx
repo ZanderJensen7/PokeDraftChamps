@@ -7,6 +7,8 @@ interface PokeSpriteProps {
   side?: 'p1' | 'p2';
   size?: number;
   className?: string;
+  /** The shiny sprite (a species with enough match wins, POOL_PROGRESSION.shinyWins). */
+  shiny?: boolean;
 }
 
 /**
@@ -14,23 +16,23 @@ interface PokeSpriteProps {
  * Paradox line, Ogerpon, Origin formes…), and the package then falls back to a still image; prefer the animated
  * pixel sprite when one exists so the mon still moves (front side only: no animated backs exist for them).
  */
-export function spriteFor(name: string, spriteSet: SpriteSet, side: 'p1' | 'p2') {
-  const s = Sprites.getPokemon(name, { gen: spriteSet, side });
+export function spriteFor(name: string, spriteSet: SpriteSet, side: 'p1' | 'p2', shiny = false) {
+  const s = Sprites.getPokemon(name, { gen: spriteSet, side, shiny });
   if (spriteSet === 'ani' && !s.url.includes('/ani')) {
-    const pixel = Sprites.getPokemon(name, { gen: 'gen5ani', side });
+    const pixel = Sprites.getPokemon(name, { gen: 'gen5ani', side, shiny });
     if (pixel.url.includes('/gen5ani')) return pixel;
   }
   return s;
 }
 
 /** A battle sprite (front by default) from the user's chosen sprite set, pixel-crisp. */
-export function PokeSprite({ name, side = 'p2', size = 96, className = '' }: PokeSpriteProps) {
+export function PokeSprite({ name, side = 'p2', size = 96, className = '', shiny = false }: PokeSpriteProps) {
   const spriteSet = useSettings((s) => s.spriteSet);
-  const s = spriteFor(name, spriteSet, side);
+  const s = spriteFor(name, spriteSet, side, shiny);
   return (
     <img
       src={s.url}
-      alt={name}
+      alt={shiny ? `Shiny ${name}` : name}
       loading="lazy"
       width={size}
       height={size}

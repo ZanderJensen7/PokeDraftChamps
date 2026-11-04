@@ -6,7 +6,7 @@ import type {
 import { DEFAULT_LEAGUE_CONFIG } from '../types';
 import { MAX_POINTS } from '../data/points';
 import { pickCoachIdentities } from '../data/coaches';
-import { buildDraftPool, getDraftMon } from '../draft/pool';
+import { getDraftMon, leaguePool } from '../draft/pool';
 import {
   aiChoosePick, aiRosterTarget, aiWantsToStop, applyPick, createDraft, currentPicker, conflictsWithRoster, stopDrafting,
 } from '../draft/draft';
@@ -20,9 +20,9 @@ import { applyStake, rulesAt, type StakeRules } from '../data/stakes';
 /**
  * 2: league options megas + zCaptains, RosterEntry.isZCaptain. 3: roster range (rosterMin/rosterMax replace
  * rosterSize), captainMaxPoints, DraftState.turn/done. 4: config.stake, DraftState.budgets. Older saves are
- * migrated on load.
+ * migrated on load. 5: RunState.pool (absent = the full pool, so a v4 save needs no change).
  */
-export const RUN_SAVE_VERSION = 4;
+export const RUN_SAVE_VERSION = 5;
 
 export interface CreateRunOptions {
   config: LeagueConfig;
@@ -33,6 +33,8 @@ export interface CreateRunOptions {
   createdAt?: number;
   /** Marks a daily league (see league/daily.ts); stored on the run as `daily`. */
   daily?: { date: string };
+  /** The profile's unlocked base species to draft from (Badge Run, a custom league on "my pool"); omit = full pool. */
+  pool?: readonly SpeciesId[];
 }
 
 /** Builds a coach's season sets. Injected (the battle module owns the real one). */
@@ -45,14 +47,14 @@ export type SimulateMatch = (home: Coach, away: Coach, seed: number) => MatchRes
 
 const HUMAN_ID: CoachId = 'c0';
 
-function validateConfig(c: LeagueConfig): void {
-  const errors = validateLeagueConfig(c);
+function validateConfig(c: LeagueConfig, pool: readonly DraftMon[]): void {
+  const errors = validateLeagueConfig(c, pool);
   if (errors.length > 0) throw new Error(errors.join(' '));
 }
 
-/** The draft pool this league uses (its `megas` option). */
-export function runPool(run: Pick<RunState, 'config'>): readonly DraftMon[] {
-  return buildDraftPool({ megas: run.config.megas });
+/** The draft pool this league uses: its `megas` option, cut to its stored unlocked pool when it has one. */
+export function runPool(run: Pick<RunState, 'config' | 'pool'>): readonly DraftMon[] {
+  return leaguePool(run.config.megas, run.pool);
 }
 
 /**
@@ -62,7 +64,8 @@ export function runPool(run: Pick<RunState, 'config'>): readonly DraftMon[] {
  */
 export function createRun(opts: CreateRunOptions): RunState {
   const { seed } = opts;
-  validateConfig(opts.config);
+  const unlocked = opts.pool ? [...new Set(opts.pool)].sort() : undefined;
+  validateConfig(opts.config, leaguePool(opts.config.megas, unlocked));
   const config = applyStake(opts.config);
   const rules = rulesAt(config.stake);
   const createdAt = opts.createdAt ?? Date.now();
@@ -74,7 +77,7 @@ export function createRun(opts: CreateRunOptions): RunState {
       id: `c${i + 1}`, name: idn.name, abbrev: idn.abbrev, isHuman: false, roster: [], pointsSpent: 0, sets: {},
     })),
   ];
-  let draft = createDraft(coaches.map((c) => c.id), createRng(deriveSeed(seed, 'draftOrder')), buildDraftPool({ megas: config.megas }));
+  let draft = createDraft(coaches.map((c) => c.id), createRng(deriveSeed(seed, 'draftOrder')), leaguePool(config.megas, unlocked));
   if (rules.humanDraftsLast) draft = { ...draft, order: [...draft.order.filter((c) => c !== HUMAN_ID), HUMAN_ID] };
   if (rules.aiBudgetBonus > 0) {
     draft = { ...draft, budgets: Object.fromEntries(coaches.filter((c) => !c.isHuman).map((c) => [c.id, config.budget + rules.aiBudgetBonus])) };
@@ -97,6 +100,7 @@ export function createRun(opts: CreateRunOptions): RunState {
       `League created: ${config.teams} coaches, ${config.weeks} weeks, ${config.budget} points${config.stake > 1 ? `, stake ${config.stake}` : ''}. You pick #${pos} in round 1.`,
     ],
     ...(opts.daily ? { daily: { date: opts.daily.date } } : {}),
+    ...(unlocked ? { pool: unlocked } : {}),
   };
 }
 
@@ -491,7 +495,7 @@ export function serializeRun(run: RunState): string {
 
 /**
  * Parses a save made by serializeRun. Older versions are migrated step by step (v1: Megas off, Z off; v2: a
- * fixed roster size, no captain cap; v3: no stake). Throws on a non-run payload or an unknown version.
+ * fixed roster size, no captain cap; v3: no stake; v4: the full pool, nothing to add). Throws on a non-run payload or an unknown version.
  */
 export function deserializeRun(json: string): RunState {
   const raw = JSON.parse(json) as RunState;
@@ -503,6 +507,7 @@ export function deserializeRun(json: string): RunState {
   if (run.version === 1) run = migrateV1(run);
   if (run.version === 2) run = migrateV2(run);
   if (run.version === 3) run = migrateV3(run);
+  if (run.version === 4) run = { ...run, version: 5 };
   if (run.version !== RUN_SAVE_VERSION) throw new Error(`unsupported save version ${String(raw.version)}`);
   return run;
 }

@@ -87,8 +87,9 @@ Each line is one job. Sessions are started from the top; three at a time at most
     across seeds), prep threat summary wording; rerun the lab with Megas on for the next outlier after Mega
     Mewtwo; then the per-species price override table once the lab has thousands of games (lab 2026-11-02: fit
     score = 41.9 + 0.66 x price, AI-vs-AI evidence only).
-11. **Roguelike layer, rest of the build order** (`docs/ROGUELIKE.md`): perk beats + trades → pool progression +
-    scouting packs → coach archetypes → challenge leagues → mutator toggle → keepers / gauntlet.
+11. **Roguelike layer, rest of the build order** (`docs/ROGUELIKE.md`): perk beats + trades → coach archetypes
+    → challenge leagues → mutator toggle → keepers / gauntlet. Pool progression, scouting packs and the Pokedex are
+    done (2026-11-04); Dex milestones and ribbons are still open.
 12. **Online follow-ups.** Cloudflare account steps (KV id, Worker deploy, repo variables / secrets, Web
     Analytics token) are the user's; then `ALLOWED_ORIGINS` to the Pages origin; replay-verified daily scores
     only if faking becomes a problem.

@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Sets } from '@pkmn/sets';
 import { toID } from '@pkmn/dex';
 import type { BattleSet, MoveRow, RosterEntry, SampleSet, SpeciesId, StatsTable } from '@pdc/engine';
-import { SPREAD_PRESETS, exportSetText, fillSet, getDraftMon, humanCoach, moveRows, spreadFor } from '@pdc/engine';
+import { SPREAD_PRESETS, exportSetText, fillSet, getDraftMon, hasShiny, humanCoach, moveRows, spreadFor } from '@pdc/engine';
 import { useGame } from '../store/useGame';
+import { useProfile } from '../store/profile';
 import {
   CloseButton, DialogueBox, GameButton, IconBadge, ItemIcon, ResponsiveDialog, Panel, PokeSprite, PriceBadge, RoleTags, StatBlock, TypePill, TypePills,
 } from '../components/ui';
@@ -265,6 +266,7 @@ function ImportModal({ text, setText, onClose, onImport }: {
 }
 
 export function TeamScreen() {
+  const trophies = useProfile((s) => s.trophies);
   const run = useGame((s) => s.run);
   const closeOverlay = useGame((s) => s.closeOverlay);
   const human = run ? humanCoach(run) : null;
@@ -315,6 +317,7 @@ export function TeamScreen() {
   const close = () => (pending.length ? setLeaving(true) : closeOverlay());
   const current = human.roster.find((r) => r.species === sel) ?? human.roster[0];
   const mon = current ? getDraftMon(current.species) : undefined;
+  const shiny = !!current && hasShiny(trophies[current.species]);
   const teraEnabled = run.config.teraCaptains > 0;
   const opponents = run.coaches.filter((c) => c.id !== human.id).flatMap((c) => c.roster.map((r) => r.species));
 
@@ -376,7 +379,7 @@ export function TeamScreen() {
             )}
           >
             <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center">
-              <MonDetailButton species={current.species} coachId={human.id} className="self-center"><PokeSprite name={mon.name} size={112} /></MonDetailButton>
+              <MonDetailButton species={current.species} coachId={human.id} className="self-center"><PokeSprite name={mon.name} size={112} shiny={shiny} /></MonDetailButton>
               <div className="flex-1 space-y-2">
                 <div className="flex items-center gap-2"><TypePills types={mon.types} /><PriceBadge points={mon.points} /></div>
                 <StatBlock stats={mon.baseStats} compact />

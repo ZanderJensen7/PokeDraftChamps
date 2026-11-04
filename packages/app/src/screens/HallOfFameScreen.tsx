@@ -2,7 +2,7 @@
 // (every species you finished a run with). Reads the profile store only; cards, never tables, so it fits a phone.
 import { useId, useMemo, useState } from 'react';
 import type { CareerRun, SpeciesId, Trophy } from '@pdc/engine';
-import { careerStats, leagueCodeOf, resultLabel, shareString, STAKES } from '@pdc/engine';
+import { careerStats, hasShiny, leagueCodeOf, resultLabel, shareString, STAKES } from '@pdc/engine';
 import { useGame } from '../store/useGame';
 import { useProfile } from '../store/profile';
 import { copyText } from '../components/DailyBits';
@@ -84,7 +84,7 @@ function TrophyCard({ id, t }: { id: SpeciesId; t: Trophy }) {
   const name = speciesName(id);
   return (
     <li className={`flex items-center gap-2 rounded-lg border-2 px-2 py-2 ${t.titles > 0 ? 'border-poke-yellow-dark bg-panel-hi' : 'border-edge bg-panel-inset'}`}>
-      <PokeSprite name={spriteName(id)} size={56} className="shrink-0" />
+      <PokeSprite name={spriteName(id)} size={56} className="shrink-0" shiny={hasShiny(t)} />
       <div className="min-w-0 flex-1">
         <div className="truncate font-display font-bold" title={name}>{name}</div>
         <dl className="grid grid-cols-2 gap-x-2 text-sm text-muted">
@@ -140,7 +140,7 @@ export function HallOfFameScreen() {
   const trophies = useProfile((s) => s.trophies);
   const stakeUnlocked = useProfile((s) => s.stakeUnlocked);
   const [limit, setLimit] = useState(RUNS_PAGE);
-  const stats = useMemo(() => careerStats({ version: 2, stakeUnlocked, runs, trophies }), [stakeUnlocked, runs, trophies]);
+  const stats = useMemo(() => careerStats({ runs }), [runs]);
   const newestFirst = useMemo(() => [...runs].reverse(), [runs]);
   const runOver = run && (run.phase === 'champion' || run.phase === 'eliminated');
 
@@ -149,7 +149,10 @@ export function HallOfFameScreen() {
       <div className="flex flex-wrap items-center gap-3">
         <BackButton onClick={() => go('title')} to="title screen" />
         <h1 className="font-display text-3xl font-bold uppercase text-poke-yellow drop-shadow-[0_3px_0_var(--color-edge-dark)] sm:text-4xl">Hall of Fame</h1>
-        {runOver && <GameButton variant="secondary" size="sm" className="ml-auto" onClick={() => go('end')}>Run summary</GameButton>}
+        <span className="ml-auto flex gap-2">
+          <GameButton variant="secondary" size="sm" onClick={() => go('dex')}>Pokedex</GameButton>
+          {runOver && <GameButton variant="secondary" size="sm" onClick={() => go('end')}>Run summary</GameButton>}
+        </span>
       </div>
 
       <Panel title="Career" aside={<span>{badgeLabel(stakeUnlocked)} unlocked</span>}>
