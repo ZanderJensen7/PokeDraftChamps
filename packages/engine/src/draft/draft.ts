@@ -4,6 +4,9 @@ import type { CoachId, DraftMon, DraftState, LeagueConfig, SpeciesId, TypeName }
 import type { Rng } from '../league/rng';
 import { buildDraftPool } from './pool';
 import { FIT_WEIGHTS, rankPool } from '../prep/draftHelper';
+import { MOVE_CATEGORIES, type MoveCategoryName } from '../prep/moves';
+import { randomsSpeciesData } from '../data/randoms';
+import { LAB_FIT, LAB_SCORES } from '../data/labScores';
 
 type DraftConfig = Pick<LeagueConfig, 'budget' | 'rosterMin' | 'rosterMax'>;
 type Pool = readonly DraftMon[];
@@ -21,7 +24,22 @@ export const AI_DRAFT_DIALS = {
   wantBulky: 3,
   noise: 2,             // max random score added per candidate
   fitWeight: 0.25,      // with the fit option (stake 3+): score += (fitScore - FIT_WEIGHTS.base) * fitWeight
+  /**
+   * Bonus for a candidate that brings a role the roster lacks (its gen9randombattle movepool has a move of that
+   * MOVE_CATEGORIES category: the AI's battle sets are rolled from those movepools). 0 turns a role off.
+   * Off by default: 4 per role lifts hazard removal from about 35% to 70% of rosters and priority from 67% to 86%,
+   * but it lost 48-50% of draft-arena matches against the overpay guard alone (docs/balance/ai-tuning.md).
+   */
+  roleBonus: { 'Entry Hazards': 0, 'Hazard Removal': 0, Healing: 0, Priority: 0 } as Partial<Record<MoveCategoryName, number>>,
+  /**
+   * Overpay guard: the over-target price penalty is multiplied by 1 + overpay * (score points the mon fell below
+   * the lab's score-by-price line, LAB_SCORES / LAB_FIT) / 10. 0 turns it off. 2 won 53.7% and 54.5% of
+   * draft-arena matches against 0 (seeds 45, 48); 1 and 5 were weaker.
+   */
+  overpay: 2,
 } as const;
+
+export type AiDraftDials = { -readonly [K in keyof typeof AI_DRAFT_DIALS]: (typeof AI_DRAFT_DIALS)[K] };
 
 /**
  * How big an AI coach drafts its roster when the league allows a range (rosterMin..rosterMax). Read by
@@ -274,8 +292,31 @@ function matchupOf(mon: DraftMon): { weak: TypeName[]; resist: TypeName[] } {
   return r;
 }
 
-const isFast = (m: DraftMon): boolean => m.baseStats.spe >= AI_DRAFT_DIALS.fastSpeed;
-const isBulky = (m: DraftMon): boolean => m.baseStats.hp + m.baseStats.def + m.baseStats.spd >= AI_DRAFT_DIALS.bulkyTotal;
+const roleCache = new Map<SpeciesId, MoveCategoryName[]>();
+/**
+ * The MOVE_CATEGORIES roles a species' gen9randombattle movepools cover (a Mega reads its base species). Sync and
+ * cached: the draft AI and the balance lab both read it.
+ */
+export function draftRoles(mon: Pick<DraftMon, 'id' | 'baseSpecies'>): MoveCategoryName[] {
+  const key = mon.baseSpecies ?? mon.id;
+  let r = roleCache.get(key);
+  if (!r) {
+    const moves = new Set((randomsSpeciesData()[key]?.sets ?? []).flatMap((set) => set.movepool));
+    r = (Object.keys(MOVE_CATEGORIES) as MoveCategoryName[]).filter((c) => MOVE_CATEGORIES[c].some((mv) => moves.has(mv)));
+    roleCache.set(key, r);
+  }
+  return r;
+}
+
+/** How far below the lab's score-by-price line a mon played (0 when on or above it, or unmeasured). */
+export function labShortfall(mon: Pick<DraftMon, 'id' | 'points'>): number {
+  const score = LAB_SCORES[mon.id];
+  if (score === undefined) return 0;
+  return Math.max(0, LAB_FIT.intercept + LAB_FIT.slope * mon.points - score);
+}
+
+export const isFast = (m: DraftMon): boolean => m.baseStats.spe >= AI_DRAFT_DIALS.fastSpeed;
+export const isBulky = (m: DraftMon): boolean => m.baseStats.hp + m.baseStats.def + m.baseStats.spd >= AI_DRAFT_DIALS.bulkyTotal;
 const isPhysical = (m: DraftMon): boolean => m.baseStats.atk > m.baseStats.spa + 10;
 const isSpecial = (m: DraftMon): boolean => m.baseStats.spa > m.baseStats.atk + 10;
 
@@ -286,11 +327,14 @@ const isSpecial = (m: DraftMon): boolean => m.baseStats.spa > m.baseStats.atk + 
  * bonus, a penalty for stacking a shared weakness, a bonus for patching one, and seeded noise.
  * Prices are planned for a roster of `aim` mons (aiRosterTarget; default rosterMax). With `opts.fit` (stake 3+)
  * each candidate also gets the draft helper's fit score (rankPool) above its base, times AI_DRAFT_DIALS.fitWeight.
+ * Roles the roster lacks (draftRoles) add AI_DRAFT_DIALS.roleBonus; AI_DRAFT_DIALS.overpay raises the overshoot
+ * penalty for mons that played below their price in the lab. `opts.dials` overrides the dials (measurement only).
  */
 export function aiChoosePick(
   draft: DraftState, coach: CoachId, config: DraftConfig, pool: Pool, rng: Rng, aim: number = config.rosterMax,
-  opts: { fit?: boolean } = {},
+  opts: { fit?: boolean; dials?: Partial<AiDraftDials> } = {},
 ): SpeciesId {
+  const dials: AiDraftDials = { ...AI_DRAFT_DIALS, ...opts.dials };
   const legal = legalMons(draft, coach, config, pool);
   if (legal.length === 0) throw new Error(`${coach} has no legal pick`);
   const byId = indexPool(pool);
@@ -308,7 +352,9 @@ export function aiChoosePick(
   const spec = roster.filter(isSpecial).length;
   const typeCount = new Map<TypeName, number>();
   const weakCount = new Map<TypeName, number>();
+  const haveRoles = new Set<MoveCategoryName>();
   for (const m of roster) {
+    for (const r of draftRoles(m)) haveRoles.add(r);
     for (const t of m.types) typeCount.set(t, (typeCount.get(t) ?? 0) + 1);
     for (const t of matchupOf(m).weak) weakCount.set(t, (weakCount.get(t) ?? 0) + 1);
   }
@@ -323,11 +369,12 @@ export function aiChoosePick(
   for (const m of legal) {
     let s = m.points + (m.bst - 500) / 100;
     const f = fit.get(m.id);
-    if (f !== undefined) s += (f - FIT_WEIGHTS.base) * AI_DRAFT_DIALS.fitWeight;
+    if (f !== undefined) s += (f - FIT_WEIGHTS.base) * dials.fitWeight;
     const diff = m.points - target;
-    s -= diff > 0 ? diff * 1.3 : -diff * 0.5;
-    if (isFast(m)) s += fast < AI_DRAFT_DIALS.wantFast ? 2.5 : fast < AI_DRAFT_DIALS.wantFast + 1 ? 1 : 0;
-    if (isBulky(m)) s += bulky < AI_DRAFT_DIALS.wantBulky ? 2 : 0;
+    s -= diff > 0 ? diff * 1.3 * (1 + (dials.overpay * labShortfall(m)) / 10) : -diff * 0.5;
+    if (isFast(m)) s += fast < dials.wantFast ? 2.5 : fast < dials.wantFast + 1 ? 1 : 0;
+    if (isBulky(m)) s += bulky < dials.wantBulky ? 2 : 0;
+    for (const r of draftRoles(m)) if (!haveRoles.has(r)) s += dials.roleBonus[r] ?? 0;
     if (isPhysical(m)) s += phys < spec ? 0.8 : phys > spec + 2 ? -1 : 0;
     if (isSpecial(m)) s += spec < phys ? 0.8 : spec > phys + 2 ? -1 : 0;
     for (const t of m.types) {
@@ -340,7 +387,7 @@ export function aiChoosePick(
       s -= 0.6 * c + (c >= 2 ? 1 : 0);
     }
     for (const t of mu.resist) if ((weakCount.get(t) ?? 0) >= 2) s += 0.7;
-    s += rng.next() * AI_DRAFT_DIALS.noise;
+    s += rng.next() * dials.noise;
     if (s > bestScore) { bestScore = s; best = m; }
   }
   return (best as DraftMon).id;

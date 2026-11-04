@@ -194,6 +194,8 @@ export interface PrepDoc {
   oppLikelySets: Record<SpeciesId, PrepLikelySets>;
   /** Present only for opposing species the scout report has data on. */
   scouted: Record<SpeciesId, ScoutedMon>;
+  /** Opposing mons the doc leaves out (fog of war); claims about what the opp lacks need this to be 0. */
+  oppHidden: number;
 }
 
 // ---- League core: draft + run state (appended by the league module) ----

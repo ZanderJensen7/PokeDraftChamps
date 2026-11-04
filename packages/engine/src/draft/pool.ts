@@ -21,7 +21,7 @@ function toDraftMon(s: Species, tier: string, extra: Pick<DraftMon, 'isMega' | '
   return {
     id: s.id,
     name: s.name,
-    points: priceOf({ tier: s.tier, natDexTier: s.natDexTier, bst: s.bst }),
+    points: priceOf({ id: s.id, tier: s.tier, natDexTier: s.natDexTier, bst: s.bst }),
     types: [...s.types],
     baseStats,
     abilities,

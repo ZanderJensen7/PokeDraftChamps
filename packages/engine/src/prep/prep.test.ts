@@ -135,4 +135,15 @@ describe('prepDoc', () => {
     expect(lines[0]).toMatch(/roster unknown under fog of war/);
     expect(lines.slice(1).every((l) => !/opp/i.test(l))).toBe(true);
   });
+
+  it('threatSummary claims no opposing absence from a partly hidden roster', async () => {
+    const roster = (ids: string[]) => ids.map((species) => ({ species, isTeraCaptain: false }));
+    // Ninjask outspeeds Great Tusk and Ting-Lu, and neither opp mon can remove hazards: true of the seen mons only.
+    const input = { you: roster(['ninjask', 'greattusk']), opp: roster(['tinglu', 'glimmora']) };
+    const full = threatSummary(await buildPrepDoc(input));
+    expect(full.some((l) => /outspeeds their whole team/.test(l))).toBe(true);
+    const partial = threatSummary(await buildPrepDoc({ ...input, oppHidden: 4 }));
+    expect(partial[0]).toMatch(/2 opp mons seen so far, 4 not yet/);
+    expect(partial.some((l) => /their whole team|none of their mons/.test(l))).toBe(false);
+  });
 });

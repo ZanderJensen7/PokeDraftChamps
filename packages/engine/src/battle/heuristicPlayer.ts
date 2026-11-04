@@ -68,6 +68,17 @@ const ACE_WALLED = 15;
 const ROOKIE_SLOPPY = 0.2;
 
 /**
+ * The battle AI's tunables, one table. Every change is measured head to head first (`npm run arena`); the variants
+ * tried and dropped (lookahead, sacking, hazard and status valuation, Tera timing) are in docs/balance/ai-tuning.md.
+ */
+export interface HeuristicDials {
+  /** Chance of picking one of the top three moves instead of the best. */
+  epsilon: number;
+}
+
+export const HEURISTIC_DIALS: Readonly<HeuristicDials> = { epsilon: 0.04 };
+
+/**
  * Rule-based AI. Moves are scored from damage calcs against an assumed opponent spread
  * (252 HP + its higher attacking stat, neutral nature, revealed item/ability; the real sets when
  * `ctx.opponentSets` is given), KO first,
@@ -84,14 +95,14 @@ export class HeuristicPlayer implements BattlePlayer {
   private rng: Rng;
   private lastWasSwitch = false;
   /** Chance of picking one of the top three moves instead of the best. */
-  epsilon = 0.04;
+  epsilon: number;
   readonly skill: AiSkill;
 
-  constructor(seed = 1, skill: AiSkill = 'trainer') {
+  constructor(seed = 1, skill: AiSkill = 'trainer', dials: Partial<HeuristicDials> = {}) {
     this.rng = new Rng(seed);
     this.skill = skill;
     // Ace never plays a deliberately worse move (measured slightly stronger than 0.04).
-    if (skill === 'ace') this.epsilon = 0;
+    this.epsilon = { ...HEURISTIC_DIALS, ...(skill === 'ace' ? { epsilon: 0 } : {}), ...dials }.epsilon;
   }
 
   choose(req: ParsedRequest, ctx: PlayerContext): string {

@@ -525,7 +525,8 @@ export const useGame = create<GameStore>((set, get) => ({
     try {
       const scout = getBridge().scout?.(run, opp.id);
       // Fog of war (stake 7+): the doc only covers the opposing mons already seen in a stored battle.
-      const doc = await buildPrepDoc({ you: human.roster, opp: visibleRoster(run, opp.id, scout), scout });
+      const seen = visibleRoster(run, opp.id, scout);
+      const doc = await buildPrepDoc({ you: human.roster, opp: seen, scout, oppHidden: opp.roster.length - seen.length });
       set({ prep: doc, prepKey: key, prepLoading: false });
     } catch (e) {
       set({ prepLoading: false, toast: `Prep failed: ${errText(e)}` });

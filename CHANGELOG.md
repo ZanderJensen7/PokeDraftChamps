@@ -66,6 +66,15 @@ every package.json. The build stamp shows the version and short commit in the co
 - Title screen: a menu instead of a stack of buttons. Continue is a card with your team crest, week and record;
   New League and Daily sit side by side (Daily says whether today's league is new, in progress or played); Hall
   of Fame gets a trophy row; How to play, Settings, Import and Bug report move to a small icon row.
+- Prices: 83 species now cost what they played like in the balance lab rather than their tier price (38 up, 45
+  down, at most 2 points each). Mismagius, Galvantula and Whiscash drop to 2; Charizard-Mega-Y drops to 17 and
+  Mega Glalie to 10; Ogerpon-Wellspring and Dragapult rise to 20. Every budget check and the captain cap use the
+  new price.
+- AI coaches stop overpaying in the draft for mons that played below their price in the lab. They win about 54%
+  of matches against the old drafting.
+- Prep doc: while fog of war hides part of the opposing roster, the threat summary says how many opposing mons it
+  has seen. It no longer claims the opp lacks something (a faster mon, hazard removal) that a hidden mon could
+  have. Lists read "A, B or C" instead of slashes.
 - League setup: the point budget is a slider (steps of 5, from the least that fills your roster minimum up to 200;
   the hint says how many points a roster of cheapest mons needs) and free-agency moves a stepper (0 to 6). Tier
   prices are unchanged, presets leave both alone, and stake 6 shows what the AI coaches get on top of your budget.

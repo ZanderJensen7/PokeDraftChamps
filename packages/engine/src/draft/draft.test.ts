@@ -2,9 +2,11 @@ import { DEFAULT_LEAGUE_CONFIG, type DraftState } from '../types';
 import { createRng, deriveSeed } from '../league/rng';
 import { buildDraftPool, getDraftMon } from './pool';
 import {
-  aiChoosePick, aiRosterTarget, aiWantsToStop, applyPick, coachPointsSpent, createDraft, currentPicker, isDoneDrafting,
-  legalPicks, conflictsWithRoster, stopDrafting,
+  aiChoosePick, aiRosterTarget, aiWantsToStop, applyPick, coachPointsSpent, createDraft, currentPicker, draftRoles,
+  isDoneDrafting, labShortfall, legalPicks, conflictsWithRoster, stopDrafting,
 } from './draft';
+import { MOVE_CATEGORIES } from '../prep/moves';
+import { LAB_SCORES } from '../data/labScores';
 
 // A fixed-size league (rosterMin = rosterMax): every coach drafts a full roster, as before the roster range.
 const config = { ...DEFAULT_LEAGUE_CONFIG, rosterMin: 11, rosterMax: 11 };
@@ -195,5 +197,23 @@ describe('megas share their base form dex number', () => {
     expect(currentPicker(d, config)).toBe(first);
     expect(legalPicks(d, first, config, pool)).not.toContain('charizardmegax');
     expect(() => applyPick(d, first, 'charizardmegax', config, pool)).toThrow(/another form/);
+  });
+});
+
+describe('draft AI roles and overpay guard', () => {
+  it('draftRoles names only MOVE_CATEGORIES categories, and a Mega reads its base species', () => {
+    const pool = buildDraftPool({ megas: true });
+    const cats = Object.keys(MOVE_CATEGORIES);
+    for (const m of pool) for (const r of draftRoles(m)) expect(cats).toContain(r);
+    const mega = pool.find((m) => m.baseSpecies)!;
+    expect(draftRoles(mega)).toEqual(draftRoles(getDraftMon(mega.baseSpecies!)!));
+    expect(pool.filter((m) => draftRoles(m).includes('Entry Hazards')).length).toBeGreaterThan(0);
+  });
+
+  it('labShortfall is never negative and is 0 for an unmeasured species', () => {
+    const pool = buildDraftPool({ megas: true });
+    for (const m of pool) expect(labShortfall(m)).toBeGreaterThanOrEqual(0);
+    const unmeasured = pool.find((m) => LAB_SCORES[m.id] === undefined)!;
+    expect(labShortfall(unmeasured)).toBe(0);
   });
 });

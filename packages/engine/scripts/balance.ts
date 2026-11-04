@@ -8,9 +8,10 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
-  aiChoosePick, coachById, createRng, createRun, deriveSeed, draftPick, finishDraft, fitScoreByPrice,
-  mergeAggregates, nextHumanMatch, priceSuggestions, resolveWeek, runAiDraftUntilHuman, runPool, runSpeciesStats,
-  DEFAULT_LEAGUE_CONFIG, SCORE_BASELINE, type LeagueConfig, type PriceFit, type PriceSuggestion, type RunState, type SpeciesAggregate,
+  aiChoosePick, AI_DRAFT_DIALS, coachById, createRng, createRun, deriveSeed, draftPick, draftRoles, finishDraft, fitScoreByPrice, getDraftMon,
+  isBulky, isFast, mergeAggregates, nextHumanMatch, priceSuggestions, resolveWeek, runAiDraftUntilHuman, runPool, runSpeciesStats,
+  DEFAULT_LEAGUE_CONFIG, MOVE_CATEGORIES, SCORE_BASELINE, type Coach, type DraftPick, type LeagueConfig, type PriceFit, type PriceSuggestion,
+  type RunState, type SpeciesAggregate,
 } from '../src';
 import { engineDeps } from '../src/battle';
 
@@ -49,16 +50,22 @@ function parseArgs(argv: string[]): Opts {
   return o;
 }
 
+/** What the draft-quality section reads from one league: every pick, the drafted coaches (with sets), draft time. */
+interface DraftSample { picks: DraftPick[]; coaches: Coach[]; ms: number }
+
 /** One league with the human slot played by the AI too: AI draft pick, AI-vs-AI human match each week. */
-async function playLeague(config: LeagueConfig, seed: number): Promise<RunState> {
+async function playLeague(config: LeagueConfig, seed: number, drafts: DraftSample[]): Promise<RunState> {
   let run = createRun({ config, seed, humanName: 'Lab Coach', humanAbbrev: 'LAB', createdAt: 0 });
+  const t = performance.now();
   for (;;) {
     run = runAiDraftUntilHuman(run);
     if (run.draft.complete) break;
     const rng = createRng(deriveSeed(seed, 'labPick', run.draft.pickIndex));
     run = draftPick(run, aiChoosePick(run.draft, run.humanId, run.config, runPool(run), rng));
   }
+  const ms = performance.now() - t;
   run = finishDraft(run, engineDeps);
+  drafts.push({ picks: run.draft.picks, coaches: run.coaches, ms });
   while (run.phase === 'season' || run.phase === 'playoffs') {
     const m = nextHumanMatch(run);
     if (!m) break;
@@ -113,7 +120,67 @@ function residualTable(rows: Residual[]): string {
   return [head, ...body].join('\n');
 }
 
-function report(o: Opts, aggs: SpeciesAggregate[], sugg: PriceSuggestion[], fit: PriceFit | undefined, matches: number, seconds: number, date: string): string {
+const DRAFT_ROLES = ['Entry Hazards', 'Hazard Removal', 'Healing', 'Priority'] as const;
+const moveId = (m: string): string => m.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * Draft quality: per round, what the AI paid against what the mons played like (score and residual to the price
+ * line, for species with minGames+ games), then roster shape (size, roles in the rolled sets, a fast and a bulky mon).
+ */
+function draftQuality(drafts: DraftSample[], aggs: SpeciesAggregate[], fit: PriceFit | undefined, minGames: number): string[] {
+  const bySp = new Map(aggs.filter((a) => a.games >= minGames).map((a) => [a.species, a]));
+  const rounds = [...new Set(drafts.flatMap((d) => d.picks.map((p) => p.round)))].sort((a, b) => a - b);
+  const roundRows = rounds.map((r) => {
+    const picks = drafts.flatMap((d) => d.picks.filter((p) => p.round === r));
+    const scored = picks.map((p) => ({ p, a: bySp.get(p.species) })).filter((x) => x.a);
+    const mean = (xs: number[]): number => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : NaN);
+    const price = mean(picks.map((p) => p.points));
+    const score = mean(scored.map((x) => x.a!.score));
+    const resid = fit ? mean(scored.map((x) => x.a!.score - (fit.intercept + fit.slope * x.p.points))) : NaN;
+    const perPt = mean(scored.map((x) => x.p.points / Math.max(1, x.a!.score)));
+    const or = (x: number, f: (x: number) => string): string => (Number.isFinite(x) ? f(x) : '-');
+    return `| ${r} | ${picks.length} | ${f1(price)} | ${scored.length} | ${or(score, f1)} | ${or(resid, (x) => `${x >= 0 ? '+' : ''}${f1(x)}`)} | ${or(perPt, (x) => x.toFixed(3))} |`;
+  });
+  const coaches = drafts.flatMap((d) => d.coaches);
+  const n = coaches.length || 1;
+  const has = (f: (c: Coach) => boolean): string => pctS(coaches.filter(f).length / n);
+  const setMoves = (c: Coach): Set<string> => new Set(Object.values(c.sets).flatMap((s) => s.moves.map(moveId)));
+  const mons = (c: Coach) => c.roster.map((r) => getDraftMon(r.species)).filter((m) => m !== undefined);
+  const roleRows = DRAFT_ROLES.map((role) => {
+    const inSets = has((c) => { const mv = setMoves(c); return MOVE_CATEGORIES[role].some((m) => mv.has(moveId(m))); });
+    const inPool = has((c) => mons(c).some((m) => draftRoles(m).includes(role)));
+    return `| ${role} | ${inSets} | ${inPool} |`;
+  });
+  const sizes = new Map<number, number>();
+  for (const c of coaches) sizes.set(c.roster.length, (sizes.get(c.roster.length) ?? 0) + 1);
+  const picks = drafts.reduce((s, d) => s + d.picks.length, 0) || 1;
+  const ms = drafts.reduce((s, d) => s + d.ms, 0);
+  return [
+    `## Draft quality`,
+    ``,
+    `Per round: mean price paid, and for picks of species with ${minGames}+ games their lab score and residual to the price line`,
+    `(negative = paid more than the mon played like). Points per score = price / score (lower is better value).`,
+    ``,
+    `| Round | Picks | Mean price | Scored | Mean score | Residual | Points per score |`,
+    `|---|---|---|---|---|---|---|`,
+    ...roundRows,
+    ``,
+    `Roster shape over ${coaches.length} rosters: a role counts when a rolled season set carries one of its moves`,
+    `(MOVE_CATEGORIES); "could roll" counts any drafted species whose randoms movepool has one (what the draft AI sees).`,
+    ``,
+    `| Role | In the sets | Could roll |`,
+    `|---|---|---|`,
+    ...roleRows,
+    `| A fast mon (base Spe >= ${AI_DRAFT_DIALS.fastSpeed}) | ${has((c) => mons(c).some(isFast))} | |`,
+    `| A bulky mon (HP + Def + SpD >= ${AI_DRAFT_DIALS.bulkyTotal}) | ${has((c) => mons(c).some(isBulky))} | |`,
+    ``,
+    `- Roster sizes: ${[...sizes.entries()].sort((a, b) => a[0] - b[0]).map(([k, v]) => `${k} mons ${pctS(v / n)}`).join(', ')}`,
+    `- Draft time: ${(ms / picks).toFixed(2)} ms per pick (whole draft, all coaches)`,
+    ``,
+  ];
+}
+
+function report(o: Opts, aggs: SpeciesAggregate[], sugg: PriceSuggestion[], fit: PriceFit | undefined, matches: number, seconds: number, date: string, drafts: DraftSample[]): string {
   const res = residuals(aggs, fit, o.minGames, sugg);
   const over = [...res].sort((a, b) => b.gap - a.gap).slice(0, 15);
   const under = [...res].sort((a, b) => a.gap - b.gap).slice(0, 15);
@@ -155,6 +222,7 @@ function report(o: Opts, aggs: SpeciesAggregate[], sugg: PriceSuggestion[], fit:
     `|---|---|---|---|---|---|---|`,
     ...tier,
     ``,
+    ...draftQuality(drafts, aggs, fit, o.minGames),
     `## All suggestions (${sugg.length})`,
     ``,
     `| Species | Price | Suggested | Delta | Games | Score | Reason |`,
@@ -178,10 +246,11 @@ async function main(): Promise<void> {
   };
   const t0 = performance.now();
   const perLeague: SpeciesAggregate[][] = [];
+  const drafts: DraftSample[] = [];
   let matches = 0;
   for (let i = 0; i < o.leagues; i++) {
     const t = performance.now();
-    const run = await playLeague(config, deriveSeed(o.seed, 'league', i));
+    const run = await playLeague(config, deriveSeed(o.seed, 'league', i), drafts);
     const played = run.matches.filter((m) => m.result).length;
     matches += played;
     perLeague.push(runSpeciesStats(run));
@@ -199,7 +268,7 @@ async function main(): Promise<void> {
     date, config: { ...o, league: config }, sample: { matches, seconds }, fit,
     baseline: measuredBaseline(aggs, o.minGames), aggregates: aggs, suggestions: sugg,
   }, null, 1));
-  writeFileSync(resolve(outDir, 'latest.md'), report(o, aggs, sugg, fit, matches, seconds, date));
+  writeFileSync(resolve(outDir, 'latest.md'), report(o, aggs, sugg, fit, matches, seconds, date, drafts));
 
   const raise = sugg.filter((s) => s.delta > 0);
   const cut = sugg.filter((s) => s.delta < 0);
