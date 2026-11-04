@@ -12,3 +12,4 @@ export * from './spreads';
 export * from './logs';
 export * from './stats';
 export * from './profile';
+export * from './poolProgress';

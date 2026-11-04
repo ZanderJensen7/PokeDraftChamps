@@ -2,7 +2,7 @@
 // the Badge Run screen is the main way to play.
 import { useMemo, useState } from 'react';
 import type { LeagueConfig } from '@pdc/engine';
-import { applyStake, careerStats, DEFAULT_LEAGUE_CONFIG, minBudget, rulesAt, validateLeagueConfig } from '@pdc/engine';
+import { applyStake, careerStats, DEFAULT_LEAGUE_CONFIG, dexSpecies, leaguePool, minBudget, rulesAt, validateLeagueConfig } from '@pdc/engine';
 import { useGame } from '../store/useGame';
 import { useProfile } from '../store/profile';
 import { BackButton, DialogueBox, GameButton, Panel, Segmented } from '../components/ui';
@@ -89,8 +89,8 @@ export function SetupScreen() {
   const hasSave = useGame((s) => s.hasSave);
   const stakeUnlocked = useProfile((s) => s.stakeUnlocked);
   const runs = useProfile((s) => s.runs);
-  const trophies = useProfile((s) => s.trophies);
-  const { titlesPerStake } = useMemo(() => careerStats({ version: 2, stakeUnlocked, runs, trophies }), [stakeUnlocked, runs, trophies]);
+  const unlocked = useProfile((s) => s.pool.unlocked);
+  const { titlesPerStake } = useMemo(() => careerStats({ runs }), [runs]);
   const [stake, setStake] = useState(stakeUnlocked);
   const [name, setName] = useState('Pallet Town Pidgeots');
   const [abbrev, setAbbrev] = useState('PAL');
@@ -107,13 +107,15 @@ export function SetupScreen() {
   const [captainMaxPoints, setCaptainMaxPoints] = useState(DEFAULT_LEAGUE_CONFIG.captainMaxPoints);
   const [budgetPicked, setBudget] = useState(DEFAULT_LEAGUE_CONFIG.budget);
   const [freeAgencyMoves, setFreeAgencyMoves] = useState(DEFAULT_LEAGUE_CONFIG.freeAgencyMoves);
+  const [myPool, setMyPool] = useState(false);
   const [code, setCode] = useState(() => leagueCode(randomSeed()));
 
   const seed = seedFromCode(code);
   const tag = abbrev.trim().toUpperCase();
   // The slider starts at the first step of 5 that fills a roster of rosterMin; a bigger roster or Megas moving that
   // floor up pulls the budget with it, so the screen never sits on a budget the validator would refuse.
-  const floor = useMemo(() => minBudget(rosterMin, megas), [rosterMin, megas]);
+  const pool = useMemo(() => leaguePool(megas, myPool ? unlocked : undefined), [megas, myPool, unlocked]);
+  const floor = useMemo(() => minBudget(rosterMin, megas, pool), [rosterMin, megas, pool]);
   const budgetMin = Math.ceil(floor.need / BUDGET_STEP) * BUDGET_STEP;
   const budget = Math.min(BUDGET_MAX, Math.max(budgetPicked, budgetMin));
   const config: LeagueConfig = {
@@ -123,7 +125,7 @@ export function SetupScreen() {
   // What the run will actually play: the stake tightens the loss cap and the bracket where it is stricter.
   const effective = applyStake(config);
   const stakeRules = rulesAt(stake);
-  const errors = validateLeagueConfig(config);
+  const errors = validateLeagueConfig(config, pool);
   const valid = teamValid(name, abbrev) && seed !== null && errors.length === 0;
   const activePreset = PRESETS.find((p) => p.megas === megas && p.tera === teraCaptains && p.z === zCaptains)?.id;
   const applyPreset = (p: Preset) => { setMegas(p.megas); setTeraCaptains(p.tera); setZCaptains(p.z); };
@@ -142,6 +144,7 @@ export function SetupScreen() {
       abbrev: tag,
       seed,
       config,
+      ...(myPool ? { pool: unlocked } : {}),
     });
   };
 
@@ -160,6 +163,19 @@ export function SetupScreen() {
 
       <Panel title="Badge rules">
         <BadgeCase mode="custom" value={stake} unlocked={stakeUnlocked} titlesPerStake={titlesPerStake} config={config} onChange={setStake} />
+      </Panel>
+
+      <Panel title="Draft pool">
+        <Segmented
+          label="Draft pool"
+          value={myPool ? 'mine' : 'full'}
+          onChange={(v) => setMyPool(v === 'mine')}
+          options={[
+            { value: 'full', label: 'Full pool', sub: `${dexSpecies().length} species` },
+            { value: 'mine', label: 'My pool', sub: `${unlocked.length} unlocked` },
+          ]}
+        />
+        <p className="mt-2 text-sm text-muted">Every coach drafts from the same pool. My pool is the species your Pokedex has unlocked.</p>
       </Panel>
 
       <Panel title="League size">

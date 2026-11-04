@@ -1,5 +1,5 @@
 // League option checks, shared by createRun and the setup screen.
-import type { LeagueConfig } from '../types';
+import type { DraftMon, LeagueConfig } from '../types';
 import { buildDraftPool } from '../draft/pool';
 import { MAX_POINTS } from '../data/points';
 import { MAX_STAKE } from '../data/stakes';
@@ -9,14 +9,14 @@ export const MAX_WEEKS = 20;
 
 const isInt = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n);
 
-/** The least budget that can fill a roster: `rosterMin` mons at the pool's cheapest price. */
-export function minBudget(rosterMin: number, megas: boolean): { need: number; cheapest: number } {
-  const cheapest = Math.min(...buildDraftPool({ megas }).map((m) => m.points));
+/** The least budget that can fill a roster: `rosterMin` mons at the pool's cheapest price (default: the full pool). */
+export function minBudget(rosterMin: number, megas: boolean, pool: readonly DraftMon[] = buildDraftPool({ megas })): { need: number; cheapest: number } {
+  const cheapest = Math.min(...pool.map((m) => m.points));
   return { need: rosterMin * cheapest, cheapest };
 }
 
-/** Every problem with a league config, as plain sentences. Empty = valid. */
-export function validateLeagueConfig(config: LeagueConfig): string[] {
+/** Every problem with a league config, as plain sentences. Empty = valid. `pool` defaults to the full pool. */
+export function validateLeagueConfig(config: LeagueConfig, leaguePool?: readonly DraftMon[]): string[] {
   const c = config;
   const errors: string[] = [];
   if (!TEAM_COUNTS.includes(c.teams)) errors.push(`The league must have 8, 12 or 16 teams (got ${String(c.teams)}).`);
@@ -39,8 +39,8 @@ export function validateLeagueConfig(config: LeagueConfig): string[] {
     errors.push(`The captain price cap must be 1 to ${MAX_POINTS} points (${MAX_POINTS} = no cap; got ${String(c.captainMaxPoints)}).`);
   }
   if (rosterOk) {
-    const pool = buildDraftPool({ megas: !!c.megas });
-    const { need, cheapest } = minBudget(c.rosterMin, !!c.megas);
+    const pool = leaguePool ?? buildDraftPool({ megas: !!c.megas });
+    const { need, cheapest } = minBudget(c.rosterMin, !!c.megas, pool);
     if (typeof c.budget !== 'number' || !(c.budget >= need)) {
       errors.push(`The budget must be at least ${need} points (${c.rosterMin} mons at the cheapest price, ${cheapest}).`);
     }

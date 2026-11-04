@@ -43,6 +43,18 @@ export function RoleTag({ role, compact }: { role: MonRole; compact?: boolean })
   );
 }
 
+/** The NEW pill: a species a scouting pack unlocked that you have not drafted yet. */
+export function NewTag() {
+  return (
+    <span
+      title="New: unlocked by a scouting pack, not drafted yet"
+      className="inline-flex h-5 items-center justify-center rounded-full border border-cream-ink bg-poke-red px-1.5 font-display text-[11px] font-extrabold leading-none tracking-wide text-ink"
+    >
+      NEW
+    </span>
+  );
+}
+
 /** Every role pill for a mon, in a fixed order. */
 export function RoleTags({ roles, compact }: { roles: readonly MonRole[]; compact?: boolean }) {
   if (roles.length === 0) return null;

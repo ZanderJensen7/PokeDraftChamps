@@ -253,6 +253,11 @@ export interface RunState {
   log: string[];
   /** Set on a daily league: everyone who plays that date gets the same seed and config (league/daily.ts). */
   daily?: { date: string };
+  /**
+   * The base species this league drafts from (a Mega form counts when its base species is in), sorted, when it
+   * plays a profile's unlocked pool; absent = the full pool. Fixed at creation, so a later unlock never changes it.
+   */
+  pool?: SpeciesId[];
 }
 
 /**

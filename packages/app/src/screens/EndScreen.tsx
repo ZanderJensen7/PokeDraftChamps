@@ -10,6 +10,7 @@ import { scoreLine, speciesName, spriteName } from '../game/names';
 import { StandingsTable } from '../components/StandingsTable';
 import { Bracket } from '../components/Bracket';
 import { MvpStrip } from '../components/MvpStrip';
+import { ScoutingPanel } from '../components/ScoutingPack';
 
 const REASON: Record<EliminationReason, string> = {
   lossCap: 'You passed the loss cap. One loss too many in the regular season ends the run.',
@@ -189,6 +190,7 @@ export function EndScreen() {
         <ShareLine run={run} />
         {daily && <div className="mt-3 flex justify-center"><PostScoreButton run={run} /></div>}
       </Panel>
+      <ScoutingPanel runId={run.id} />
       <DecisiveMatch run={run} />
       <CareerStrip onOpen={() => go('hall')} />
       {hadPlayoffs && (

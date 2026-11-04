@@ -6,6 +6,16 @@ every package.json. The build stamp shows the version and short commit in the co
 
 ## Unreleased
 
+- Pool progression: a new profile starts with half of every tier unlocked (all of ZU, NFE and LC), and your leagues
+  draft from your pool, rival coaches included. Winning a match with a mon for the first time earns a point; every
+  3 points open a scouting pack (pick one of three locked mons to keep), and every finished run opens one. Badge Run
+  uses your pool, the Daily the full one, and Custom leagues have a toggle (full pool by default).
+- New mons show a NEW badge in the draft and sort first within their price until you draft them.
+- Pokedex: a new screen next to the Hall of Fame shows every species as Locked, Unlocked, Drafted, Won with or
+  Champion, with wins, titles, filters by tier, type and state, and completion on "Won with". Waiting packs open
+  there or on the run end screen.
+- Shiny sprites: a species you have won 10 matches with shows shiny on your team, in the Pokedex and in the trophy
+  case.
 - Badge ladder, reworked: rival coaches now play at three levels. Rookie AI (Badge 1) hits hard but never switches
   on purpose or uses Tera; Trainer AI (Badge 3) is the old AI; Ace AI (Badge 6) knows your sets and reads your
   switches. Badge 4 "Stronger rivals" makes the AI draft by fit with +5 budget. Badge 9 is the Elite Four (you bring

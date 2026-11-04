@@ -1,7 +1,7 @@
 // Badge Run: the main way to play. Pick a badge, name your team, draft. The badge sets the whole league (its format
 // and rules, engine badgeRunConfig); the knobs live on the Custom League screen.
 import { useMemo, useState } from 'react';
-import { badgeRunConfig, careerStats } from '@pdc/engine';
+import { badgeRunConfig, careerStats, dexSpecies } from '@pdc/engine';
 import { useGame } from '../store/useGame';
 import { useProfile } from '../store/profile';
 import { BackButton, DialogueBox, GameButton, Panel } from '../components/ui';
@@ -16,8 +16,8 @@ export function BadgeRunScreen() {
   const hasSave = useGame((s) => s.hasSave);
   const stakeUnlocked = useProfile((s) => s.stakeUnlocked);
   const runs = useProfile((s) => s.runs);
-  const trophies = useProfile((s) => s.trophies);
-  const { titlesPerStake } = useMemo(() => careerStats({ version: 2, stakeUnlocked, runs, trophies }), [stakeUnlocked, runs, trophies]);
+  const pool = useProfile((s) => s.pool);
+  const { titlesPerStake } = useMemo(() => careerStats({ runs }), [runs]);
   const [stake, setStake] = useState(stakeUnlocked);
   const [name, setName] = useState('Pallet Town Pidgeots');
   const [abbrev, setAbbrev] = useState('PAL');
@@ -28,7 +28,7 @@ export function BadgeRunScreen() {
 
   const start = () => {
     if (!valid || seed === null) return;
-    newLeague({ name: name.trim(), abbrev: abbrev.trim().toUpperCase(), seed, config: badgeRunConfig(stake) });
+    newLeague({ name: name.trim(), abbrev: abbrev.trim().toUpperCase(), seed, config: badgeRunConfig(stake), pool: pool.unlocked });
   };
 
   return (
@@ -40,6 +40,11 @@ export function BadgeRunScreen() {
       {hasSave && (
         <DialogueBox>Starting a new league replaces your current saved run. Export it from Settings first if you want to keep it.</DialogueBox>
       )}
+
+      <DialogueBox>
+        Every coach in the league drafts from your Pokedex: {pool.unlocked.length} of {dexSpecies().length} species
+        unlocked. Win with a new mon to earn scouting packs.
+      </DialogueBox>
 
       <Panel title="Badges">
         <BadgeCase mode="run" value={stake} unlocked={stakeUnlocked} titlesPerStake={titlesPerStake} onChange={setStake} />

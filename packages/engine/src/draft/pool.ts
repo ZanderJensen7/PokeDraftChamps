@@ -81,3 +81,22 @@ export function getDraftMon(id: SpeciesId): DraftMon | undefined {
   if (!fullById) fullById = new Map(buildDraftPool({ megas: true }).map((m) => [m.id, m]));
   return fullById.get(id);
 }
+
+const leaguePools = new WeakMap<readonly SpeciesId[], Map<boolean, readonly DraftMon[]>>();
+
+/**
+ * A league's pool: buildDraftPool({ megas }) cut down to `unlocked` base species when given (a Mega form is in when
+ * its base species is). Cached per `unlocked` array, so a run's stored list keeps returning the same frozen array.
+ */
+export function leaguePool(megas: boolean, unlocked?: readonly SpeciesId[]): readonly DraftMon[] {
+  const full = buildDraftPool({ megas });
+  if (!unlocked) return full;
+  let byMegas = leaguePools.get(unlocked);
+  if (!byMegas) leaguePools.set(unlocked, (byMegas = new Map()));
+  const hit = byMegas.get(megas);
+  if (hit) return hit;
+  const have = new Set(unlocked);
+  const pool = Object.freeze(full.filter((m) => have.has(m.isMega ? (m.baseSpecies ?? m.id) : m.id)));
+  byMegas.set(megas, pool);
+  return pool;
+}
