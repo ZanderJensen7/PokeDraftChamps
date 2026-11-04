@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 /** 'ani' = Showdown's animated 3D models (default); 'gen5ani' = animated Gen 5 pixel sprites. */
 export type SpriteSet = 'ani' | 'gen5ani';
+export type PrepStyle = 'guided' | 'full';
 
 export interface Settings {
   spriteSet: SpriteSet;
@@ -18,6 +19,8 @@ export interface Settings {
   shareRuns: boolean;
   /** Draft recommendations: FIT badges, the needs sentences, Sort by fit, the "what this adds" note. */
   draftHelper: boolean;
+  /** Prep before a battle: the guided steps (scout, lineup, moves, EVs) or the full prep doc. */
+  prepStyle: PrepStyle;
 }
 
 export const NICKNAME_MAX = 20;
@@ -30,7 +33,7 @@ export function cleanNickname(s: string): string {
 const KEY = 'pdc.settings.v2';
 const OLD_KEY = 'pdc.settings.v1';
 const DEFAULTS: Settings = {
-  spriteSet: 'ani', reducedMotion: false, battleLogOpen: true, battleEffects: true, sound: true, nickname: '', shareRuns: false, draftHelper: true,
+  spriteSet: 'ani', reducedMotion: false, battleLogOpen: true, battleEffects: true, sound: true, nickname: '', shareRuns: false, draftHelper: true, prepStyle: 'guided',
 };
 
 function load(): Settings {
@@ -52,6 +55,7 @@ function load(): Settings {
       nickname: typeof parsed.nickname === 'string' ? cleanNickname(parsed.nickname) : '',
       shareRuns: parsed.shareRuns === true,
       draftHelper: parsed.draftHelper !== false,
+      prepStyle: parsed.prepStyle === 'full' ? 'full' : 'guided',
     };
   } catch {
     return DEFAULTS;
@@ -73,10 +77,10 @@ export const useSettings = create<SettingsStore>((set, get) => ({
   update(patch) {
     // In memory the nickname keeps what is being typed (inner spaces need a trailing one first); storage trims.
     set(patch.nickname === undefined ? patch : { ...patch, nickname: patch.nickname.slice(0, NICKNAME_MAX) });
-    const { spriteSet, reducedMotion, battleLogOpen, battleEffects, sound, nickname, shareRuns, draftHelper } = get();
+    const { spriteSet, reducedMotion, battleLogOpen, battleEffects, sound, nickname, shareRuns, draftHelper, prepStyle } = get();
     try {
       localStorage.setItem(KEY, JSON.stringify({
-        spriteSet, reducedMotion, battleLogOpen, battleEffects, sound, nickname: cleanNickname(nickname), shareRuns, draftHelper,
+        spriteSet, reducedMotion, battleLogOpen, battleEffects, sound, nickname: cleanNickname(nickname), shareRuns, draftHelper, prepStyle,
       }));
     } catch {
       /* storage full or blocked: settings stay in memory */

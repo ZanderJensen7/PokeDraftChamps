@@ -113,11 +113,11 @@ export function spreadFor(role: string, moveIds: string[], baseStats: StatsTable
 }
 
 
-/** The team editor's EV preset buttons: each runs `spreadFor` for the role against the set's own moves and stats. */
-export const SPREAD_PRESETS: readonly { label: string; role: string }[] = [
-  { label: 'Fast attacker', role: 'Fast Attacker' },
-  { label: 'Bulky attacker', role: 'Bulky Attacker' },
-  { label: 'Bulky wall', role: 'Bulky Support' },
-  { label: 'Fast support', role: 'Fast Support' },
-  { label: 'Fast setup', role: 'Fast Bulky Setup' },
+/** The EV presets (team editor buttons, guided prep cards): each runs `spreadFor` for the role against the set's own moves and stats. */
+export const SPREAD_PRESETS: readonly { label: string; role: string; blurb: string }[] = [
+  { label: 'Fast attacker', role: 'Fast Attacker', blurb: 'Max attacking stat and Speed: hit hard and move first.' },
+  { label: 'Bulky attacker', role: 'Bulky Attacker', blurb: 'Max HP and attacking stat: hits hard and takes a hit back.' },
+  { label: 'Bulky wall', role: 'Bulky Support', blurb: 'Max HP and its weaker defense: soaks hits for the team.' },
+  { label: 'Fast support', role: 'Fast Support', blurb: 'Max HP and Speed: sets hazards or status before the foe acts.' },
+  { label: 'Fast setup', role: 'Fast Bulky Setup', blurb: 'Max HP and Speed: lives while it boosts, then outspeeds.' },
 ];
