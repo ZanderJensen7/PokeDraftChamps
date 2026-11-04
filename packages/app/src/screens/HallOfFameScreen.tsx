@@ -1,4 +1,4 @@
-// The career across runs: totals and titles per stake, every finished run newest first, and the trophy case
+// The career across runs: totals and badges (titles per stake), every finished run newest first, and the trophy case
 // (every species you finished a run with). Reads the profile store only; cards, never tables, so it fits a phone.
 import { useId, useMemo, useState } from 'react';
 import type { CareerRun, SpeciesId, Trophy } from '@pdc/engine';
@@ -7,7 +7,8 @@ import { useGame } from '../store/useGame';
 import { useProfile } from '../store/profile';
 import { copyText } from '../components/DailyBits';
 import { speciesName, spriteName } from '../game/names';
-import { DialogueBox, GameButton, Panel, PokeIcon, PokeSprite } from '../components/ui';
+import { BadgeEmblem, DialogueBox, GameButton, Panel, PokeIcon, PokeSprite } from '../components/ui';
+import { badgeLabel, badgeName } from '../game/badges';
 
 const RUNS_PAGE = 20;
 const TROPHY_PAGE = 24;
@@ -21,22 +22,18 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** One small badge per stake, lit once you have won a league there. */
-function StakeBadges({ titlesPerStake }: { titlesPerStake: number[] }) {
+/** The badge case: one emblem per stake, lit once you have won a league there, a padlock above the unlocked one. */
+function BadgeCase({ titlesPerStake, unlocked }: { titlesPerStake: number[]; unlocked: number }) {
   return (
-    <ul className="grid max-w-md grid-cols-10 gap-1 sm:gap-1.5" aria-label="Titles per stake">
-      {STAKES.map(({ stake, label }) => {
+    <ul className="grid max-w-lg grid-cols-10 gap-1 sm:gap-1.5" aria-label="Badges">
+      {STAKES.map(({ stake }) => {
         const n = titlesPerStake[stake - 1] ?? 0;
-        const text = n > 0 ? `Stake ${stake} (${label}): ${n} title${n === 1 ? '' : 's'}` : `Stake ${stake} (${label}): no title yet`;
+        const state = n > 0 ? 'earned' : stake > unlocked ? 'locked' : 'open';
+        const text = `${badgeLabel(stake)}, ${badgeName(stake)}: ${n > 0 ? `${n} title${n === 1 ? '' : 's'}` : state === 'locked' ? 'locked' : 'not earned yet'}`;
         return (
-          <li
-            key={stake}
-            title={text}
-            aria-label={text}
-            className={`flex aspect-square items-center justify-center rounded-full border-2 border-b-4 font-display text-base font-bold leading-none sm:text-lg
-              ${n > 0 ? 'border-poke-yellow-dark bg-poke-yellow text-cream-ink' : 'border-edge bg-panel-inset text-faint'}`}
-          >
-            {stake}
+          <li key={stake} title={text} aria-label={text} className={`flex flex-col items-center gap-0.5 ${state === 'open' ? 'opacity-50' : ''}`}>
+            <BadgeEmblem stake={stake} state={state} size={36} className="max-sm:h-7 max-sm:w-7" />
+            <span className={`font-display text-xs font-bold leading-none tabular-nums ${n > 0 ? 'text-poke-yellow' : 'text-faint'}`}>{n > 1 ? `×${n}` : stake}</span>
           </li>
         );
       })}
@@ -59,7 +56,7 @@ function RunCard({ r }: { r: CareerRun }) {
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
           <span className="font-bold text-muted">{runDate(r)}</span>
           <span className="rounded-full bg-panel px-2 py-0.5 font-display font-bold uppercase tracking-wide">{r.daily ? 'Daily' : `${r.config.teams}-team league`}</span>
-          {!r.daily && <span className="rounded-full bg-panel px-2 py-0.5 font-display font-bold uppercase tracking-wide">Stake {r.config.stake}</span>}
+          {!r.daily && <span className="rounded-full bg-panel px-2 py-0.5 font-display font-bold uppercase tracking-wide">{badgeLabel(r.config.stake)}</span>}
           <span className="text-faint">league {leagueCodeOf(r.seed)}</span>
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2">
@@ -157,18 +154,18 @@ export function HallOfFameScreen() {
         </div>
       </div>
 
-      <Panel title="Career" aside={<span>Stake {stakeUnlocked} unlocked</span>}>
+      <Panel title="Career" aside={<span>{badgeLabel(stakeUnlocked)} unlocked</span>}>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
           <Stat label="Runs" value={String(stats.runs)} />
           <Stat label="Titles" value={String(stats.titles)} />
-          <Stat label="Best stake" value={stats.bestStakeWon > 0 ? String(stats.bestStakeWon) : '–'} />
+          <Stat label="Best badge" value={stats.bestStakeWon > 0 ? String(stats.bestStakeWon) : '–'} />
           <Stat label="Win rate" value={stats.runs > 0 ? pct(stats.winRate) : '–'} />
           <Stat label="Best score" value={stats.bestScore.toLocaleString('en-US')} />
           <Stat label="Title streak" value={String(stats.longestTitleStreak)} />
         </div>
         <div className="mt-4">
-          <div className="mb-2 text-sm font-bold uppercase tracking-wide text-muted">League titles per stake</div>
-          <StakeBadges titlesPerStake={stats.titlesPerStake} />
+          <div className="mb-2 text-sm font-bold uppercase tracking-wide text-muted">Badges</div>
+          <BadgeCase titlesPerStake={stats.titlesPerStake} unlocked={stakeUnlocked} />
         </div>
       </Panel>
 
