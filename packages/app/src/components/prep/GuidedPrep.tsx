@@ -21,6 +21,9 @@ const STEPS: readonly { id: Step; label: string; optional?: boolean }[] = [
   { id: 'battle', label: 'Battle' },
 ];
 
+/** The step you were on, per run and week, so a trip to the team editor ("Edit manually") comes back to it. */
+let lastStep: { key: string; step: Step } | null = null;
+
 interface GuidedPrepProps {
   run: RunState;
   opp: { id: CoachId; abbrev: string; roster: readonly RosterEntry[] };
@@ -218,12 +221,14 @@ export function GuidedPrep({ run, opp, oppRoster, threats }: GuidedPrepProps) {
   const lineup = useGame((s) => s.lineup);
   const setLineup = useGame((s) => s.setLineup);
   const playMatch = useGame((s) => s.playMatch);
-  const [step, setStep] = useState<Step>('scout');
+  const openOverlay = useGame((s) => s.openOverlay);
+  const stepKey = `${run.id}|${run.week}`;
+  const [step, setStep] = useState<Step>(() => (lastStep?.key === stepKey ? lastStep.step : 'scout'));
   const [suggesting, setSuggesting] = useState(false);
   const ready = validLineup(run, lineup);
   const oppIds = useMemo(() => oppRoster.map((r) => r.species), [oppRoster]);
   const at = STEPS.findIndex((s) => s.id === step);
-  const go = (s: Step) => { setStep(s); window.scrollTo({ top: 0 }); };
+  const go = (s: Step) => { setStep(s); lastStep = { key: stepKey, step: s }; window.scrollTo({ top: 0 }); };
   const next = STEPS[at + 1]?.id;
 
   async function suggest() {
@@ -286,15 +291,25 @@ export function GuidedPrep({ run, opp, oppRoster, threats }: GuidedPrepProps) {
       )}
 
       <div className="flex items-center gap-2 max-md:fixed max-md:inset-x-0 max-md:bottom-[calc(3.75rem+env(safe-area-inset-bottom))] max-md:z-30 max-md:border-t-4 max-md:border-edge-dark max-md:bg-panel/95 max-md:px-3 max-md:py-2 max-md:backdrop-blur">
-        {at > 0 && <BackButton onClick={() => go(STEPS[at - 1]!.id)} to={STEPS[at - 1]!.label} />}
+        {at > 0 && <BackButton onClick={() => go(STEPS[at - 1]!.id)} to={STEPS[at - 1]!.label} className={step === 'lineup' && ready ? 'max-sm:hidden' : ''} />}
         <span className="flex-1" />
-        {(step === 'lineup' || step === 'moves' || step === 'evs') && ready && (
+        {step === 'lineup' && ready ? (
+          <>
+            <GameButton variant="secondary" onClick={() => openOverlay('team')} title="Change moves, EVs, items and natures yourself in the team editor">
+              <span className="sm:hidden">Edit</span><span className="max-sm:hidden">Edit manually</span>
+            </GameButton>
+            <GameButton variant="secondary" onClick={() => next && go(next)} title="Move and EV suggestions against this opponent">
+              <span className="sm:hidden">Helper</span><span className="max-sm:hidden">Prep helper</span>
+            </GameButton>
+            <GameButton size="lg" className="whitespace-nowrap" onClick={() => void playMatch()}>Start match</GameButton>
+          </>
+        ) : (step === 'moves' || step === 'evs') && ready && (
           <GameButton variant="ghost" onClick={() => void playMatch()}>Skip<span className="max-sm:hidden"> to battle</span></GameButton>
         )}
         {step === 'battle' ? (
           <GameButton size="lg" disabled={!ready} onClick={() => void playMatch()}>To battle!</GameButton>
-        ) : step === 'lineup' && !ready ? (
-          <GameButton disabled>Pick {6 - lineup.length} more</GameButton>
+        ) : step === 'lineup' ? (
+          !ready && <GameButton disabled>Pick {6 - lineup.length} more</GameButton>
         ) : (
           <GameButton onClick={() => next && go(next)}><span className="max-sm:hidden">Next: </span>{STEPS[at + 1]!.label} →</GameButton>
         )}
