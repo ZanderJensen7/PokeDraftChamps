@@ -2,7 +2,7 @@
 // Mega Evolution on the first move a stone holder makes, a Z-move when it buys a KO or a big hit nothing else gets.
 import { calculate, Field, Generations, Move, Pokemon } from '@smogon/calc';
 import { Dex } from '@pkmn/sim';
-import type { BattleSet } from '../types';
+import type { AiSkill, BattleSet } from '../types';
 import { attackTypesOfSet, pairScore, stabAttacks, stat100, typeMultiplier } from './matchup';
 import { switchableSlots, usableMoves, type BattlePlayer, type ParsedRequest, type PlayerContext, type RequestPokemon } from './player';
 import { levelFromDetails, parseCondition, parseIdent, speciesNameFromDetails, toID, type SideId } from '../logs/protocol';
@@ -37,6 +37,7 @@ type DexMove = ReturnType<typeof Dex.moves.get>;
 interface Threat { pct: number; prio: number }
 interface MoveEval { slot: number; score: number; tera: boolean; /** Average damage % of the target's max HP (0 for status). */ pct: number }
 interface SwitchPick { slot: number; value: number; survives: boolean }
+interface MoveRead { evals: MoveEval[]; koFirst: boolean; weOutspeed: boolean; bestThreat: number }
 
 interface Situation {
   req: ParsedRequest;
@@ -56,20 +57,41 @@ const Z_BIG_HIT = 60;
 const Z_PLAIN_WEAK = 40;
 
 /**
+ * Ace switch reads: the foe is expected to leave when it is KO'd before acting (and cannot KO back) or walled (its best
+ * hit under ACE_WALLED % of our HP), and a bench mon beats staying by ACE_SWITCH_GAP on the AI's own switch yardstick;
+ * moves are then valued as ACE_SWITCH_ODDS "switches" / the rest "stays".
+ */
+const ACE_SWITCH_ODDS = 0.6;
+const ACE_SWITCH_GAP = 25;
+const ACE_WALLED = 15;
+/** Rookie: chance of a random pick among its three hardest hits instead of the hardest. */
+const ROOKIE_SLOPPY = 0.2;
+
+/**
  * Rule-based AI. Moves are scored from damage calcs against an assumed opponent spread
  * (252 HP + its higher attacking stat, neutral nature, revealed item/ability; the real sets when
  * `ctx.opponentSets` is given), KO first,
  * with speed-order awareness, plus a small table for status, setup, hazards and recovery.
  * Seeded: the same seed and the same battle give the same choices.
+ *
+ * Skill levels: 'trainer' is the default AI above. 'rookie' clicks its hardest-hitting move (status moves only when
+ * nothing hits), now and then one of its top three, never switches by choice, picks a random replacement and never
+ * uses Tera or Z-moves. 'ace' plays like a trainer (meant to be given `ctx.opponentSets`) and reads switches: when the
+ * foe is KO'd before it can act or walled, it expects the bench mon that best answers its active and picks the move
+ * with the best expected value over "foe stays" and "foe switches".
  */
 export class HeuristicPlayer implements BattlePlayer {
   private rng: Rng;
   private lastWasSwitch = false;
   /** Chance of picking one of the top three moves instead of the best. */
   epsilon = 0.04;
+  readonly skill: AiSkill;
 
-  constructor(seed = 1) {
+  constructor(seed = 1, skill: AiSkill = 'trainer') {
     this.rng = new Rng(seed);
+    this.skill = skill;
+    // Ace never plays a deliberately worse move (measured slightly stronger than 0.04).
+    if (skill === 'ace') this.epsilon = 0;
   }
 
   choose(req: ParsedRequest, ctx: PlayerContext): string {
@@ -84,7 +106,7 @@ export class HeuristicPlayer implements BattlePlayer {
     if (req.forceSwitch?.[0]) {
       if (!bench.length) return 'pass';
       this.lastWasSwitch = true;
-      if (!oppMon) return `switch ${this.rng.pick(bench)}`;
+      if (!oppMon || this.skill === 'rookie') return `switch ${this.rng.pick(bench)}`;
       return `switch ${this.bestSwitch(req, ctx, view, oppMon, bench).slot}`;
     }
     const activeReq = req.active?.[0];
@@ -99,6 +121,7 @@ export class HeuristicPlayer implements BattlePlayer {
     // Mega Evolution and Tera never share a turn.
     const canTera = !megaForme && !!activeReq.canTerastallize && ctx.teraCaptains.has(setSpeciesId(activeSet));
     const plain = this.evaluateMoves(sit, false);
+    if (this.skill === 'rookie') return this.rookieMove(plain.evals, moves, !!activeReq.canMegaEvo);
     let evals = plain.evals;
     if (canTera) {
       const tera = this.evaluateMoves(sit, true);
@@ -126,10 +149,102 @@ export class HeuristicPlayer implements BattlePlayer {
     if (!best) return `move ${this.rng.pick(moves)}`;
     let pick = best;
     if (evals.length > 1 && this.rng.next() < this.epsilon) pick = this.rng.pick(evals.slice(0, 3));
+    if (this.skill === 'ace') pick = this.readSwitch(sit, plain, evals, pick);
     if (activeReq.canMegaEvo) return `move ${pick.slot} mega`;
     const z = this.zMoveSlot(sit, evals);
     if (z !== undefined) return `move ${z} zmove`;
     return `move ${pick.slot}${pick.tera ? ' terastallize' : ''}`;
+  }
+
+  // ---------- skill levels ----------
+
+  /** Rookie: the hardest hit on the current foe (expected % of its max HP), a random top-three hit ROOKIE_SLOPPY of the time. */
+  private rookieMove(evals: MoveEval[], moves: number[], mega: boolean): string {
+    const hits = evals.filter(e => e.pct > 0).sort((a, b) => b.pct - a.pct);
+    let pick = hits[0] ?? evals[0];
+    if (hits.length > 1 && this.rng.next() < ROOKIE_SLOPPY) pick = this.rng.pick(hits.slice(0, 3));
+    return `move ${pick ? pick.slot : this.rng.pick(moves)}${mega ? ' mega' : ''}`;
+  }
+
+  /**
+   * Ace: when the foe is in a spot a sensible player leaves (KO'd before it acts while it cannot KO back, or walled),
+   * expect the bench mon that best answers our active and take the damaging move with the best expected value over
+   * stay / switch. Otherwise, or when no bench mon takes our best hit, keep `pick`.
+   */
+  private readSwitch(sit: Situation, read: MoveRead, evals: MoveEval[], pick: MoveEval): MoveEval {
+    const { oppMon, them } = sit;
+    // A mon that just came in rarely leaves again at once.
+    if (them.turnsActive <= 1 || oppMon.hpPct < 35 || !pick.pct) return pick;
+    const ourHp = hpOf(sit.active);
+    const weKoFirst = evals.some(e => e.pct >= oppMon.hpPct && (read.weOutspeed || (this.slotMove(sit, e.slot)?.priority ?? 0) > 0));
+    const inDanger = weKoFirst && read.bestThreat < ourHp;
+    const walled = read.bestThreat < ACE_WALLED;
+    if (!inDanger && !walled) return pick;
+    const sw = this.predictSwitchIn(sit, evals);
+    if (!sw) return pick;
+    // Staying, valued from the foe's side the way monValue values our own active.
+    const ourBest = Math.min(oppMon.hpPct, Math.max(0, ...evals.map(e => e.pct)));
+    const stay = Math.min(read.bestThreat, ourHp) * (read.weOutspeed ? 1 : 1.3) - ourBest + (ourBest >= oppMon.hpPct ? -80 : 0) + oppMon.hpPct * 0.2;
+    if (sw.value < stay + ACE_SWITCH_GAP) return pick;
+    const utility = (pct: number, hp: number) => Math.min(pct, hp) + (pct >= hp ? 50 : 0);
+    let best = pick;
+    let bestValue = -Infinity;
+    for (const e of evals) {
+      if (e.pct <= 0) continue;
+      const accuracy = this.slotMove(sit, e.slot)?.accuracy ?? true;
+      const acc = accuracy === true ? 1 : accuracy / 100;
+      const v = acc * ((1 - ACE_SWITCH_ODDS) * utility(e.pct, oppMon.hpPct) + ACE_SWITCH_ODDS * utility(sw.pcts.get(e.slot) ?? 0, sw.hp));
+      if (v > bestValue) { bestValue = v; best = e; }
+    }
+    return best;
+  }
+
+  /**
+   * The foe's likeliest switch-in: the bench mon (its real set when known, else the default spread) that best answers
+   * our active on the AI's own switch yardstick, with its value and our damage to it by move slot. Undefined when no
+   * bench mon survives our best hit.
+   */
+  private predictSwitchIn(sit: Situation, evals: MoveEval[]): { hp: number; pcts: Map<number, number>; value: number } | undefined {
+    const { ctx, view, me, them, oppMon, active, activeSet, megaForme } = sit;
+    const ourMon = ownCalcMon(activeSet, active, me.boosts, false, megaForme);
+    if (!ourMon) return undefined;
+    const atkField = makeField(view, me, them);
+    const defField = makeField(view, them, me);
+    const ourSpe = effectiveSpeed(megaForme ? ourMon.stats.spe : (active.stats?.spe ?? 100), me.boosts.spe ?? 0, active.item, parseCondition(active.condition).status);
+    let best: { hp: number; pcts: Map<number, number>; value: number } | undefined;
+    for (const id of ctx.opponentTeam) {
+      const set = ctx.opponentSets?.find(s => toID(s.species) === id);
+      const seen = [...them.mons.values()].find(m => m.speciesId === id || (set && m.name === (set.name || set.species)));
+      if (seen && (seen.fainted || seen.name === oppMon.name)) continue;
+      const sp = Dex.species.get(id);
+      if (!sp.exists || (!seen && sp.id === oppMon.speciesId)) continue;
+      const mon: MonView = seen ?? { name: set?.name || sp.name, speciesId: id, forme: sp.name, hpPct: 100, status: '', fainted: false, moves: new Set() };
+      const calc = oppCalcMon(mon, {}, set);
+      if (!calc) continue;
+      const hp = mon.hpPct - hazardCost(them, calc, toID(mon.item ?? set?.item ?? ''));
+      const pcts = new Map<number, number>();
+      let out = 0;
+      for (const e of evals) {
+        const dm = this.slotMove(sit, e.slot);
+        if (!dm || dm.category === 'Status') continue;
+        const pct = typeMultiplier(dm.type, viewTypes(mon), mon.ability ?? set?.ability) === 0 && dm.id !== 'thousandarrows' ? 0 : damagePct(ourMon, calc, dm.name, atkField).avg;
+        pcts.set(e.slot, pct);
+        out = Math.max(out, pct);
+      }
+      if (out >= hp) continue;
+      const incoming = Math.max(0, ...threatsAgainst(mon, calc, ourMon, defField, set).map(t => t.pct));
+      const theirSpe = oppSpeed(mon, 0, set && calc);
+      const faster = view.trickRoom ? theirSpe < ourSpe : theirSpe > ourSpe;
+      const value = Math.min(incoming, hpOf(active)) * (faster ? 1.3 : 1) - out * 1.2 + hp * 0.2;
+      if (!best || value > best.value) best = { hp, pcts, value };
+    }
+    return best;
+  }
+
+  private slotMove(sit: Situation, slot: number): DexMove | undefined {
+    const rm = sit.req.active?.[0]?.moves[slot - 1];
+    const dm = rm ? Dex.moves.get(rm.id) : undefined;
+    return dm?.exists ? dm : undefined;
   }
 
   // ---------- Z-moves ----------
@@ -197,12 +312,12 @@ export class HeuristicPlayer implements BattlePlayer {
 
   // ---------- moves ----------
 
-  private evaluateMoves(sit: Situation, tera: boolean): { evals: MoveEval[]; koFirst: boolean } {
+  private evaluateMoves(sit: Situation, tera: boolean): MoveRead {
     const { req, ctx, view, me, them, oppMon, active, activeSet, megaForme } = sit;
     const ourMon = ownCalcMon(activeSet, active, me.boosts, tera, megaForme);
     const oppSet = oppSetOf(ctx, oppMon);
     const oppCalc = oppCalcMon(oppMon, them.boosts, oppSet);
-    if (!ourMon || !oppCalc) return { evals: [], koFirst: false };
+    if (!ourMon || !oppCalc) return { evals: [], koFirst: false, weOutspeed: false, bestThreat: 0 };
     const ourHp = hpOf(active);
     const threats = threatsAgainst(oppMon, oppCalc, ourMon, makeField(view, them, me), oppSet);
     const bestThreat = Math.max(0, ...threats.map(t => t.pct));
@@ -249,7 +364,7 @@ export class HeuristicPlayer implements BattlePlayer {
       evals.push({ slot, score: score + this.rng.next() * 2, tera, pct: dealt });
     }
     evals.sort((a, b) => b.score - a.score);
-    return { evals, koFirst: koFirstAt(0) };
+    return { evals, koFirst: koFirstAt(0), weOutspeed, bestThreat };
   }
 
   private statusScore(sit: Situation, dm: DexMove, ourHp: number, bestThreat: number, koFirst: boolean, oppTypes: string[], oppReal?: Pokemon): number {
@@ -403,7 +518,7 @@ function speciesOf(m: MonView) {
   return byForme.exists ? byForme : Dex.species.get(m.speciesId);
 }
 
-/** The opponent's real set for a mon on the field, when this side knows it (stake rule aiKnowsSets). */
+/** The opponent's real set for a mon on the field, when this side knows it (Ace AI). */
 function oppSetOf(ctx: PlayerContext, m: MonView): BattleSet | undefined {
   const sets = ctx.opponentSets;
   if (!sets) return undefined;
@@ -423,7 +538,7 @@ function isPhysicalSet(set: BattleSet): boolean {
 
 /**
  * Calc mon for the opponent's active. Without its set: 252 HP + its higher attacking stat, neutral nature, the revealed
- * item and ability. With `set` (stake rule aiKnowsSets): the real spread, nature, item and ability.
+ * item and ability. With `set` (Ace AI): the real spread, nature, item and ability.
  */
 function oppCalcMon(m: MonView, boosts: Record<string, number>, set?: BattleSet): Pokemon | undefined {
   const sp = speciesOf(m);

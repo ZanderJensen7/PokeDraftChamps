@@ -32,14 +32,31 @@ function record(run: RunState): { wins: number; losses: number; playoffWins: num
   return { wins, losses, playoffWins, differential: row?.differential ?? 0, rank: played === 0 ? 0 : (row?.rank ?? 0), played };
 }
 
+/** One line of the score: what it counts, how many, and the points it adds (negative for a minus differential). */
+export interface ScoreLine {
+  key: keyof typeof DAILY_SCORE;
+  label: string;
+  count: number;
+  each: number;
+  points: number;
+}
+
+/** Where the score comes from, one line per DAILY_SCORE entry, in table order. runScore is their sum (floored at 0). */
+export function scoreBreakdown(run: RunState): ScoreLine[] {
+  const r = record(run);
+  const line = (key: keyof typeof DAILY_SCORE, label: string, count: number): ScoreLine =>
+    ({ key, label, count, each: DAILY_SCORE[key], points: count * DAILY_SCORE[key] });
+  return [
+    line('win', 'Regular-season wins', r.wins),
+    line('differential', 'Pokemon differential', r.differential),
+    line('playoffWin', 'Playoff wins', r.playoffWins),
+    line('title', 'League title', run.phase === 'champion' ? 1 : 0),
+  ];
+}
+
 /** The run's score so far (never below 0): see DAILY_SCORE. The same formula serves every mode. */
 export function runScore(run: RunState): number {
-  const r = record(run);
-  const raw = r.wins * DAILY_SCORE.win
-    + r.differential * DAILY_SCORE.differential
-    + r.playoffWins * DAILY_SCORE.playoffWin
-    + (run.phase === 'champion' ? DAILY_SCORE.title : 0);
-  return Math.max(0, raw);
+  return Math.max(0, scoreBreakdown(run).reduce((t, l) => t + l.points, 0));
 }
 
 /** Builds the RunSummary. `finishedAt` defaults to Date.now(). Pure apart from that default. */

@@ -86,3 +86,15 @@
   species, no Megas): 3:72 4:84 5:36 6:23 7:20 9:5 10:36 11:15 12:39 14:16 15:36 16:19 18:28 19:6 20:23 (with
   Megas on, 488). True 1–2 pointers need unevolved species with generated sets (the pool only admits species
   with a randoms set), later.
+- **2026-11-04 — Badge ladder v2 and pool progression.** User rulings: ten steps stay, named like the games
+  (Badges 1–8, Elite Four, Champion). The battle AI facing you gets three levels a player can feel (Rookie:
+  predictable, hardest hit, no voluntary switches; Trainer: today's AI; Ace: knows your sets and predicts
+  switches) at Badges 1 / 3 / 6, replacing "AI knows your sets" as its own step. "No Likely Sets tab" leaves
+  the ladder (an accessibility matter, not difficulty) and "Playoffs take the top quarter" is dropped; AI
+  draft by fit and +5 budget merge into one "Stronger rivals" step. Elite Four: you bring 5; Champion: you
+  bring 4, while the AI still brings 6 (lopsided on purpose: equal smaller teams would add luck, which helps
+  the weaker side). AI-vs-AI league matches always play Trainer. Pool progression: start with half of every
+  tier; the first match win with each species earns a point, 3 points open a scouting pack (keep 1 of 3),
+  every finished run opens at least one; freshly unlocked mons carry a NEW flair; daily uses the full pool.
+  A Pokedex tracks Locked / Unlocked / Drafted / Won with / Champion per species; rewards are species,
+  shiny sprites (10 wins), Dex milestones and ribbons, no currency. Details in `docs/ROGUELIKE.md`.

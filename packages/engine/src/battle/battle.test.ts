@@ -116,28 +116,52 @@ describe('HeuristicPlayer', () => {
     expect(avgMs).toBeLessThan(2000);
   }, 120_000);
 
-  it('aiKnowsSets (stake 4) wins more than half of 120 seeded games against the default AI', async () => {
-    // 60 team pairs, each played twice: the knowing AI takes each team once and each side once; same teams both games.
-    // Measured 116/200 and 118/200 on two seed ranges, against 96/200 and 104/200 for two identical AIs.
+  /**
+   * Wins for player X over `pairs` team pairs, each played twice: X takes each team once and each side once; same teams
+   * and sim seed both games. `make` returns fresh [X, Y] players for game seed g.
+   */
+  async function pairedWins(pairs: number, make: (g: number) => [BattlePlayer, BattlePlayer], xKnowsSets = false): Promise<{ wins: number; games: number }> {
     let wins = 0;
     let games = 0;
-    for (let g = 1000; g < 1060; g++) {
+    for (let g = 1000; g < 1000 + pairs; g++) {
       const teamA = teamOf(pickSpecies(300 + g, 6), g);
       const teamB = teamOf(pickSpecies(400 + g, 6), g + 50);
-      for (const knowerOnP1 of [true, false]) {
-        const knower = new HeuristicPlayer(g);
-        const plain = new HeuristicPlayer(g + 1000);
+      for (const xOnP1 of [true, false]) {
+        const [x, y] = make(g);
         const o = await runBattle({
-          p1: { name: 'Alpha', team: teamA, player: knowerOnP1 ? knower : plain, teraCaptains: [], knowsOpponentSets: knowerOnP1 },
-          p2: { name: 'Beta', team: teamB, player: knowerOnP1 ? plain : knower, teraCaptains: [], knowsOpponentSets: !knowerOnP1 },
+          p1: { name: 'Alpha', team: teamA, player: xOnP1 ? x : y, teraCaptains: [], knowsOpponentSets: xKnowsSets && xOnP1 },
+          p2: { name: 'Beta', team: teamB, player: xOnP1 ? y : x, teraCaptains: [], knowsOpponentSets: xKnowsSets && !xOnP1 },
           seed: new Rng(g).seed4(),
         });
-        if (o.winner === (knowerOnP1 ? 'p1' : 'p2')) wins++;
+        if (o.winner === (xOnP1 ? 'p1' : 'p2')) wins++;
         games++;
       }
     }
-    console.log(`[battle] aiKnowsSets vs default: ${wins}/${games} wins`);
+    return { wins, games };
+  }
+
+  it('keeps the trainer skill as the default', () => {
+    expect(new HeuristicPlayer(3).skill).toBe('trainer');
+    expect(new HeuristicPlayer(3, 'ace').skill).toBe('ace');
+  });
+
+  it('ace (real sets + switch reads) wins more than half of 120 seeded games against trainer', async () => {
+    // Measured over 1000 games (5 seed ranges): ace 590, trainer that knows the sets 576, against ~500 for two trainers.
+    const { wins, games } = await pairedWins(60, g => [new HeuristicPlayer(g, 'ace'), new HeuristicPlayer(g + 1000)], true);
+    console.log(`[battle] ace vs trainer: ${wins}/${games} wins`);
     expect(wins).toBeGreaterThan(games / 2);
+  }, 300_000);
+
+  it('trainer beats rookie in more than 60% of 80 seeded games', async () => {
+    const { wins, games } = await pairedWins(40, g => [new HeuristicPlayer(g), new HeuristicPlayer(g + 1000, 'rookie')]);
+    console.log(`[battle] trainer vs rookie: ${wins}/${games} wins`);
+    expect(wins).toBeGreaterThan(games * 0.6);
+  }, 300_000);
+
+  it('rookie still beats RandomPlayer in at least 70% of 80 seeded games', async () => {
+    const { wins, games } = await pairedWins(40, g => [new HeuristicPlayer(g, 'rookie'), new RandomPlayer(g + 1000)]);
+    console.log(`[battle] rookie vs random: ${wins}/${games} wins`);
+    expect(wins).toBeGreaterThanOrEqual(games * 0.7);
   }, 300_000);
 });
 

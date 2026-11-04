@@ -9,12 +9,12 @@ describe('stakes', () => {
     for (const s of STAKES) expect(s.label.length && s.rule.length).toBeTruthy();
   });
 
-  it('adds exactly one rule per level and keeps the rest', () => {
+  it('adds a rule per level and keeps the rest', () => {
     for (let n = 2; n <= MAX_STAKE; n++) {
       const below = rulesAt(n - 1);
       const here = rulesAt(n);
       const changed = (Object.keys(here) as (keyof typeof here)[]).filter((k) => here[k] !== below[k]);
-      expect(changed, `stake ${n}`).toHaveLength(1);
+      expect(changed.length, `stake ${n}`).toBeGreaterThan(0);
     }
   });
 
@@ -44,12 +44,14 @@ describe('stakes', () => {
     }
   });
 
-  it('playoffs take the top quarter from the playoff stake up', () => {
-    const at = MAX_STAKE;
-    expect(applyStake({ ...DEFAULT_LEAGUE_CONFIG, teams: 16, playoffTeams: 8, stake: at }).playoffTeams).toBe(4);
-    expect(applyStake({ ...DEFAULT_LEAGUE_CONFIG, teams: 12, playoffTeams: 8, stake: at }).playoffTeams).toBe(2);
-    expect(applyStake({ ...DEFAULT_LEAGUE_CONFIG, teams: 8, playoffTeams: 4, stake: at }).playoffTeams).toBe(2);
-    expect(applyStake({ ...DEFAULT_LEAGUE_CONFIG, teams: 16, playoffTeams: 8, stake: 1 }).playoffTeams).toBe(8);
+  it('the AI only gets stronger and the bring size only shrinks', () => {
+    const order = ['rookie', 'trainer', 'ace'];
+    for (let n = 2; n <= MAX_STAKE; n++) {
+      expect(order.indexOf(rulesAt(n).aiSkill)).toBeGreaterThanOrEqual(order.indexOf(rulesAt(n - 1).aiSkill));
+      expect(rulesAt(n).bringSize).toBeLessThanOrEqual(rulesAt(n - 1).bringSize);
+      expect(rulesAt(n).bringSize).toBeGreaterThanOrEqual(1);
+    }
+    expect(rulesAt(1).bringSize).toBe(6);
   });
 
   it('has a valid Badge Run format per stake that never shrinks the league', () => {

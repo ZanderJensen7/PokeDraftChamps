@@ -1,9 +1,9 @@
-// The lineup picker: choose and order the six you bring. Tap to add or drop, drag (or tap two slots) to reorder.
+// The lineup picker: choose and order the mons you bring (6, fewer at the last badges). Tap to add or drop, drag (or tap two slots) to reorder.
 // Shared by the full prep doc and the guided prep's Lineup step.
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import type { RunState, SpeciesId } from '@pdc/engine';
 import { getDraftMon, humanCoach } from '@pdc/engine';
-import { useGame } from '../../store/useGame';
+import { bringSize, useGame } from '../../store/useGame';
 import { GameButton, IconBadge, Panel, PokeIcon, PokeSprite, RoleTags } from '../ui';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { MonDetailButton } from '../MonDetail';
@@ -23,12 +23,12 @@ function GripIcon() {
 }
 
 /** Lineup count plus an action: by default the way into the set editor (movesets, EVs, items and natures change there). */
-function LineupAside({ count, action }: { count: number; action?: ReactNode }) {
+function LineupAside({ count, size, action }: { count: number; size: number; action?: ReactNode }) {
   const openOverlay = useGame((s) => s.openOverlay);
   return (
     <span className="flex items-center gap-2">
       {action ?? <GameButton variant="ghost" size="sm" onClick={() => openOverlay('team')} title="Change moves, EVs, items and natures before the match">Edit sets</GameButton>}
-      <span className={`font-display font-bold ${count === 6 ? 'text-win' : 'text-poke-yellow'}`}>{count}/6</span>
+      <span className={`font-display font-bold ${count === size ? 'text-win' : 'text-poke-yellow'}`}>{count}/{size}</span>
     </span>
   );
 }
@@ -38,10 +38,11 @@ export function LineupPicker({ run, action }: { run: RunState; action?: ReactNod
   const lineup = useGame((s) => s.lineup);
   const setLineup = useGame((s) => s.setLineup);
   const human = humanCoach(run);
+  const size = bringSize(run);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const toggle = (id: SpeciesId) => {
     if (lineup.includes(id)) setLineup(lineup.filter((x) => x !== id));
-    else if (lineup.length < 6) setLineup([...lineup, id]);
+    else if (lineup.length < size) setLineup([...lineup, id]);
   };
   const move = (from: number, to: number) => {
     if (to < 0 || to >= lineup.length) return;
@@ -106,7 +107,7 @@ export function LineupPicker({ run, action }: { run: RunState; action?: ReactNod
     press.current = null;
     setDrag(null);
   };
-  // Phones: six big slots. Drag a name strip onto another slot, or tap one then another, to swap order; ✕ benches.
+  // Phones: one big slot per mon you bring. Drag a name strip onto another slot, or tap one then another, to swap order; ✕ benches.
   if (isMobile) {
     const tapSlot = (i: number) => {
       if (skipTap.current) { skipTap.current = false; return; }
@@ -117,7 +118,7 @@ export function LineupPicker({ run, action }: { run: RunState; action?: ReactNod
     };
     const dragName = drag ? speciesName(lineup[drag.from]!) : '';
     return (
-      <Panel title="Your lineup" aside={<LineupAside count={lineup.length} action={action} />}>
+      <Panel title="Your lineup" aside={<LineupAside count={lineup.length} size={size} action={action} />}>
         {/* Two lines tall whatever it says, so the grid never jumps under a finger mid-tap. */}
         <p className="mb-2 min-h-10 text-sm text-muted" aria-live="polite">
           {drag
@@ -125,7 +126,7 @@ export function LineupPicker({ run, action }: { run: RunState; action?: ReactNod
             : swapIdx !== null ? `Tap another slot to swap with ${speciesName(lineup[swapIdx]!)}.` : 'Slot 1 leads. Drag a name onto another slot, or tap two slots, to swap them.'}
         </p>
         <ol className="mb-3 grid grid-cols-3 gap-2">
-          {Array.from({ length: 6 }, (_, i) => {
+          {Array.from({ length: size }, (_, i) => {
             const id = lineup[i];
             if (!id) {
               return (
@@ -198,7 +199,7 @@ export function LineupPicker({ run, action }: { run: RunState; action?: ReactNod
             <button
               key={r.species}
               type="button"
-              disabled={lineup.length >= 6}
+              disabled={lineup.length >= size}
               onClick={() => { setSwapIdx(null); toggle(r.species); }}
               className="focus-ring flex min-h-11 items-center gap-1 rounded-lg border-2 border-edge-dark bg-panel-inset px-2 text-sm font-semibold disabled:opacity-40"
             >
@@ -213,7 +214,7 @@ export function LineupPicker({ run, action }: { run: RunState; action?: ReactNod
     );
   }
   return (
-    <Panel title="Your lineup" aside={<LineupAside count={lineup.length} action={action} />}>
+    <Panel title="Your lineup" aside={<LineupAside count={lineup.length} size={size} action={action} />}>
       <p className="mb-2 text-sm text-muted">Tap to bring or bench. The first Pokemon leads. Drag or use the arrows to reorder.</p>
       <ol className="mb-3 space-y-1">
         {lineup.map((id, i) => (
@@ -240,7 +241,7 @@ export function LineupPicker({ run, action }: { run: RunState; action?: ReactNod
           <button
             key={r.species}
             type="button"
-            disabled={lineup.length >= 6}
+            disabled={lineup.length >= size}
             onClick={() => toggle(r.species)}
             className="focus-ring flex items-center gap-1 rounded-lg border-2 border-edge-dark bg-panel-inset px-1.5 py-0.5 text-sm font-semibold enabled:hover:border-edge disabled:opacity-40"
           >

@@ -479,13 +479,15 @@ function Field({ view, names, bind, fx, effectsOn, phone, landscape, exactHp, si
 function TeamStrip({ side, sideId, bind, tone, label, extra }: {
   side: SideView; sideId: Side; bind: BindFn; tone: 'you' | 'opp'; label: string; extra?: ReactNode;
 }) {
+  // Your side shows the mons you brought (fewer than 6 at the last badges); the opponent always brings 6.
+  const total = tone === 'you' && side.team.length ? side.team.length : 6;
   const slots: (MonView | null)[] = [...side.team];
-  while (slots.length < 6) slots.push(null);
+  while (slots.length < total) slots.push(null);
   return (
     <div className={`flex items-center gap-2 phone:gap-1.5 ${tone === 'opp' ? 'flex-row-reverse' : ''}`}>
       <span className={`min-w-0 truncate font-display text-sm font-bold phone:text-xs ${tone === 'you' ? 'text-you' : 'text-opp'}`}>{label}</span>
       <div className="flex shrink-0 gap-1 phone:gap-0.5">
-        {slots.slice(0, 6).map((m, i) => (
+        {slots.slice(0, total).map((m, i) => (
           <SlotTag
             key={i}
             hit={m ? { ...bind({ side: sideId, index: i }), 'aria-label': `${displayName(m.species)} info` } : undefined}

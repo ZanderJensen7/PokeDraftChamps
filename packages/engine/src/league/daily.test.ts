@@ -5,7 +5,7 @@ import { validateLeagueConfig } from './config';
 import { createRng, deriveSeed } from './rng';
 import { createRun, draftPick, finishDraft, nextHumanMatch, opponentOf, resolveWeek, runAiDraftUntilHuman, serializeRun, deserializeRun } from './run';
 import { DAILY_CONFIG, dailyDate, dailyInfo, dailySeed, isDailyDate } from './daily';
-import { DAILY_SCORE, resultLabel, runScore, shareString, summarizeRun } from './summary';
+import { DAILY_SCORE, resultLabel, runScore, scoreBreakdown, shareString, summarizeRun } from './summary';
 
 function result(winner: string, loser: string, wr = 3): MatchResult {
   return { winner, loser, log: ['|win|x'], turns: 25, remaining: { [winner]: wr, [loser]: 0 }, lineups: {} };
@@ -104,6 +104,14 @@ describe('score and summary', () => {
     expect(bs.eliminationReason).toBe('lossCap');
     expect(resultLabel(cs)).toMatch(/, champion$/);
     expect(resultLabel(bs)).toMatch(/, out at the loss cap$/);
+    for (const r of [champ, bust]) {
+      const lines = scoreBreakdown(r);
+      expect(lines.map((l) => l.key)).toEqual(Object.keys(DAILY_SCORE));
+      for (const l of lines) expect(l.points).toBe(l.count * l.each);
+      expect(runScore(r)).toBe(Math.max(0, lines.reduce((t, l) => t + l.points, 0)));
+    }
+    expect(scoreBreakdown(champ).find((l) => l.key === 'title')!.points).toBe(DAILY_SCORE.title);
+    expect(scoreBreakdown(bust).find((l) => l.key === 'title')!.points).toBe(0);
     expect(cs.mvp === undefined || cs.roster.includes(cs.mvp.species)).toBe(true);
   });
 

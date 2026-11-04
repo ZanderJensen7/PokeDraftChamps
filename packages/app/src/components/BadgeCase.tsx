@@ -6,7 +6,7 @@ import { useState } from 'react';
 import type { LeagueConfig } from '@pdc/engine';
 import { applyStake, badgeRunConfig, MAX_STAKE, rulesAt, STAKES } from '@pdc/engine';
 import { BadgeEmblem, type BadgeState } from './ui';
-import { badgeLabel, badgeName, badgeOf } from '../game/badges';
+import { AI_SKILL_NAMES, badgeLabel, badgeName, badgeOf } from '../game/badges';
 
 function Fixed({ label, value }: { label: string; value: string | number }) {
   return (
@@ -33,7 +33,8 @@ export function BadgeCase(props: Props) {
     stake > unlocked ? 'locked' : (titlesPerStake[stake - 1] ?? 0) > 0 ? 'earned' : 'open';
   const state = stateOf(shown);
   const league = props.mode === 'run' ? badgeRunConfig(shown) : applyStake({ ...props.config, stake: shown });
-  const aiBonus = rulesAt(shown).aiBudgetBonus;
+  const shownRules = rulesAt(shown);
+  const aiBonus = shownRules.aiBudgetBonus;
   const { rule } = STAKES[shown - 1]!;
   const earnedCount = titlesPerStake.filter((n) => n > 0).length;
 
@@ -126,7 +127,7 @@ export function BadgeCase(props: Props) {
           </div>
         )}
 
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {mode === 'run' ? (
             <>
               <Fixed label="Coaches" value={league.teams} />
@@ -142,6 +143,8 @@ export function BadgeCase(props: Props) {
               <Fixed label="Your budget" value={league.budget} />
             </>
           )}
+          <Fixed label="Rival AI" value={AI_SKILL_NAMES[shownRules.aiSkill]} />
+          <Fixed label="You bring" value={shownRules.bringSize === 6 ? '6' : `${shownRules.bringSize} (AI 6)`} />
         </div>
         {mode === 'run' && (
           <p className="mt-2 text-sm text-muted">

@@ -499,7 +499,7 @@ describe('stakes', () => {
     const run = make(MAX_STAKE);
     expect(run.config.stake).toBe(MAX_STAKE);
     expect(run.config.lossCap).toBeLessThanOrEqual(2);
-    expect(run.config.playoffTeams).toBe(2);
+    expect(run.config.playoffTeams).toBe(cfg.playoffTeams);
     expect(make(1).config).toEqual({ ...cfg, stake: 1 });
   });
 
@@ -513,8 +513,8 @@ describe('stakes', () => {
     expect([1, 2, 3, 4, 5].some((seed) => make(1, seed).draft.order.at(-1) !== make(1, seed).humanId)).toBe(true);
   });
 
-  it('"AI coaches get +5 budget" gives every AI coach budget + 5 and the human none', () => {
-    const run = make(stakeOf('AI coaches get +5 budget'));
+  it('"Stronger rivals" gives every AI coach budget + 5 and the human none', () => {
+    const run = make(stakeOf('Stronger rivals'));
     for (const c of run.coaches) {
       if (c.isHuman) {
         expect(run.draft.budgets?.[c.id]).toBeUndefined();
@@ -529,15 +529,15 @@ describe('stakes', () => {
     expect(base.draft.budgets).toBeUndefined();
     for (const c of base.coaches) expect(budgetOf(base.draft, c.id, base.config)).toBe(base.config.budget);
     // AI coaches may spend past the human's budget, never past their own.
-    const done = draftedRun(41, { ...cfg, stake: stakeOf('AI coaches get +5 budget') });
+    const done = draftedRun(41, { ...cfg, stake: stakeOf('Stronger rivals') });
     for (const c of done.coaches) {
       const spent = c.roster.reduce((s, r) => s + getDraftMon(r.species)!.points, 0);
       expect(spent).toBeLessThanOrEqual(budgetOf(done.draft, c.id, done.config));
     }
   });
 
-  it('"AI drafts by fit" changes AI picks for the same seed', () => {
-    const fit = stakeOf('AI drafts by fit');
+  it('"Stronger rivals" (draft by fit) changes AI picks for the same seed', () => {
+    const fit = stakeOf('Stronger rivals');
     const picksAt = (stake: number): string[] => {
       const run = draftedRun(41, { ...cfg, stake });
       return run.coaches.filter((c) => !c.isHuman).flatMap((c) => c.roster.map((r) => r.species));
