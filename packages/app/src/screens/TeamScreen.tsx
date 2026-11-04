@@ -5,7 +5,7 @@ import type { BattleSet, MoveRow, RosterEntry, SampleSet, SpeciesId, StatsTable 
 import { SPREAD_PRESETS, exportSetText, fillSet, getDraftMon, humanCoach, moveRows, spreadFor } from '@pdc/engine';
 import { useGame } from '../store/useGame';
 import {
-  DialogueBox, GameButton, IconBadge, ItemIcon, ResponsiveDialog, Panel, PokeSprite, PriceBadge, RoleTags, StatBlock, TypePill, TypePills,
+  CloseButton, DialogueBox, GameButton, IconBadge, ItemIcon, ResponsiveDialog, Panel, PokeSprite, PriceBadge, RoleTags, StatBlock, TypePill, TypePills,
 } from '../components/ui';
 import { displayName, rolesOf } from '../game/names';
 import { MonDetailButton } from '../components/MonDetail';
@@ -287,8 +287,9 @@ export function TeamScreen() {
   return (
     <div className="space-y-4">
       <div className="title-band flex flex-wrap items-center justify-between gap-2">
-        <h1 className="font-display text-3xl font-bold uppercase leading-none">{human.abbrev} team</h1>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <h1 className="mr-auto font-display text-3xl font-bold uppercase leading-none">{human.abbrev} team</h1>
+        <CloseButton onClick={closeOverlay} label="Close team editor" className="sm:order-last" />
+        <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
           <GameButton variant="secondary" size="sm" onClick={() => setRoster('import')}>Import sets</GameButton>
           <GameButton
             variant="secondary"
@@ -298,7 +299,6 @@ export function TeamScreen() {
           >
             Export all
           </GameButton>
-          <GameButton variant="ghost" size="sm" onClick={closeOverlay}>Done</GameButton>
         </div>
       </div>
       {roster === 'import' && <ImportRosterDialog roster={human.roster} teraEnabled={teraEnabled} onClose={() => setRoster(null)} />}

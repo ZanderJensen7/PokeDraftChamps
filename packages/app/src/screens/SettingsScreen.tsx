@@ -7,7 +7,7 @@ import { BugReport } from '../components/BugReport';
 import { NicknameField } from '../components/DailyBits';
 import { useProfile } from '../store/profile';
 import { apiEnabled, apiHost } from '../game/api';
-import { DialogueBox, GameButton, ResponsiveDialog, Panel, PokeSprite, Segmented } from '../components/ui';
+import { CloseButton, DialogueBox, GameButton, ResponsiveDialog, Panel, PokeSprite, Segmented } from '../components/ui';
 
 export function SettingsScreen() {
   const closeOverlay = useGame((s) => s.closeOverlay);
@@ -35,7 +35,7 @@ export function SettingsScreen() {
     <div className="mx-auto max-w-2xl space-y-4">
       <div className="title-band flex items-center justify-between">
         <h1 className="font-display text-3xl font-bold uppercase leading-none">Settings</h1>
-        <GameButton variant="ghost" size="sm" onClick={closeOverlay}>Done</GameButton>
+        <CloseButton onClick={closeOverlay} label="Close settings" />
       </div>
       <Panel title="Sprites">
         <Segmented

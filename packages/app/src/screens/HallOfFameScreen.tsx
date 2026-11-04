@@ -7,7 +7,7 @@ import { useGame } from '../store/useGame';
 import { useProfile } from '../store/profile';
 import { copyText } from '../components/DailyBits';
 import { speciesName, spriteName } from '../game/names';
-import { BadgeEmblem, DialogueBox, GameButton, Panel, PokeIcon, PokeSprite } from '../components/ui';
+import { BackButton, BadgeEmblem, DialogueBox, GameButton, Panel, PokeIcon, PokeSprite } from '../components/ui';
 import { badgeLabel, badgeName } from '../game/badges';
 
 const RUNS_PAGE = 20;
@@ -146,12 +146,10 @@ export function HallOfFameScreen() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-4 py-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <BackButton onClick={() => go('title')} to="title screen" />
         <h1 className="font-display text-3xl font-bold uppercase text-poke-yellow drop-shadow-[0_3px_0_var(--color-edge-dark)] sm:text-4xl">Hall of Fame</h1>
-        <div className="flex gap-2">
-          {runOver && <GameButton variant="secondary" size="sm" onClick={() => go('end')}>Run summary</GameButton>}
-          <GameButton variant="ghost" size="sm" onClick={() => go('title')}>Title screen</GameButton>
-        </div>
+        {runOver && <GameButton variant="secondary" size="sm" className="ml-auto" onClick={() => go('end')}>Run summary</GameButton>}
       </div>
 
       <Panel title="Career" aside={<span>{badgeLabel(stakeUnlocked)} unlocked</span>}>

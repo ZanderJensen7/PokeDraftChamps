@@ -6,7 +6,7 @@ import {
   applyMoveSwap, currentSpeed, deriveSeed, getDraftMon, humanCoach, lineupCoverage, moveRows, spreadOptions, suggestMoveSwaps,
 } from '@pdc/engine';
 import { useGame, validLineup } from '../../store/useGame';
-import { GameButton, IconBadge, Panel, PokeIcon } from '../ui';
+import { BackButton, GameButton, IconBadge, Panel, PokeIcon } from '../ui';
 import { LineupPicker } from './LineupPicker';
 import { MonDetailButton } from '../MonDetail';
 import { FogNote } from '../FogNote';
@@ -286,7 +286,7 @@ export function GuidedPrep({ run, opp, oppRoster, threats }: GuidedPrepProps) {
       )}
 
       <div className="flex items-center gap-2 max-md:fixed max-md:inset-x-0 max-md:bottom-[calc(3.75rem+env(safe-area-inset-bottom))] max-md:z-30 max-md:border-t-4 max-md:border-edge-dark max-md:bg-panel/95 max-md:px-3 max-md:py-2 max-md:backdrop-blur">
-        {at > 0 && <GameButton variant="ghost" onClick={() => go(STEPS[at - 1]!.id)}>Back</GameButton>}
+        {at > 0 && <BackButton onClick={() => go(STEPS[at - 1]!.id)} to={STEPS[at - 1]!.label} />}
         <span className="flex-1" />
         {(step === 'lineup' || step === 'moves' || step === 'evs') && ready && (
           <GameButton variant="ghost" onClick={() => void playMatch()}>Skip<span className="max-sm:hidden"> to battle</span></GameButton>

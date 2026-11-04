@@ -6,6 +6,13 @@ every package.json. The build stamp shows the version and short commit in the co
 
 ## Unreleased
 
+- One way back, one way out: every screen you open from somewhere else (Badge Run, Custom League, Daily, Hall of
+  Fame, Analytics, Prep, Replays) has "‹ Back" at the top left of its title. Dialogs, sheets, Settings and the
+  Team editor close with the ✕ at their top right, and the extra Close / Back buttons in dialog footers are gone
+  ("Cancel" stays only next to a button that commits something). Guided prep steps and the battle switch panel use
+  the same "‹ Back". The hub's "Title" button says "Title screen", like everywhere else.
+- Title screen: "End this run" under Continue deletes your league after a confirm, so you can start fresh (it does
+  not count in the Hall of Fame; your daily run and career stay). Daily now comes before Custom.
 - Guided prep: before each match, prep now walks you through steps: Scout (threats and their roster), Lineup (pick
   your six, or "Suggest lineup"), Moves, EVs, Battle. Moves shows which of their Pokemon your six hit super
   effectively and suggests up to three legal swaps to cover the gaps (it never drops a status move, your last STAB

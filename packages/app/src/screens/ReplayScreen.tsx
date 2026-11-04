@@ -4,7 +4,7 @@ import { useMemo, useRef } from 'react';
 import type { Match, RunState } from '@pdc/engine';
 import { useGame, weekLabel } from '../store/useGame';
 import { useSettings } from '../store/settings';
-import { Crest, DialogueBox, GameButton } from '../components/ui';
+import { BackButton as SharedBackButton, Crest, DialogueBox, GameButton } from '../components/ui';
 import type { FxHandle } from '../components/battle/FxLayer';
 import { REPLAY_SPEEDS, replaySource, useReplay, type ReplaySource } from '../battle/replay';
 import type { MonInfoContext } from '../battle/monInfo';
@@ -22,7 +22,8 @@ export function ReplayScreen() {
 function BackButton({ className = '' }: { className?: string }) {
   const go = useGame((s) => s.go);
   const from = useGame((s) => s.replayFrom);
-  return <GameButton variant="secondary" size="sm" className={className} onClick={() => go(from === 'replay' ? 'hub' : from)}>BACK</GameButton>;
+  const to = from === 'replay' ? 'hub' : from;
+  return <SharedBackButton className={className} onClick={() => go(to)} to={to} />;
 }
 
 function NoReplay() {

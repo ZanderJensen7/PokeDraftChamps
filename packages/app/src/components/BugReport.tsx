@@ -113,7 +113,6 @@ export function BugReport({ onClose }: { onClose: () => void }) {
       onClose={onClose}
       footer={(
         <>
-          <GameButton variant="ghost" onClick={onClose}>Close</GameButton>
           <GameButton variant="secondary" onClick={() => void copy()}>{copied ? 'Copied' : 'Copy report'}</GameButton>
           <GameButton onClick={openIssue}>Open GitHub issue</GameButton>
         </>

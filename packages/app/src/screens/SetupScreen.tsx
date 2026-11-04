@@ -5,7 +5,7 @@ import type { LeagueConfig } from '@pdc/engine';
 import { applyStake, careerStats, DEFAULT_LEAGUE_CONFIG, minBudget, rulesAt, validateLeagueConfig } from '@pdc/engine';
 import { useGame } from '../store/useGame';
 import { useProfile } from '../store/profile';
-import { DialogueBox, GameButton, Panel, Segmented } from '../components/ui';
+import { BackButton, DialogueBox, GameButton, Panel, Segmented } from '../components/ui';
 import { BadgeCase } from '../components/BadgeCase';
 import { LeagueCodeField, TeamPanel, teamValid } from '../components/LeagueStart';
 import { badgeLabel } from '../game/badges';
@@ -147,7 +147,10 @@ export function SetupScreen() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <h1 className="title-band text-3xl">Custom League</h1>
+      <div className="flex items-center gap-3">
+        <BackButton onClick={() => go('title')} to="title screen" />
+        <h1 className="title-band text-3xl">Custom League</h1>
+      </div>
       {hasSave && (
         <DialogueBox>Starting a new league replaces your current saved run. Export it from Settings first if you want to keep it.</DialogueBox>
       )}
@@ -253,8 +256,7 @@ export function SetupScreen() {
         <LeagueCodeField code={code} onChange={setCode} />
       </Panel>
 
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
-        <GameButton variant="ghost" onClick={() => go('title')}>Back</GameButton>
+      <div className="flex flex-col sm:flex-row sm:justify-end">
         <GameButton size="lg" disabled={!valid} onClick={start}>Start Draft</GameButton>
       </div>
     </div>

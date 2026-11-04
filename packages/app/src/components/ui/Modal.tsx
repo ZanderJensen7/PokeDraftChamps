@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Panel } from './Panel';
-import { GameButton } from './GameButton';
+import { CloseButton } from './CloseButton';
 
 interface ModalProps {
   title: ReactNode;
@@ -27,7 +27,7 @@ export function Modal({ title, onClose, children, footer, wide }: ModalProps) {
       <div className={`w-full ${wide ? 'max-w-4xl' : 'max-w-lg'}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <Panel
           title={title}
-          aside={<GameButton variant="ghost" size="sm" onClick={onClose} aria-label="Close">✕</GameButton>}
+          aside={<CloseButton onClick={onClose} />}
         >
           {children}
           {footer && <div className="mt-4 flex flex-wrap justify-end gap-2">{footer}</div>}

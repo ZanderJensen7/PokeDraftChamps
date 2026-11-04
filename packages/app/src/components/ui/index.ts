@@ -9,6 +9,8 @@ export { IconBadge, PokeIcon, ItemIcon, RoleTag, RoleTags } from './IconBadge';
 export type { MonRole } from './IconBadge';
 export { Crest, crestColor } from './Crest';
 export { Modal } from './Modal';
+export { BackButton } from './BackButton';
+export { CloseButton } from './CloseButton';
 export { PokeBallLogo } from './PokeBallLogo';
 export { BadgeEmblem } from './BadgeEmblem';
 export type { BadgeState } from './BadgeEmblem';
